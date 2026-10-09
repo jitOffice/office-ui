@@ -1,0 +1,313 @@
+/*
+ * @jitoffice/tokens — 由 packages/tokens/scripts/generate.ts 生成，请勿手改。
+源：packages/tokens/src/tokens.ts（唯一手写来源）。
+ */
+
+
+:root {
+  color-scheme: light;
+  /* ---- color ---- */
+  --oj-brand-1: #F0F5FF;
+  --oj-brand-2: #CCDCFF;
+  --oj-brand-3: #A3BFFF;
+  --oj-brand-4: #709CFF;
+  --oj-brand-5: #427CFF;
+  --oj-brand-6: #165DFF;
+  --oj-brand-7: #0046E6;
+  --oj-brand-8: #003ABD;
+  --oj-brand-9: #002F99;
+  --oj-brand-10: #002270;
+  --oj-success-1: #E8FDF6;
+  --oj-success-2: #D0FBED;
+  --oj-success-3: #ABF8DE;
+  --oj-success-4: #7CF4CC;
+  --oj-success-5: #51F0BB;
+  --oj-success-6: #27ECAB;
+  --oj-success-7: #12D393;
+  --oj-success-8: #10B981;
+  --oj-success-9: #0C8D62;
+  --oj-success-10: #096748;
+  --oj-warning-1: #FEF0E6;
+  --oj-warning-2: #FEE1CD;
+  --oj-warning-3: #FDC9A6;
+  --oj-warning-4: #FBAB74;
+  --oj-warning-5: #FA9047;
+  --oj-warning-6: #F97316;
+  --oj-warning-7: #E05F06;
+  --oj-warning-8: #B84E05;
+  --oj-warning-9: #953F04;
+  --oj-warning-10: #6D2E03;
+  --oj-danger-1: #FFE5E5;
+  --oj-danger-2: #FFCCCC;
+  --oj-danger-3: #FFA3A3;
+  --oj-danger-4: #FF6B6B;
+  --oj-danger-5: #FF4242;
+  --oj-danger-6: #FF1414;
+  --oj-danger-7: #E60000;
+  --oj-danger-8: #BD0000;
+  --oj-danger-9: #990000;
+  --oj-danger-10: #700000;
+  --oj-gray-1: #F5F5F5;
+  --oj-gray-2: #E6E6E6;
+  --oj-gray-3: #D9D9D9;
+  --oj-gray-4: #C7C7C7;
+  --oj-gray-5: #ADADAD;
+  --oj-gray-6: #8C8C8C;
+  --oj-gray-7: #6B6B6B;
+  --oj-gray-8: #4D4D4D;
+  --oj-gray-9: #303030;
+  --oj-gray-10: #151515;
+  --oj-chart-1: #165DFF;
+  --oj-chart-2: #10B981;
+  --oj-chart-3: #F97316;
+  --oj-chart-4: #7C3AED;
+  --oj-chart-5: #0891B2;
+  --oj-chart-6: #DB2777;
+  --oj-chart-7: #FACC15;
+  --oj-chart-8: #4F46E5;
+  --oj-color-brand: var(--oj-brand-6);
+  --oj-color-success: var(--oj-success-8);
+  --oj-color-warning: var(--oj-warning-6);
+  --oj-color-danger: var(--oj-danger-4);
+  --oj-color-info: var(--oj-brand-6);
+  /* ---- text ---- */
+  --oj-text-1: #151515;  /* 标题/正文 */
+  --oj-text-2: #3D3D45;
+  --oj-text-3: #6C6F7D;  /* 实测次文本 */
+  --oj-text-4: #8A8C96;  /* 占位符。实测 #9A9CA6 对白底仅 2.73:1，连 3:1 底线都不过，已加深 */
+  --oj-text-5: #C9CAD1;  /* 禁用态：WCAG 1.4.3 豁免 inactive controls，不设数值门槛，但受灰阶次序断言约束 */
+  --oj-text-inverse: #FFFFFF;
+  --oj-text-brand: var(--oj-brand-6);
+  --oj-text-link: var(--oj-brand-6);
+  --oj-text-success: var(--oj-success-10);  /* success-9 对白底仅 4.20:1，正文级必须用第 10 档 */
+  --oj-text-warning: var(--oj-warning-8);
+  --oj-text-danger: #D93A3A;  /* 实测 #FF6B6B 对白底 2.78:1，正文级危险文字必须用深色档；暗色镜像只适用于 var() 引用，字面色须两主题各给一个 */
+  /* ---- bg ---- */
+  --oj-bg-page: #F7F8FC;  /* 应用底，毛玻璃需要底下有内容可透 */
+  --oj-bg-container: #FFFFFF;
+  --oj-bg-elevated: #FFFFFF;
+  --oj-bg-glass: rgba(255, 255, 255, 0.92);
+  --oj-bg-glass-soft: rgba(255, 255, 255, 0.72);
+  --oj-bg-mask: rgba(21, 21, 21, 0.45);
+  --oj-bg-hover: #F2F3F7;
+  --oj-bg-active: #E8ECFF;  /* 实测描边色复用为选中底 */
+  --oj-bg-brand: var(--oj-brand-6);
+  --oj-bg-brand-subtle: #F0F5FF;
+  --oj-bg-success-subtle: var(--oj-success-1);
+  --oj-bg-warning-subtle: var(--oj-warning-1);
+  --oj-bg-danger-subtle: var(--oj-danger-1);
+  /* ---- border ---- */
+  --oj-border-1: #E8ECFF;  /* 主边框，带蓝调（实测） */
+  --oj-border-2: #E5E6EB;
+  --oj-border-3: #D0D2DB;  /* 强边框/输入框 */
+  --oj-border-grid: #EDEEF2;  /* canvas 网格线 */
+  --oj-border-brand: var(--oj-brand-6);
+  --oj-focus-ring: 0 0 0 2px var(--oj-brand-3);
+  /* ---- shadow ---- */
+  --oj-shadow-1: 0 1px 2px rgba(21, 21, 21, 0.04), 0 2px 8px rgba(22, 93, 255, 0.06);
+  --oj-shadow-2: 0 4px 16px rgba(21, 21, 21, 0.08), 0 1px 3px rgba(22, 93, 255, 0.08);
+  --oj-shadow-3: 0 12px 40px rgba(21, 21, 21, 0.14);
+  /* ---- glass ---- */
+  --oj-glass-blur: 40px;
+  --oj-glass-blur-soft: 8px;
+  --oj-glass-highlight: inset 0 1px 2px rgba(255, 255, 255, 0.9);
+  /* ---- radius ---- */
+  --oj-radius-xs: 4px;  /* 标签 */
+  --oj-radius-sm: 6px;  /* 按钮 */
+  --oj-radius-md: 8px;
+  --oj-radius-lg: 12px;  /* 内层卡片 */
+  --oj-radius-xl: 20px;  /* 外层卡片（实测） */
+  --oj-radius-full: 9999px;
+  /* ---- space ---- */
+  --oj-space-1: 4px;
+  --oj-space-2: 8px;
+  --oj-space-3: 12px;
+  --oj-space-4: 16px;
+  --oj-space-5: 20px;
+  --oj-space-6: 24px;
+  --oj-space-8: 32px;
+  --oj-space-10: 40px;
+  /* ---- font ---- */
+  --oj-font-sans: "Inter Variable", ui-sans-serif, system-ui, "PingFang SC", "Microsoft YaHei", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", "Noto Sans SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+  --oj-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+  --oj-font-mono-cjk: "Sarasa Mono SC", "Source Han Mono SC", var(--oj-font-mono);
+  --oj-font-doc: "Source Han Serif SC", "Noto Serif SC", "Songti SC", SimSun, serif;  /* 文档正文排版，Office 场景必须有衬线选项 */
+  --oj-fs-12: 12px;
+  --oj-fs-13: 13px;  /* Ribbon 实际工作字号，不可省略 */
+  --oj-fs-14: 14px;
+  --oj-fs-16: 16px;
+  --oj-fs-18: 18px;
+  --oj-fs-20: 20px;
+  --oj-fs-24: 24px;
+  --oj-fs-32: 32px;
+  --oj-lh-tight: 1.25;
+  --oj-lh-normal: 1.5;  /* 日文用 JIS 惯例值 */
+  --oj-lh-loose: 1.75;
+  --oj-letter-spacing: 0em;
+  /* ---- motion ---- */
+  --oj-motion-duration-fast: 100ms;
+  --oj-motion-duration-base: 200ms;
+  --oj-motion-duration-slow: 300ms;
+  --oj-motion-ease-out: cubic-bezier(0.34, 0.69, 0.10, 1.00);
+  --oj-motion-ease-std: cubic-bezier(0.40, 0.00, 0.20, 1.00);
+  /* ---- control ---- */
+  --oj-control-height-xs: 24px;
+  --oj-control-height-sm: 28px;
+  --oj-control-height-md: 32px;
+  --oj-control-height-lg: 40px;
+  --oj-ribbon-height: 96px;
+  /* ---- z ---- */
+  --oj-z-canvas: 0;
+  --oj-z-sticky: 10;  /* 表格冻结行列、行号列 */
+  --oj-z-ribbon: 100;
+  --oj-z-drawer: 500;
+  --oj-z-dropdown: 1000;
+  --oj-z-modal: 2000;
+  --oj-z-popover: 3000;
+  --oj-z-toast: 4000;
+  --oj-z-max: 9000;  /* 全屏演示/放映模式 */
+  /* ---- button ---- */
+  --oj-button-height: var(--oj-control-height-md);
+  --oj-button-padding-x: var(--oj-space-4);
+  --oj-button-radius: var(--oj-radius-sm);
+  --oj-button-bg: transparent;
+  --oj-button-color: var(--oj-text-1);
+  --oj-button-border: var(--oj-border-3);
+  --oj-button-gap: var(--oj-space-2);
+  --oj-button-icon-size: 16px;  /* 图标按钮，与 Ribbon 字号同级 */
+  /* ---- grid-picker ---- */
+  --oj-grid-picker-cell: 16px;  /* 表格选择器单格边长 */
+  --oj-grid-picker-gap: 2px;
+  --oj-grid-picker-cell-bg: var(--oj-border-2);
+  --oj-grid-picker-cell-active-bg: var(--oj-brand-6);
+  --oj-grid-picker-label-color: var(--oj-text-3);
+  --oj-grid-picker-max-cols: 10;  /* 单位无关，canvas 与 CSS 共用 */
+  --oj-grid-picker-max-rows: 10;
+}
+
+html[data-oj-theme="dark"],
+html.dark {
+  color-scheme: dark;
+  --oj-brand-1: #002270;
+  --oj-brand-2: #002F99;
+  --oj-brand-3: #003ABD;
+  --oj-brand-4: #0046E6;
+  --oj-brand-5: #165DFF;
+  --oj-brand-6: #4080FF;
+  --oj-brand-7: #709CFF;
+  --oj-brand-8: #A3BFFF;
+  --oj-brand-9: #CCDCFF;
+  --oj-brand-10: #F0F5FF;
+  --oj-success-1: #096748;
+  --oj-success-2: #0C8D62;
+  --oj-success-3: #10B981;
+  --oj-success-4: #12D393;
+  --oj-success-5: #27ECAB;
+  --oj-success-6: #51F0BB;
+  --oj-success-7: #7CF4CC;
+  --oj-success-8: #ABF8DE;
+  --oj-success-9: #D0FBED;
+  --oj-success-10: #E8FDF6;
+  --oj-warning-1: #6D2E03;
+  --oj-warning-2: #953F04;
+  --oj-warning-3: #B84E05;
+  --oj-warning-4: #E05F06;
+  --oj-warning-5: #F97316;
+  --oj-warning-6: #FA9047;
+  --oj-warning-7: #FBAB74;
+  --oj-warning-8: #FDC9A6;
+  --oj-warning-9: #FEE1CD;
+  --oj-warning-10: #FEF0E6;
+  --oj-danger-1: #700000;
+  --oj-danger-2: #990000;
+  --oj-danger-3: #BD0000;
+  --oj-danger-4: #E60000;
+  --oj-danger-5: #FF1414;
+  --oj-danger-6: #FF4242;
+  --oj-danger-7: #FF6B6B;
+  --oj-danger-8: #FFA3A3;
+  --oj-danger-9: #FFCCCC;
+  --oj-danger-10: #FFE5E5;
+  --oj-gray-1: #151515;
+  --oj-gray-2: #303030;
+  --oj-gray-3: #4D4D4D;
+  --oj-gray-4: #6B6B6B;
+  --oj-gray-5: #8C8C8C;
+  --oj-gray-6: #ADADAD;
+  --oj-gray-7: #C7C7C7;
+  --oj-gray-8: #D9D9D9;
+  --oj-gray-9: #E6E6E6;
+  --oj-gray-10: #F5F5F5;
+  --oj-text-1: #F2F3F5;
+  --oj-text-2: #D4D6DE;
+  --oj-text-3: #A0A3B0;
+  --oj-text-4: #7A7D8B;
+  --oj-text-5: #55585F;
+  --oj-text-inverse: #151515;
+  --oj-text-danger: #EA9090;
+  --oj-bg-page: #101114;
+  --oj-bg-container: #17181C;
+  --oj-bg-elevated: #1F2027;
+  --oj-bg-glass: rgba(23, 24, 28, 0.88);
+  --oj-bg-glass-soft: rgba(23, 24, 28, 0.6);
+  --oj-bg-mask: rgba(0, 0, 0, 0.6);
+  --oj-bg-hover: #262832;
+  --oj-bg-active: #1D2A45;
+  --oj-bg-brand-subtle: #1B2440;
+  --oj-border-1: #26304D;
+  --oj-border-2: #2A2C34;
+  --oj-border-3: #3A3D47;
+  --oj-border-grid: #23252C;
+  --oj-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --oj-shadow-2: 0 4px 16px rgba(0, 0, 0, 0.44), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --oj-shadow-3: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --oj-glass-highlight: inset 0 1px 2px rgba(255, 255, 255, 0.08);
+}
+
+html[data-oj-density="compact"] {
+  --oj-fs-14: 13px;
+  --oj-fs-16: 14px;
+  --oj-fs-18: 16px;
+  --oj-fs-20: 18px;
+  --oj-fs-24: 22px;
+  --oj-fs-32: 28px;
+  --oj-control-height-xs: 22px;
+  --oj-control-height-sm: 24px;
+  --oj-control-height-md: 28px;
+  --oj-control-height-lg: 34px;
+  --oj-ribbon-height: 76px;
+  --oj-button-padding-x: var(--oj-space-3);
+}
+
+html[lang|="zh-TW"],
+html[lang|="zh-Hant"] {
+  --oj-font-sans: "Inter Variable", ui-sans-serif, system-ui, "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji";
+}
+
+html[lang|="ja"] {
+  --oj-font-sans: "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+  --oj-fs-14: 13px;
+  --oj-fs-16: 15px;
+  --oj-lh-normal: 1.5715;
+  --oj-letter-spacing: 0.02em;
+}
+
+/* ---- 排版重置：元素级规则，不是 token，因此不出现在 JS 产物与 tokenNames 里。
+   text-autospace 不加 @supports：老内核丢掉这条声明的后果只是少插 0.25em 间隙，不会排错版，
+   也确实没有可降级的替代值可给。实测 Chromium 150 里 UA 默认值就是 no-autospace，
+   所以这条声明是载荷性的：每个中日韩↔拉丁边界插入 0.25em（16px 样本实测 +8px）。
+   注意该内核只认 normal 与 no-autospace 两个关键字，写成 ideograph-alpha ideograph-numeric
+   会被整条丢弃——不要"顺手写全一点"。
+   line-break: strict 实测生效（行末可断字符集与 auto/loose 不同），代价是长音符 ー 也禁止
+   落在行末，个别行会提前折行——这是 JIS 惯例，与「。」『」落在行首相比，
+   后者才是日文读者无法接受的错误。 */
+html[lang|="ja"] body {
+  line-break: strict;
+  word-break: normal;
+  text-underline-position: from-font;
+  text-autospace: normal;
+}
+
+html:not([lang|="ja"]) body {
+  -webkit-font-smoothing: antialiased;
+}

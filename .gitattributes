@@ -1,0 +1,6 @@
+# 全仓统一 LF。这条不是代码风格，是正确性前提：
+# `packages/tokens/dist/**` 是**入库的生成物**，而产物新鲜度门禁把它们与 `generate.ts` 的输出逐字节比较。
+# 开发机若开着 `core.autocrlf=true`（Windows 上 git 安装程序的默认值），克隆出来的 dist 会是 CRLF，
+# 于是 `pnpm verify` 在每个 Windows 克隆上必报"dist 已过期"，而 Linux CI 永远是绿的。
+# 实测过：把 dist/index.css 换成 CRLF，门禁立刻红；重跑 `pnpm tokens:gen` 恢复。
+* text=auto eol=lf

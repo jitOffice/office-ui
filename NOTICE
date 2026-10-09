@@ -1,0 +1,102 @@
+office-ui
+Copyright 2026 JIT Office / office-ui contributors
+
+This product includes software developed at
+JitWord (https://jitword.com) and JitKnow (https://know.jitword.com).
+
+================================================================================
+LICENSE POLICY
+================================================================================
+
+office-ui is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+All runtime and development dependencies are restricted to the following
+permissive licenses. This restriction is enforced in CI, not by convention:
+
+    MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC,
+    SIL OFL 1.1 (fonts only), 0BSD
+
+Explicitly prohibited as dependencies or bundled assets:
+
+    GPL-2.0-or-later, GPL-3.0, LGPL-2.1, AGPL-3.0, SSPL,
+    CC-BY-SA-4.0 (share-alike is incompatible with Apache-2.0 combined works),
+    CC-BY-NC-*, and any proprietary / source-available / dual-licensed work.
+
+Any addition outside the permitted list requires an Architecture Decision
+Record covering the license, the transitive dependency tree, and the bundle
+size impact, plus maintainer approval.
+
+================================================================================
+THIRD-PARTY NOTICES
+================================================================================
+
+# Entries below are added when code or assets are actually incorporated.
+# Each entry must state: component name, upstream copyright holder, license
+# identifier, upstream URL, and the specific files or modules affected.
+#
+# Copying a snippet from an MIT or Apache-2.0 upstream is permitted and is
+# directionally compatible with this project's Apache-2.0 license, but the
+# upstream copyright notice must be retained in the source file AND listed
+# here. See prd/00-product-positioning.md, license red line #7.
+
+(None yet — the repository currently contains design documentation only.)
+
+================================================================================
+PENDING ATTRIBUTION OBLIGATIONS
+================================================================================
+
+The following are known obligations to resolve BEFORE the first public
+release. They are tracked here so they are not forgotten:
+
+1. Icon set (@jitoffice/icons)
+   All icons are drawn from scratch for this project. No third-party icon
+   fonts or icon packages may be bundled: a compiled font binary silently
+   merges the licenses of its individual glyphs and the per-glyph license
+   files are typically dropped at build time, which breaks the attribution
+   chain irrecoverably.
+   Status: no icons implemented yet.
+
+2. Emoji / symbol assets
+   Not bundled. Symbol insertion renders Unicode text via the user's font
+   stack. If graphic emoji are ever introduced, note that OpenMoji is
+   CC-BY-SA-4.0 (incompatible), and Twemoji assets are CC-BY-4.0
+   (attribution required even though its code is MIT).
+   Status: policy set, no assets.
+
+3. Fonts
+   Only OFL-1.1 / Apache-2.0 families may be bundled, and only as an opt-in
+   package (@jitoffice/tokens/fonts). Candidate families: Inter,
+   Noto Sans SC, Noto Sans JP, Source Han Sans, Source Han Serif,
+   JetBrains Mono, Sarasa Gothic.
+   "PingFang SC", "Microsoft YaHei" / "微软雅黑", "Yu Gothic" and
+   "Hiragino Kaku Gothic ProN" may appear ONLY as local-name fallbacks in
+   font-family strings. Referencing a family name is not redistribution;
+   packaging the font file is.
+   Sarasa Gothic's license must be re-verified at every release.
+   Status: no fonts bundled.
+
+4. Default theme derived from JitWord / JitKnow UI
+   The default design tokens are seeded from values observed at runtime on
+   https://jitword.com and https://know.jitword.com (see
+   prd/01-design-tokens.md, section 0).
+   Imitating a visual style is not infringement; shipping exported assets
+   from a design file IS a derivative work. Written confirmation of rights /
+   assignment from the design owner must be obtained and archived under
+   docs/legal/ before the default theme is published.
+   Status: OUTSTANDING — blocking for first release.
+
+5. Documentation and demo content
+   Screenshots, sample documents, and preset templates must not contain real
+   company names, third-party trademarks, or recognizable Microsoft Office
+   interface elements. Microsoft Office's icons, fonts, and interface
+   elements are protected by Microsoft trademark and copyright.
+   Status: no content yet.
+
+6. Design research sources
+   prd/ documents cite observable facts about Element Plus, Arco Design Vue,
+   Naive UI, TDesign Vue Next, Ant Design Vue, Vant, and DevUI — package
+   metadata, license fields, build scripts, and published dist output. These
+   are referenced for comparison and no source code has been copied from
+   them. All are MIT-licensed, which would permit copying with attribution
+   under the rules at the top of this file should that become necessary.
+   Status: reference only, no code incorporated.

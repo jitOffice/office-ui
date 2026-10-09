@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "设计文档与开放问题"
+    url: "https://github.com/jitOffice/office-ui/tree/main/prd"
+    about: "先读 prd/ 下那 6 份文档与开放问题清单，多数「这是不是设计如此」的疑问在那里有答案"
+
+  - name: "报告安全漏洞（私密）"
+    url: "https://github.com/jitOffice/office-ui/security/advisories/new"
+    about: "安全缺陷请走私密渠道，不要开公开 issue"
+
+  - name: "贡献流程与环境要求"
+    url: "https://github.com/jitOffice/office-ui/blob/main/CONTRIBUTING.md"
+    about: "门禁能在没有 node_modules 的环境下跑；提 PR 前先读第 1、2、3 节"

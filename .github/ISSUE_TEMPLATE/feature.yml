@@ -1,0 +1,105 @@
+name: "功能 / API 提案"
+description: "新增组件、新增 API、或改变既有行为。请先谈契约再写实现"
+title: "[feat] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本库有明确的边界：**只做办公交互外壳，不做后台管理组件，不做文档引擎内核。**
+        先确认你的提案落在这个边界内（见
+        [`prd/00-product-positioning.md`](https://github.com/jitOffice/office-ui/blob/main/prd/00-product-positioning.md)），
+        否则大概率会被拒绝。
+
+        与 `prd/` 既有结论**相反**的提案必须走 ADR，不是走 issue。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: "要解决的问题（不是解决方案）"
+      description: |
+        描述你在办公场景里遇到的真实问题：谁、在做什么任务、现在怎么做、哪里断掉。
+        写"我需要一个新的 `OjDropdownButtonGroup`"是方案不是问题，请先把它翻译成问题。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: "它属于哪一层"
+      description: "分层是本库的架构约束（L1 外壳 / L2 可选内核 / 整页模板）"
+      options:
+        - "L1 · 办公交互外壳（Ribbon、拾取器、命令、浮层）"
+        - "L2 · 编辑器外壳（标尺、页面、缩放、批注槽、网格容器）"
+        - "preset · 整页模板"
+        - "tokens / icons / i18n 基础包"
+        - "构建与工程化"
+        - "我不确定"
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior
+    attributes:
+      label: "现有方案为什么不够"
+      description: |
+        请具体到：用哪个组件凑、凑不出来卡在哪儿。
+        **"Element Plus / Arco 有这个东西"不构成理由** —— 我们的判据是办公场景约束、
+        内网部署约束、canvas 渲染约束或实测数据（见 `docs/adr/README.md`）。
+    validations:
+      required: true
+
+  - type: textarea
+    id: api
+    attributes:
+      label: "期望的公开契约"
+      description: |
+        props / events / slots / 命令 id / token 变量名 / class 名，写出来。
+        契约一旦发布就是长期负担，模糊的提案无法评审。
+      render: ts
+      placeholder: |
+        <OjTableGridPicker :max="10" @pick="(size) => …" />
+        --oj-table-grid-picker-cell-size
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deps
+    attributes:
+      label: "需要引入新的运行时依赖吗"
+      description: "运行时依赖为零是 ADR-0004，CI 会检查发布包的 `dependencies` 必须为空"
+      options:
+        - "不需要，可自研"
+        - "需要第三方库 —— 我会同时提交一份 ADR 说明为什么必须破例"
+        - "需要新的 CSS/JS 浏览器能力 —— 受 ADR-0002 基线约束，尚未定案"
+    validations:
+      required: true
+
+  - type: textarea
+    id: i18n
+    attributes:
+      label: "中英日繁四语的文案与排版影响"
+      description: |
+        新增界面文案必须一次给齐四语，或明确标注 `native-review`（日文需母语者复核，不接受机翻直接上线）。
+        若影响字号、行高、字距、字体栈或换行规则，请说明需要哪一档 `tokenLang` 覆写。
+    validations:
+      required: false
+
+  - type: textarea
+    id: a11y
+    attributes:
+      label: "无障碍与键盘路径"
+      description: |
+        给出完整键盘路径（`Tab` / 方向键 / `Enter` / `Esc`）与读屏播报内容。
+        没有键盘方案的交互提案我们无法实现——Ribbon、拾取器、批注这类组件的键盘路径是功能本身。
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "你考虑过的替代方案"
+      description: "包括「什么都不做」这一项。写清它为什么不够"
+    validations:
+      required: false

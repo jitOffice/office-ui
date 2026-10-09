@@ -1,0 +1,19 @@
+/*
+ * @jitoffice/tokens — 由 packages/tokens/scripts/generate.ts 生成，请勿手改。
+源：packages/tokens/src/tokens.ts（唯一手写来源）。
+ */
+
+html[data-oj-density="compact"] {
+  --oj-fs-14: 13px;
+  --oj-fs-16: 14px;
+  --oj-fs-18: 16px;
+  --oj-fs-20: 18px;
+  --oj-fs-24: 22px;
+  --oj-fs-32: 28px;
+  --oj-control-height-xs: 22px;
+  --oj-control-height-sm: 24px;
+  --oj-control-height-md: 28px;
+  --oj-control-height-lg: 34px;
+  --oj-ribbon-height: 76px;
+  --oj-button-padding-x: var(--oj-space-3);
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@jitoffice/tokens",
+  "version": "0.0.0",
+  "description": "Seed/alias/component 三层设计变量，CSS + JS 双产物",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./css": "./dist/index.css",
+    "./themes/dark.css": "./dist/themes/dark.css",
+    "./themes/compact.css": "./dist/themes/compact.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/generate.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "test:visual": "playwright test --config playwright.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:"
+  }
+}

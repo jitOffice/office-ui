@@ -1,0 +1,118 @@
+name: "缺陷报告 / Bug report"
+description: "报告一个可复现的功能、样式或产物缺陷"
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        没有复现路径的缺陷报告无法定位，我们会直接关闭。
+        办公组件库的缺陷大多与"内容来自他人"或"渲染在 canvas 里"有关，请在下面尽量说清这两点。
+
+        无障碍问题请用 **a11y 模板**提交，不要用本模板。
+
+  - type: input
+    id: reproduction
+    attributes:
+      label: "复现链接（必填）"
+      description: |
+        优先用文档站 Playground 的分享链接。没有 Playground 可用时，给一个能一条命令跑起来的最小仓库
+        （`git clone` → `pnpm i` → `pnpm dev` 即可）。
+        请勿贴截图代替代码复现路径。
+      placeholder: "https://…/playground#eyJ…" 或最小仓库 URL
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: "出问题的使用方式"
+      description: "同一份代码在四种产物下行为不同，这一项决定我们去查哪条链路"
+      options:
+        - "ESM（打包器 tree-shaking）"
+        - "CJS（SSR / Node）"
+        - "UMD `<script>`"
+        - "jQuery / 声明式 `data-oj-*`"
+        - "canvas 渲染层（读取 JS token 产物）"
+        - "文档站 / Playground 本身"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "复现步骤"
+      description: "从干净页面开始，逐步写清。步骤超过 6 步的话，说明问题可能被高估了"
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "期望结果与实际结果"
+      description: "请分别写清，并说明你判断「正确」的依据（token 规范、prd 条款、还是既有组件的行为）"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: lang
+    attributes:
+      label: "出现问题的语言"
+      description: |
+        界面语言会真实改变视觉参数（字号、行高、字距、字体栈、换行规则），
+        只在某一语言下出现的缺陷往往是 `html[lang|="…"]` 覆写层的问题。
+      options:
+        - "zh-CN"
+        - "zh-TW"
+        - "ja-JP"
+        - "en-US"
+        - "与语言无关"
+        - "只在部分语言下出现"
+    validations:
+      required: true
+
+  - type: input
+    id: html-lang
+    attributes:
+      label: "页面实际的 `html[lang]` 值"
+      description: "控制台执行 `document.documentElement.lang` 的返回值。带地区子标签（如 `ja-JP`）时请原样填"
+      placeholder: "ja-JP"
+    validations:
+      required: false
+
+  - type: input
+    id: env
+    attributes:
+      label: "环境"
+      description: "浏览器与版本、Node 版本、包版本（或 commit）、构建工具与版本"
+      placeholder: "Chrome 126 / Node 24.18 / @jitoffice/ui 0.1.0 / Vite 5.4"
+    validations:
+      required: true
+
+  - type: textarea
+    id: verify
+    attributes:
+      label: "`pnpm verify` 输出"
+      description: "如果你改动了本仓库代码，请贴 `pnpm verify` 的完整输出；纯使用者可留空"
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "提交前确认"
+      options:
+        - label: "我已用上面的复现链接确认问题依然存在，不是本地未提交改动导致"
+          required: true
+        - label: "我已搜索过现有 issue，没有重复"
+          required: true
+        - label: "复现材料不含真实用户数据或内部凭据"
+          required: true
+        - label: "涉及视觉差异时，我附上了中/繁/日三语下的对照截图"
+          required: false

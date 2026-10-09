@@ -1,0 +1,33 @@
+packages:
+  - 'packages/*'
+  - 'docs'
+  - 'playground'
+  - 'internal/*'
+
+# 一处声明版本，全包用 `catalog:` 引用（抄 Element Plus 的实践）
+# 版本号按 2026-10-09 registry 实测的 latest 钉定，改动前先复核，不要凭记忆写。
+catalog:
+  typescript: ~7.0.2
+  '@types/node': ~24.19.1
+  vue: ~3.5.43
+  vite: ^8.3.4
+  vitest: ^5.0.3
+  '@vue/test-utils': ^2.5.1
+  '@vitejs/plugin-vue': ^6.0.9
+  sass: ^1.105.1
+  turbo: ^2.11.7
+  playwright: ^1.64.0
+  '@playwright/test': ^1.64.0
+  vitepress: ^1.6.4
+  minisearch: ^7.2.0
+  '@changesets/cli': ^3.0.3
+
+catalogMode: prefer
+
+# 供应链防护：拒绝安装发布不足 24h 的包。
+# npm 投毒的主流路径是劫持维护者账号后立刻发版，数小时后才被发现。
+minimumReleaseAge: 1440
+
+onlyBuiltDependencies:
+  - esbuild
+  - sass-embedded

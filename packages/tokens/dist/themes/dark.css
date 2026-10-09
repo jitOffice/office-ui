@@ -1,0 +1,83 @@
+/*
+ * @jitoffice/tokens — 由 packages/tokens/scripts/generate.ts 生成，请勿手改。
+源：packages/tokens/src/tokens.ts（唯一手写来源）。
+ */
+
+html[data-oj-theme="dark"],
+html.dark {
+  color-scheme: dark;
+  --oj-brand-1: #002270;
+  --oj-brand-2: #002F99;
+  --oj-brand-3: #003ABD;
+  --oj-brand-4: #0046E6;
+  --oj-brand-5: #165DFF;
+  --oj-brand-6: #4080FF;
+  --oj-brand-7: #709CFF;
+  --oj-brand-8: #A3BFFF;
+  --oj-brand-9: #CCDCFF;
+  --oj-brand-10: #F0F5FF;
+  --oj-success-1: #096748;
+  --oj-success-2: #0C8D62;
+  --oj-success-3: #10B981;
+  --oj-success-4: #12D393;
+  --oj-success-5: #27ECAB;
+  --oj-success-6: #51F0BB;
+  --oj-success-7: #7CF4CC;
+  --oj-success-8: #ABF8DE;
+  --oj-success-9: #D0FBED;
+  --oj-success-10: #E8FDF6;
+  --oj-warning-1: #6D2E03;
+  --oj-warning-2: #953F04;
+  --oj-warning-3: #B84E05;
+  --oj-warning-4: #E05F06;
+  --oj-warning-5: #F97316;
+  --oj-warning-6: #FA9047;
+  --oj-warning-7: #FBAB74;
+  --oj-warning-8: #FDC9A6;
+  --oj-warning-9: #FEE1CD;
+  --oj-warning-10: #FEF0E6;
+  --oj-danger-1: #700000;
+  --oj-danger-2: #990000;
+  --oj-danger-3: #BD0000;
+  --oj-danger-4: #E60000;
+  --oj-danger-5: #FF1414;
+  --oj-danger-6: #FF4242;
+  --oj-danger-7: #FF6B6B;
+  --oj-danger-8: #FFA3A3;
+  --oj-danger-9: #FFCCCC;
+  --oj-danger-10: #FFE5E5;
+  --oj-gray-1: #151515;
+  --oj-gray-2: #303030;
+  --oj-gray-3: #4D4D4D;
+  --oj-gray-4: #6B6B6B;
+  --oj-gray-5: #8C8C8C;
+  --oj-gray-6: #ADADAD;
+  --oj-gray-7: #C7C7C7;
+  --oj-gray-8: #D9D9D9;
+  --oj-gray-9: #E6E6E6;
+  --oj-gray-10: #F5F5F5;
+  --oj-text-1: #F2F3F5;
+  --oj-text-2: #D4D6DE;
+  --oj-text-3: #A0A3B0;
+  --oj-text-4: #7A7D8B;
+  --oj-text-5: #55585F;
+  --oj-text-inverse: #151515;
+  --oj-text-danger: #EA9090;
+  --oj-bg-page: #101114;
+  --oj-bg-container: #17181C;
+  --oj-bg-elevated: #1F2027;
+  --oj-bg-glass: rgba(23, 24, 28, 0.88);
+  --oj-bg-glass-soft: rgba(23, 24, 28, 0.6);
+  --oj-bg-mask: rgba(0, 0, 0, 0.6);
+  --oj-bg-hover: #262832;
+  --oj-bg-active: #1D2A45;
+  --oj-bg-brand-subtle: #1B2440;
+  --oj-border-1: #26304D;
+  --oj-border-2: #2A2C34;
+  --oj-border-3: #3A3D47;
+  --oj-border-grid: #23252C;
+  --oj-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --oj-shadow-2: 0 4px 16px rgba(0, 0, 0, 0.44), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --oj-shadow-3: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --oj-glass-highlight: inset 0 1px 2px rgba(255, 255, 255, 0.08);
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@jitoffice/i18n",
+  "version": "0.0.0",
+  "description": "中英日繁四语包、消息语法与 Intl 封装。零运行时依赖，无框架。",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./locales/zh-CN": "./src/locales/zh-CN.ts",
+    "./locales/zh-TW": "./src/locales/zh-TW.ts",
+    "./locales/ja-JP": "./src/locales/ja-JP.ts",
+    "./locales/en-US": "./src/locales/en-US.ts",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "echo \"M0: 源码直出，打包在 M1 接入（见 prd/05 §轨道 A）\" && exit 0",
+    "keys:gen": "node scripts/gen-keys.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

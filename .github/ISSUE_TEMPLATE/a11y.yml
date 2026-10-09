@@ -1,0 +1,124 @@
+name: "无障碍缺陷 / Accessibility issue"
+description: "键盘操作、读屏、对比度、焦点、缩放与语义问题。a11y 缺陷按缺陷处理，不是功能请求"
+title: "[a11y] "
+labels:
+  - a11y
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本库的组件是为"长时间、高频、键盘驱动"的办公场景设计的，
+        键盘路径与焦点行为属于功能本身，不是附加项。
+        **视觉稿没画焦点环不构成不修的理由。**
+
+  - type: textarea
+    id: task
+    attributes:
+      label: "你在完成什么任务"
+      description: "用一句人话描述目标，例如「在表格里插入 5×3 的表并给首行加粗」。任务比组件更重要——我们要知道哪条路径断了"
+      placeholder: "在表格里插入 5×3 的表并给首行加粗"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: blocker
+    attributes:
+      label: "阻断类型"
+      options:
+        - "无法只用键盘完成（没有可达路径）"
+        - "焦点丢失 / 焦点顺序错乱 / 焦点环不可见"
+        - "读屏无播报或播报错误（名称、角色、状态）"
+        - "对比度不足"
+        - "放大 200% / 减少动效后不可用"
+        - "语义或地标结构错误（role、aria-*）"
+        - "快捷键与辅助技术冲突"
+        - "其他"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: at
+    attributes:
+      label: "使用的辅助技术"
+      description: "中文环境与英文环境的读屏差异很大，请给出具体组合"
+      options:
+        - "NVDA + Firefox / Chrome"
+        - "JAWS + Chrome"
+        - "VoiceOver + Safari（macOS）"
+        - "TalkBack（Android）"
+        - "中文读屏（争渡 / 其他）"
+        - "仅键盘，未使用读屏"
+        - "仅放大 / 对比度工具"
+        - "自动检测（axe / Lighthouse），无人工验证"
+    validations:
+      required: true
+
+  - type: textarea
+    id: keys
+    attributes:
+      label: "键入顺序与预期"
+      description: |
+        从页面加载完成开始，逐个写出按键（`Tab`、`Shift+Tab`、`Enter`、`Space`、方向键、`Esc`、
+        以及 Ribbon 的 key-tip 序列）。请说明每按一步后焦点应当落在哪里、读到什么。
+      value: |
+        1. `Tab` × 3 → 焦点到达 …，期望播报 …，实际 …
+        2. `Enter` →
+    validations:
+      required: true
+
+  - type: textarea
+    id: contrast
+    attributes:
+      label: "对比度问题的具体数值"
+      description: |
+        仅"对比度问题"类填。给出色值与计算结果，并说明属于文本、图标还是非文本控件边界
+        （WCAG 1.4.3 / 1.4.11 的门限不同）。计算时请注明是否叠在半透明背景上。
+      placeholder: "前景 #A8B0BF / 背景 #1F2430 → 4.1:1，正文文本要求 4.5:1"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: lang
+    attributes:
+      label: "语言环境"
+      description: |
+        日文与繁体会改变字号、行高与字距，某些对比度或焦点尺寸问题只在特定语言下存在；
+        读屏对 CJK 的逐字播报也与拉丁文不同。
+      options:
+        - "zh-CN"
+        - "zh-TW"
+        - "ja-JP"
+        - "en-US"
+        - "与语言无关"
+        - "只在部分语言下出现"
+    validations:
+      required: true
+
+  - type: input
+    id: reproduction
+    attributes:
+      label: "复现链接（必填）"
+      description: "Playground 分享链接或最小仓库。自动检测报告不构成复现路径"
+    validations:
+      required: true
+
+  - type: textarea
+    id: standard
+    attributes:
+      label: "对应的验收条款"
+      description: "能对应到 WCAG 2.1 成功标准或 ARIA Authoring Practices 模式就写出来；写不出来也没关系，我们会补"
+      placeholder: "WCAG 2.4.3 焦点顺序 / APG Grid 模式的 Roving tabindex"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: "提交前确认"
+      options:
+        - label: "我用键盘独立完成过一遍任务，确认断点在哪一步"
+          required: true
+        - label: "如果只依赖自动检测工具，我已说明是哪条规则报的、以及是否人工复核过"
+          required: true
+        - label: "复现材料不含真实用户数据"
+          required: true
