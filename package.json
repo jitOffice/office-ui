@@ -12,6 +12,7 @@
   "packageManager": "pnpm@12.5.1",
   "scripts": {
     "build": "turbo run build",
+    "build:check": "pnpm --filter @jitoffice/internal-build check",
     "dev": "turbo run dev --parallel",
     "test": "turbo run test",
     "test:node": "node --test \"packages/*/test/**/*.test.ts\"",

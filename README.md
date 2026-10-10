@@ -100,7 +100,7 @@ accessibility reports get buried when filed as ordinary bugs), **feature**.
 
 用通用组件库做办公应用，最终会写出几百行 `:deep()` 样式覆盖——因为 Ribbon 里的按钮要求 24px 高、图标主导、按下后保持 active、Tooltip 延迟 400ms 且可键盘唤出，这些差异无法靠主题配置弥合。而文档引擎自带的 UI 又只服务于它自己的内核。
 
-**当前进度**：设计文档已完成（`prd/` 下 6 份，含主流库实证比对与 JitWord/JitKnow 视觉实测基线）；**M0 地基已落地**——`packages/tokens`（163 个变量 → 6 个产物，CSS / JS / 类型三面同源）、`packages/i18n`（41 个 key × 四语一致）、`packages/shared`（命令注册表，框架无关）。验证：71 个零依赖用例 + 九条契约检查 + `tsc` 0 error。**尚未开始**：`packages/ui` 组件、`packages/icons`、文档站与 CI。里程碑拆解见 [prd/03-component-system.md §6](./prd/03-component-system.md)，M0 任务清单与十一条执行偏差见 [prd/05-m0-delivery-plan.md](./prd/05-m0-delivery-plan.md)。
+**当前进度**：设计文档已完成（`prd/` 下 6 份，含主流库实证比对与 JitWord/JitKnow 视觉实测基线）；**M0 地基已落地**——`packages/tokens`（163 个变量 → 6 个产物，CSS / JS / 类型三面同源）、`packages/i18n`（41 个 key × 四语一致）、`packages/shared`（命令注册表，框架无关）；后两者已产出 **ESM / CJS / 类型 / UMD 四套产物**（i18n 另含四个语言包各自的 `<script>` 直连 UMD），`exports` 已从源码改指 `dist`。验证：81 个零依赖用例 + 十二条契约检查 + `tsc` 0 error（四个包），另有需要依赖的 `pnpm build:check`（源码重建与入库产物逐字节比对 + `es-check es2018` 扫兼容线）。**尚未开始**：`packages/ui` 组件、`packages/icons`、文档站与 CI。里程碑拆解见 [prd/03-component-system.md §6](./prd/03-component-system.md)，M0 任务清单与十六条执行偏差见 [prd/05-m0-delivery-plan.md](./prd/05-m0-delivery-plan.md)。
 
 **许可**：Apache-2.0。所有依赖限定为 MIT / Apache-2.0 / BSD / ISC / OFL，图标一律自绘且只发 SVG（不发图标字体，避免字形许可被静默合并），字体仅捆绑 OFL 许可字族。合规清单见 [prd/00-product-positioning.md §4](./prd/00-product-positioning.md)。
 

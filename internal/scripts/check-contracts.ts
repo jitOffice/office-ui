@@ -7,7 +7,8 @@
  * 覆盖：
  *  1. ADR-0004 —— 发布包的 `dependencies` 必须为空，重引擎只能作为 peerDependency
  *  2. ADR-0001 —— 发射样式的包不得写 `sideEffects: false`（会把样式入口整棵摇掉）
- *  3. `exports` 声明的每个文件必须真实存在（先构建再发布，不能靠 CI 顺序侥幸）
+ *  3. `exports` 与 `main`/`module`/`types`/`unpkg`/`jsdelivr` 声明的每个文件必须真实存在
+ *     （先构建再发布，不能靠 CI 顺序侥幸；后五个字段是 webpack4 / CDN 用户先命中的那张脸）
  *  4. tokens 的 dist 必须是最新生成，改 seed 忘记重跑必须被抓到
  *  5. `catalog:` 引用必须命中 pnpm-workspace.yaml 里真实存在的键
  *  6. ADR-0005 —— 框架无关包的**根入口**不得把 vue 拖进模块图
@@ -15,6 +16,14 @@
  *  8. i18n 的 `locale.name` / `locale.tokenLang` 必须命中 tokens 实际发射的 `html[lang|="…"]` 层
  *     （变量覆写层与元素级排版层都要命中，且产物里不许出现 `[lang="…"]` 精确匹配）
  *  9. 治理文档（README / CONTRIBUTING / SECURITY / SUPPORT / CoC / ADR / prd）的内部链接必须真实存在
+ * 10. A2 硬门禁 —— 发布包的 `exports` 不得指回 `src/`：源码直出状态一旦跟着 M0 的代码漏出去，
+ *     下游拿到的就是需要自己装 TypeScript 才能用的包
+ * 11. `dist` 里每个 `.d.ts` 的相对说明符都必须能在产物树里解析到（类型面断链是静默的：
+ *     tsc 7.0.2 实测不把 d.ts 里的 `./x.ts` 改写成 `./x.js`，现在靠 TS 的声明文件后缀回退才没断，
+ *     构建器或 emit 配置一变就会断，而 `tsc --noEmit` 在自己的树上查不出来）
+ * 12. 老消费方那张脸必须和 `exports` 同源：`main`/`module`/`types` 逐字等于 `exports["."]` 的
+ *     `require`/`import`/`types` 目标（对侧条件存在却缺字段同样违反），有 `dist/umd` 产物就必须
+ *     声明 `unpkg`/`jsdelivr` 并指向其中的文件 —— 只改一张脸会在 webpack4 / Jest / CDN 用户里坏掉
  *
  * 第 8 条守的是一类会静默通过的缺陷：选择器写成语义精确匹配的 `html[lang="ja"]`，而语言包
  * `name` 是 `ja-JP`，于是整层字号/字距/行高覆写对日文界面完全不生效，两边各自测试都还是绿的。
@@ -74,6 +83,42 @@ function resolveSpecifier(fromFile: string, spec: string): string | undefined {
   return undefined
 }
 
+/** 递归收集一个目录下的全部 `.d.ts`（类型面断链检查的作用域）。 */
+function dtsFiles(root: string, dir = root): string[] {
+  const out: string[] = []
+  for (const name of readdirSync(dir)) {
+    const abs = join(dir, name)
+    if (statSync(abs).isDirectory()) out.push(...dtsFiles(root, abs))
+    else if (name.endsWith('.d.ts')) out.push(abs)
+  }
+  return out
+}
+
+/** 目录下的全部 `.js`（目录不存在返回空表）：用来判断这个包到底有没有 UMD 产物。 */
+function jsFilesUnder(dir: string): string[] {
+  if (!existsSync(dir)) return []
+  const out: string[] = []
+  for (const name of readdirSync(dir)) {
+    const abs = join(dir, name)
+    if (statSync(abs).isDirectory()) out.push(...jsFilesUnder(abs))
+    else if (name.endsWith('.js')) out.push(abs)
+  }
+  return out
+}
+
+/**
+ * 声明文件里的相对说明符必须落到产物树里真实存在的 `.d.ts`。
+ * TS 读声明时的写法是 `./x.js`（指向运行时文件），而 tsc 7.0.2 实测**不会**把源码里
+ * `./x.ts` 的写法改写掉，所以两种后缀都会出现在入库的 d.ts 里——这里一律剥掉后缀再找 `.d.ts`。
+ */
+function resolveDeclaration(fromFile: string, spec: string): string | undefined {
+  const base = resolve(dirname(fromFile), spec).replace(/\.(?:ts|mts|cts|js|mjs|cjs)$/, '')
+  for (const candidate of [`${base}.d.ts`, join(base, 'index.d.ts')]) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate
+  }
+  return undefined
+}
+
 function visit(file: string, out: Set<string>): void {
   if (out.has(file)) return
   out.add(file)
@@ -118,6 +163,12 @@ const pkgNames = existsSync(packagesDir) ? readdirSync(packagesDir) : []
 
 if (pkgNames.length === 0) problems.push('packages/ 下一个包都没有')
 
+/** 契约 11 实际扫过的 `.d.ts` 份数，用于在通过日志里说明检查面。 */
+let declarationFiles = 0
+
+/** 契约 12 实际对账过的扁平发布字段数。 */
+let publishFaces = 0
+
 for (const dir of pkgNames) {
   const file = join(packagesDir, dir, 'package.json')
   if (!existsSync(file)) {
@@ -150,6 +201,77 @@ for (const dir of pkgNames) {
     if (!existsSync(join(packagesDir, dir, target))) {
       problems.push(`${label} exports ${pointer} 指向不存在的文件 ${target}（先跑 pnpm build）`)
     }
+    // A2 硬门禁：指回源码的 exports 在本机一切正常，下游却必须自己装 TypeScript 才能用这个包。
+    if (target.startsWith('./src/')) {
+      problems.push(
+        `${label} exports ${pointer} 指向源码 ${target}：发布前必须改指 dist 产物（05 A2 硬验收项）`,
+      )
+    }
+  }
+
+  // main / module / types / unpkg / jsdelivr 是 exports 之外的另一张脸：webpack4、Jest、
+  // `<script>` 直连 CDN 的用户先命中它们，写错一个字节就是在这些消费方里坏掉，
+  // 而 exports 的用例与检查全都看不见。
+  const flatFields = ['main', 'module', 'types', 'unpkg', 'jsdelivr'] as const
+  const flat = pkg as unknown as Record<(typeof flatFields)[number], unknown>
+  /** 形状或存在性已经不合法的字段：契约 12 不再对它们补一条对账失败，一处缺陷只报一次。 */
+  const invalidFlat = new Set<string>()
+  for (const field of flatFields) {
+    const value = flat[field]
+    if (value === undefined) continue
+    if (typeof value !== 'string' || !value.startsWith('./')) {
+      problems.push(`${label}: ${field} 应是以 ./ 开头的相对路径，实为 ${JSON.stringify(value)}`)
+      invalidFlat.add(field)
+      continue
+    }
+    if (!existsSync(join(packagesDir, dir, value))) {
+      problems.push(`${label}: ${field} 指向不存在的文件 ${value}（先跑 pnpm build）`)
+      invalidFlat.add(field)
+      continue
+    }
+  }
+
+  // 契约 12：期望值不写逐包白名单，而是从 exports["."] 的对应条件推（02 §2 的 canonical 形状）。
+  // 条件在、字段缺席也算违反——"整张脸都没写"比"写错一个字节"更静默：tokens 曾三个字段全空，
+  // 上一轮的形状与存在性检查对着 undefined 一路放行，而 webpack4 用户 `require` 它直接解析失败。
+  const rootEntry = new Map(
+    targets
+      .filter(({ pointer }) => pointer.startsWith('. > '))
+      .map(({ pointer, target }) => [pointer.slice('. > '.length), target] as const),
+  )
+  for (const [field, condition] of [
+    ['main', 'require'],
+    ['module', 'import'],
+    ['types', 'types'],
+  ] as const) {
+    const expected = rootEntry.get(condition)
+    if (expected === undefined || invalidFlat.has(field)) continue
+    publishFaces += 1
+    if (flat[field] !== expected) {
+      problems.push(
+        `${label}: ${field} 必须逐字等于 exports["."] 的 ${condition} 目标 ${expected}，` +
+          `实为 ${JSON.stringify(flat[field])}（只改一张脸 = 新打包器绿、webpack4 / Jest 红）`,
+      )
+    }
+  }
+
+  // 有 dist/umd 就必须挂上 unpkg / jsdelivr：CDN 的裸包名 URL 靠这两个字段定位默认文件，
+  // 不挂等于那一趟 legacy 构建白跑。
+  const umdFiles = jsFilesUnder(join(packagesDir, dir, 'dist', 'umd'))
+  if (umdFiles.length > 0) {
+    for (const field of ['unpkg', 'jsdelivr'] as const) {
+      if (invalidFlat.has(field)) continue
+      publishFaces += 1
+      const value = flat[field]
+      if (value === undefined) {
+        problems.push(
+          `${label}: 有 ${umdFiles.length} 个 dist/umd 产物却没声明 ${field}：` +
+            `CDN 的裸包名 URL 找不到默认文件，UMD 等于白构建`,
+        )
+      } else if (typeof value === 'string' && !umdFiles.includes(resolve(packagesDir, dir, value))) {
+        problems.push(`${label}: ${field} 指向 ${value}，不在 dist/umd 的 ${umdFiles.length} 个产物里`)
+      }
+    }
   }
 
   for (const [field, table] of [
@@ -178,6 +300,23 @@ for (const dir of pkgNames) {
             )
           }
         }
+      }
+    }
+  }
+
+  // 契约 11：类型面断链。dist 没构建时跳过——那是契约 3 的职责，这里不该重复报一条。
+  const distDir = join(packagesDir, dir, 'dist')
+  if (existsSync(distDir)) {
+    const declarations = dtsFiles(distDir)
+    declarationFiles += declarations.length
+    for (const dtsFile of declarations) {
+      for (const spec of importSpecifiers(readFileSync(dtsFile, 'utf8'))) {
+        if (!spec.startsWith('.')) continue
+        if (resolveDeclaration(dtsFile, spec)) continue
+        problems.push(
+          `${relative(repoRoot, dtsFile)} 引用了无法解析的 ${spec}：类型面断链，` +
+            `消费方拿到的 .d.ts 会在这里失去类型（02 §2）`,
+        )
       }
     }
   }
@@ -369,6 +508,8 @@ if (problems.length > 0) {
 
 console.log(
   `[contracts] 通过 · 检查 ${pkgNames.length} 个包 · catalog ${catalog.size} 个键 · ` +
+    `${declarationFiles} 份入库 .d.ts 说明符全部可解析 · ` +
+    `${publishFaces} 个发布面扁平字段与 exports 同源 · ` +
     `i18n ${locales.length} 语 ↔ tokens ${varLayers.length} 个变量覆写层 + ${resetLayers.length} 个排版层 · ` +
     `${governanceDocs.length} 份治理文档链接完好`,
 )

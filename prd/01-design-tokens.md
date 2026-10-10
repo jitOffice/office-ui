@@ -587,7 +587,7 @@ antialiased 作用域，发虚问题原样回来——而且这次是**反向**�
 
 ## 8. 落地校验
 
-token 体系会在三个月内退化成魔法数，除非 CI 卡住它。M0 已实现五条 tokens 侧校验（全仓九条契约门禁见
+token 体系会在三个月内退化成魔法数，除非 CI 卡住它。M0 已实现五条 tokens 侧校验（全仓十二条契约门禁见
 02 §7 与 `internal/scripts/check-contracts.ts`），入口 `pnpm verify`
 （= `tokens:gen` → `i18n:gen` → `test:node` → `lint`），**除 ESLint/Stylelint/tsc 外全部零依赖**，
 `node` 直接跑，装不上依赖也能验证：
@@ -613,12 +613,15 @@ token 体系会在三个月内退化成魔法数，除非 CI 卡住它。M0 已�
 5. **产物新鲜度** `internal/scripts/check-contracts.ts`：`generate.ts` 的 `buildArtifacts()` 是纯函数，
    契约检查把它的输出与磁盘上的 `dist/*` 逐字节比较。改了 `seed.ts` 忘记重跑，CI 会指出
    `dist/index.css 已过期：src 与 dist 不同源`。同一脚本还检查发布包 `dependencies` 必须为空、
-   `sideEffects` 不得为 `false`、`exports` 指向的文件真实存在、`catalog:` 键真实存在。
+   `sideEffects` 不得为 `false`、`exports` 指向的文件真实存在且**不许指回 `./src/*.ts`**、
+   入库 `dist` 里每份 `.d.ts` 的相对说明符都能在产物树里解析到、`catalog:` 键真实存在、
+   `main`/`module`/`types` 逐字等于 `exports["."]` 的对应条件（缺字段也算违反）、有 `dist/umd` 产物就必须挂
+   `unpkg`/`jsdelivr`。
 
-   以上全部 **零依赖**：全仓 71 个用例由 `node --test` 直接跑，九条契约检查同一条命令，不装包也不联网。
+   以上全部 **零依赖**：全仓 81 个用例由 `node --test` 直接跑，十二条契约检查同一条命令，不装包也不联网。
 
    另有一条**不属于上面这个集合**的用例链：`packages/tokens/test/visual/typography.spec.ts`（3 条，
-   `*.spec.ts` 归 Playwright）验证的是"排版引擎真的照做"，需要浏览器，因此既不在 71 里也不在
+   `*.spec.ts` 归 Playwright）验证的是"排版引擎真的照做"，需要浏览器，因此既不在 81 里也不在
    `pnpm verify` 里。三条已在 2026-10-09 真跑通过两套内核（本机 Chrome 151、Edge 154，
    走 `OJ_BROWSER_CHANNEL`；Playwright 自带的下载在本机没成功）。**首跑全绿不等于锁住了产物**：
    两条行为用例原先在盒子上内联设值，破坏产物后仍绿，现在改成从 body 继承——

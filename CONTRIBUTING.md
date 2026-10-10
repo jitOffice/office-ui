@@ -23,6 +23,9 @@
 使用场景，"先装依赖才能检查"等于没有检查。所以 `internal/scripts/` 与 `packages/*/scripts/` 里
 **只允许 `node:*` 内置模块**，不要引入第三方包，哪怕它只是一个小工具。
 
+`internal/build/` 是这条规则**故意排除在外**的另一条链：它的职责是重建产物，本来就离不开 vite。
+它可以引第三方依赖，代价是它的任何检查都不许混进 `pnpm verify`——一旦进去，离线环境的那条链就废了。
+
 ## 2. 提交前先跑
 
 ```bash
@@ -30,29 +33,39 @@ pnpm verify   # = tokens:gen → i18n:gen → node --test "packages/*/test/**/*.
 ```
 
 Windows 开发机不需要为 git 做任何配置：`.gitattributes` 把全仓钉成 LF。
-这条是为这个仓库定制的——`packages/tokens/dist/**` 是**入库的生成物**，而新鲜度门禁把它们与
-生成器输出**逐字节**比较；若按 `core.autocrlf=true`（Windows 上 git 安装程序的默认值）检出成 CRLF，
-`pnpm verify` 会在每个 Windows 克隆上报 `dist 已过期`，而 Linux CI 永远是绿的。
+这条是为这个仓库定制的——`packages/*/dist/**` 是**入库的生成物**（tokens 的 CSS/JS、shared 与 i18n 的
+四套产物链），而门禁把它们与生成器/构建器的输出**逐字节**比较；若按 `core.autocrlf=true`
+（Windows 上 git 安装程序的默认值）检出成 CRLF，`pnpm verify` 会在每个 Windows 克隆上报 `dist 已过期`，
+而 Linux CI 永远是绿的。
 已实测：手工把 `dist/index.css` 换成 CRLF，`pnpm lint` 立刻红。
 
 单独跑：
 
-- `pnpm test:node` —— 全部单元测试（当前 71 例 = tokens 32 + i18n 24 + shared 15；
+- `pnpm test:node` —— 全部单元测试（当前 81 例 = tokens 32 + i18n 30 + shared 19，其中 10 例是
+  `test/artifacts.test.ts`：它们加载的是 `dist` 而不是 `src`；
   这个数字会随 PR 漂，以运行输出的 `ℹ tests` 行为准）。
 - `pnpm lint` —— `internal/scripts/check-contracts.ts` 的结构性契约。
 - `pnpm tokens:gen` / `pnpm i18n:gen` —— 重新生成产物与类型表。
+- `pnpm build` —— turbo 跑三包构建；`pnpm build:check` —— 把源码重建进临时目录与入库 `dist`
+  逐字节比对，再用 `es-check es2018` 扫兼容线产物。**这两条要 `node_modules`**，所以不在 `pnpm verify` 里。
 
 `pnpm lint` 抓的是结构，不是风格：发布包 `dependencies` 必须为空、发射样式的包不得标
-`sideEffects: false`、`exports` 指向的文件必须真实存在、tokens 与 i18n 的产物必须与源码同源、
+`sideEffects: false`、`exports` 指向的文件必须真实存在、`exports` 不许指回 `./src/*.ts`（源码直出的包
+发出去，下游得自己装 TypeScript 才能用）、入库 `dist` 里每份 `.d.ts` 的相对说明符都必须能在产物树里
+解析到（类型面断链是静默的，`tsc --noEmit` 在自己的树上查不出来）、`main`/`module`/`types` 必须逐字等于
+`exports["."]` 的 `require`/`import`/`types` 目标（对侧条件存在却**没写**这个字段同样违反），有 `dist/umd`
+产物就必须声明 `unpkg`/`jsdelivr` 并指向其中的文件——webpack4、Jest、`<script>` 直连 CDN 裸包名的用户
+先命中这几个字段，而 `exports` 的用例与检查全都看不见它们；只改一张脸的结果是新打包器绿、老消费方红、
+CDN 上那个 UMD 白构建一场。此外还查：tokens 与 i18n 的产物必须与源码同源、
 框架无关包的根入口不得把 `vue` 拖进模块图、语言档位与 `html[lang|="…"]` 层的双向比对（变量覆写层与
 元素级排版层都要命中内置语言，且产物里禁止出现 `[lang=` 精确匹配），
 以及 README / 治理文件 / ADR / `prd` 这 20 份文档里的**内部链接必须真实存在**。
 最后一条**区分大小写**：开发机（NTFS、APFS）默认大小写不敏感，`docs/adr/Readme.md` 这种写法
 在 `existsSync` 下会通过，到 Linux CI 才炸，所以脚本逐级用 `readdirSync` 比对真实目录项。
 
-> `pnpm verify` 刻意不含 `typecheck`：前一条链零依赖就能跑（装不上包也能验证产物与契约），
-> 而 `tsc` 需要 `node_modules`。推 PR 前请两条都跑：`pnpm verify && pnpm typecheck`。
-> 尚未落地、因此**本地跑不了**的：ESLint / Stylelint、`build`、size-limit、许可扫描、CI。
+> `pnpm verify` 刻意不含 `typecheck` 与 `build:check`：前一条链零依赖就能跑（装不上包也能验证产物与契约），
+> 而 `tsc` 与 vite 构建需要 `node_modules`。推 PR 前请三条都跑：`pnpm verify && pnpm typecheck && pnpm build:check`。
+> 尚未落地、因此**本地跑不了**的：ESLint / Stylelint、size-limit、许可扫描、CI、`packages/ui` 的 SFC 与样式链。
 > 它们属于 A2/A3，验收状态见 [`prd/05-m0-delivery-plan.md`](./prd/05-m0-delivery-plan.md)；
 > 别在 PR 里写"lint 已过"来指代它们。
 >

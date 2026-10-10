@@ -21,6 +21,7 @@ catalog:
   vitepress: ^1.6.4
   minisearch: ^7.2.0
   '@changesets/cli': ^3.0.3
+  es-check: 9.8.1
 
 catalogMode: prefer
 

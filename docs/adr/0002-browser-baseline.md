@@ -51,9 +51,15 @@ JitWord 的卖点是"支持主流浏览器和国产浏览器、企业内网、�
 - 文档必须写清"引哪个文件对应哪条线"，否则会出现"我引了 layered 版但内核不支持"的工单。
 
 **配套动作**：
-- `internal/build` 拆 `modern` / `legacy` 两个 target，各自 `browserslist` 与 `esbuild.target`。
-- CI 增加 `attw` + `es-check es2018 dist/umd/*.js` 断言兼容线不含更新语法。
-- 文档"安装"页第一屏给出选择表。
+- ~~`internal/build` 拆 `modern` / `legacy` 两个 target~~ **已落地（2026-10-09，A2 第一切片）**：
+  `internal/build/src/specs.ts` 里两个常量 `MODERN_TARGET = 'es2022'` / `LEGACY_TARGET = 'es2018'`，
+  由 vite 的 `build.target` 承担降级（这一处不配 `browserslist`，也不走 esbuild：转译发生在
+  rolldown 的 transform 里）。legacy 只给 `dist/umd` 与 `dist/locale/*.js`，modern 给 `dist/es`/`dist/cjs`。
+- ~~CI 增加 `es-check es2018`~~ **已落地**：`pnpm --filter @jitoffice/internal-build check:legacy`，
+  实际 glob 比原计划宽——`packages/*/dist/umd/**/*.js` **和** `packages/*/dist/locale/**/*.js`，
+  因为语言包同样是给 `<script>` 用的。实测 5 个文件通过；`es-check` 对空 glob 退出码 1，
+  所以这条不会因为"没匹配到文件"而静默通过。`attw` **仍未跑过**（见 05 A2 的说明）。
+- 文档"安装"页第一屏给出选择表（M1）。
 
 ## 需要业务侧确认的点
 

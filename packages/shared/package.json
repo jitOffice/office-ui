@@ -1,22 +1,32 @@
 {
   "name": "@jitoffice/shared",
   "version": "0.0.0",
-  "description": "框架无关运行时（命令注册表等）。M0 阶段以源码形态被 workspace 消费，构建产物在 M1 接入。",
+  "description": "框架无关运行时（命令注册表等）。零运行时依赖，无框架。",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/es/index.js",
+  "types": "./dist/types/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./commands": "./src/commands/index.ts",
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/es/index.js",
+      "require": "./dist/cjs/index.cjs"
+    },
+    "./commands": {
+      "types": "./dist/types/commands/index.d.ts",
+      "import": "./dist/es/commands/index.js",
+      "require": "./dist/cjs/commands/index.cjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
-    "src",
     "dist",
     "README.md"
   ],
   "scripts": {
-    "build": "echo \"M0: 源码直出，打包在 M1 接入（见 prd/05 §轨道 A）\" && exit 0",
+    "build": "node ../../internal/build/src/build.ts shared",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   }

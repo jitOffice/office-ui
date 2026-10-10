@@ -5,21 +5,45 @@
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/es/index.js",
+  "types": "./dist/types/index.d.ts",
+  "unpkg": "./dist/umd/office-ui-i18n.js",
+  "jsdelivr": "./dist/umd/office-ui-i18n.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./locales/zh-CN": "./src/locales/zh-CN.ts",
-    "./locales/zh-TW": "./src/locales/zh-TW.ts",
-    "./locales/ja-JP": "./src/locales/ja-JP.ts",
-    "./locales/en-US": "./src/locales/en-US.ts",
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/es/index.js",
+      "require": "./dist/cjs/index.cjs"
+    },
+    "./locales/zh-CN": {
+      "types": "./dist/types/locales/zh-CN.d.ts",
+      "import": "./dist/es/locales/zh-CN.js",
+      "require": "./dist/cjs/locales/zh-CN.cjs"
+    },
+    "./locales/zh-TW": {
+      "types": "./dist/types/locales/zh-TW.d.ts",
+      "import": "./dist/es/locales/zh-TW.js",
+      "require": "./dist/cjs/locales/zh-TW.cjs"
+    },
+    "./locales/ja-JP": {
+      "types": "./dist/types/locales/ja-JP.d.ts",
+      "import": "./dist/es/locales/ja-JP.js",
+      "require": "./dist/cjs/locales/ja-JP.cjs"
+    },
+    "./locales/en-US": {
+      "types": "./dist/types/locales/en-US.d.ts",
+      "import": "./dist/es/locales/en-US.js",
+      "require": "./dist/cjs/locales/en-US.cjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
-    "src",
     "dist",
     "README.md"
   ],
   "scripts": {
-    "build": "echo \"M0: 源码直出，打包在 M1 接入（见 prd/05 §轨道 A）\" && exit 0",
+    "build": "node ../../internal/build/src/build.ts i18n",
     "keys:gen": "node scripts/gen-keys.ts",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"

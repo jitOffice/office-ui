@@ -1,0 +1,21 @@
+{
+  "name": "@jitoffice/internal-build",
+  "version": "0.0.0",
+  "private": true,
+  "description": "共享构建配置：modern(ES2022) / legacy(ES2018) 两趟、产物同源门禁与兼容线语法门禁",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build:all": "node src/build.ts",
+    "check": "pnpm check:build && pnpm check:legacy",
+    "check:build": "node src/build.ts --check",
+    "check:legacy": "es-check es2018 \"../../packages/*/dist/umd/**/*.js\" \"../../packages/*/dist/locale/**/*.js\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "es-check": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

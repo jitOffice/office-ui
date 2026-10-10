@@ -99,9 +99,17 @@ components/
 | 产物 | 工具 | 关键点 |
 |---|---|---|
 | `dist/es/` | Vite lib mode，`preserveModules: true` | **必须保留模块结构**，这是 tree-shaking 的前提。`preserveModules` 会让每个组件产出独立 chunk，且 Rollup 会把共享代码提到 `_chunks/`，需配置 `experimentalMinChunkSize` 避免碎片化 |
-| `dist/cjs/` | Rollup + `@rollup/plugin-commonjs` 输出 | 与 ESM 同源，仅格式转换。**不要**用 `esbuild --format=cjs`（会丢掉 `preserveModules` 结构，导致 CJS 用户全量引入） |
-| `dist/types/` | `vue-tsc --declaration --emitDeclarationOnly` | SFC 的类型必须由 vue-tsc 产出，`tsc` 不认 `.vue` |
+| `dist/cjs/` | 同**一趟** Vite lib mode，`formats: ['cjs']` | 与 ESM 同源，仅格式转换。**不要**用 `esbuild --format=cjs`（会丢掉 `preserveModules` 结构，导致 CJS 用户全量引入） |
+| `dist/types/` | 纯 TS 包：`tsc --emitDeclarationOnly`；含 `.vue` 的包：`vue-tsc` | SFC 的类型必须由 vue-tsc 产出，`tsc` 不认 `.vue`；没有 SFC 的包**不该**为它付 vue-tsc 的启动成本 |
 | `dist/umd/` | Vite lib mode，`formats: ['umd']` | 见 §4 |
+
+> **A2 第一切片实测**（vite 8.3.4 = rolldown 1.2.13，`shared`/`i18n` 两条纯 TS 链）：
+> 打包器选项写 `rolldownOptions`（`rollupOptions` 是过渡别名，两者产出逐字节相同）；
+> CJS 由同一次 vite 调用的 `formats: ['cjs']` 产出，**不需要** `@rollup/plugin-commonjs`；
+> UMD 必须显式写 `output.entryFileNames: '[name].js'`，否则 `"type": "module"` 的包里 vite 会产出
+> `*.umd.cjs`，把 §4.1 的 `<script src>` 契约和兼容线的 `**/*.js` glob 一起弄坏；
+> 多个 UMD 目标共用一个 outDir 时**只有组内第一趟**能 `emptyOutDir`，否则后趟删掉前趟的产物；
+> 各趟串行执行，并行会抢同一个 outDir。完整清单见 05 偏差 15。
 
 **UMD 与 ESM 不能共用一次构建**：UMD 要求 Vue 作为全局 `Vue` 外部依赖、要求 CSS 内联或单独产物、要求关闭 `preserveModules`。分开两条 Vite 配置，各自明确。
 
@@ -311,11 +319,18 @@ UMD 无法 `import './style.css'`（Rollup 会输出 JS 注入或丢弃）。提
 | 兼容性 | Playwright + Firefox ESR / Chromium 86 | UMD 产物在信创目标内核上可运行 |
 
 **这张表是目标态，不是现状。** 现在真在跑的主体是零依赖那部分：
-`internal/scripts/check-contracts.ts` 的九条契约（含发布包 `dependencies` 为空、`sideEffects`、
-`exports` 真实存在、`catalog:` 键、产物新鲜度、框架中立、i18n 生成表、**语言档位↔`html[lang|="…"]`
-的变量覆写层与排版层双向比对**、治理文档链接）+ `node --test` 的 71 个用例，细节见 01 §8。
-`pnpm typecheck` 也已经真跑起来了：`tsc` 7.0.2 在三个包上 0 error——第一条 d.ts 缺陷正是它抓出来的，
+`internal/scripts/check-contracts.ts` 的十二条契约（含发布包 `dependencies` 为空、`sideEffects`、
+`exports` 真实存在且**不指回 `./src/*`**、入库 `.d.ts` 的相对说明符可解析、`catalog:` 键、
+`main`/`module`/`types` 与 `exports["."]` 逐字同源、有 `dist/umd` 就必须挂 `unpkg`/`jsdelivr`、
+产物新鲜度、框架中立、i18n 生成表、**语言档位↔`html[lang|="…"]`
+的变量覆写层与排版层双向比对**、治理文档链接）+ `node --test` 的 81 个用例，细节见 01 §8。
+`pnpm typecheck` 也已经真跑起来了：`tsc` 7.0.2 在四个包上 0 error——第一条 d.ts 缺陷正是它抓出来的，
 运行时测试一条都看不见它。
+A2 第一切片补上了表里**需要依赖**的那两行的前半段：`pnpm build` 出 ESM/CJS/types/UMD 四条链，
+`pnpm build:check` 把源码重建结果与入库 `dist` 逐字节比对，再用 `es-check es2018` 扫兼容线产物
+（`dist/umd` + `dist/locale`，5 个文件）。所以"类型"与"兼容性"两行现在是**部分成立**：
+两个纯 TS 包已过，`packages/ui` 的 SFC/样式链与信创老内核实测仍未开始；`attw`、size-limit、
+许可扫描仍属目标态。
 Playwright 只开了个头：`packages/tokens/playwright.config.ts` 与 `test/visual/typography.spec.ts`
 三条用例已落地（B5 第一切片，锁住 01 §7 那批数字），依赖进了 catalog，`turbo run test:visual`
 已声明且刻意 `cache: false`。**三条已在 2026-10-09 真跑通过**，跑的是本机已装的两套内核
