@@ -49,8 +49,9 @@ function globalSuffix(code: string): string {
 }
 
 /**
- * 只登记**已存在**的包。`ui` 的产物矩阵（含 `.vue` 的 SFC 链与样式入口那趟
- * `treeshake: false`）要等第一个组件落地才有验证对象，见 05 A2。
+ * 只登记已存在的包。`ui` 的 Vue 层是 `h()` 写的 `.ts`，走与 shared 相同的四套产物
+ * 里的 ESM / CJS / 类型三套；样式是单独复制的 `dist/style.css`（ADR-0003），
+ * 不按组件拆。UMD 仍未做：Vue 运行时要作为全局 `Vue` 外部化，见 prd/06。
  */
 export const specs: PackageSpec[] = [
   {
@@ -71,6 +72,11 @@ export const specs: PackageSpec[] = [
         global: `OfficeUILocale${globalSuffix(code)}`,
       })),
     ],
+  },
+  {
+    dir: 'ui',
+    name: '@jitoffice/ui',
+    entries: ['src/index.ts', 'src/vue/index.ts'],
   },
 ]
 

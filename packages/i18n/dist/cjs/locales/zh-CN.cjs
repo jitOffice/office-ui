@@ -68,6 +68,11 @@ var zhCN = {
 			range: "请输入 {min} 到 {max} 之间的值",
 			maxLength: "最多 {max} 个字符",
 			invalidColor: "颜色格式不正确"
+		},
+		command: {
+			bold: "加粗",
+			horizontalRule: "分隔线",
+			insertTable: "插入表格"
 		}
 	} }
 };

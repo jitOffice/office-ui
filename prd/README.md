@@ -20,6 +20,7 @@
 | [03-component-system.md](./03-component-system.md) | 命令系统、API 规范、45 组件清单、a11y、六期路线图、各组硬工程问题 | 命令注册表是全库基石；`OjTableGridPicker` 作为架构样板组件 |
 | [04-docs-site-and-i18n.md](./04-docs-site-and-i18n.md) | 文档站视觉、Playground、搜索、语言包形状、消息文法与日文细节 | "内网可自托管"优先级高于一切，故否决 StackBlitz 与 Algolia；一语言一对象（含 `intl` 标签与 `tokenLang` 档位），并构建期生成 `IntlKey`/`IntlValues` 类型表 |
 | [05-m0-delivery-plan.md](./05-m0-delivery-plan.md) | M0 可执行任务拆解、前置阻塞项、Definition of Done、排期与依赖 | 四条契约（token 双产物、命名空间、构建两趟、命令注册表）必须在 M0 钉死；工期对外建议承诺 3 周而非 2 周 |
+| [06-e1-execution.md](./06-e1-execution.md) | E1：命令闭环、表格框选、分隔线命令桥 | 内核节点留在 JitWord/Tiptap；本库交付 `OjEditorHost` 与三条命令 |
 
 ## 调研依据
 

@@ -1,6 +1,6 @@
 /**
  * @jitoffice/i18n — 由 packages/i18n/scripts/gen-keys.ts 生成，请勿手改。
- * 源：packages/i18n/src/locales/*.ts（41 个 key · 4 种语言）。
+ * 源：packages/i18n/src/locales/*.ts（44 个 key · 4 种语言）。
  */
 
 import type { OjMessageValue } from '../types.ts'
@@ -47,6 +47,9 @@ export type IntlKey =
   | 'oj.validation.range'
   | 'oj.validation.maxLength'
   | 'oj.validation.invalidColor'
+  | 'oj.command.bold'
+  | 'oj.command.horizontalRule'
+  | 'oj.command.insertTable'
 
 /** 有占位符的 key 才出现在这张表里；没有占位符的 key 走 `Record<string, never>`，传任何值都报错。 */
 export interface IntlValues {

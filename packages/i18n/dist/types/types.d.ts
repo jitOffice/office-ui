@@ -80,6 +80,11 @@ export interface OjMessages {
             maxLength: string;
             invalidColor: string;
         };
+        command: {
+            bold: string;
+            horizontalRule: string;
+            insertTable: string;
+        };
     };
 }
 /**

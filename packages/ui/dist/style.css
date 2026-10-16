@@ -1,0 +1,139 @@
+/* @jitoffice/ui — 一份样式（ADR-0003）。视觉全部走 tokens 变量。 */
+
+.oj-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oj-button-gap);
+  height: var(--oj-button-height);
+  padding: 0 var(--oj-button-padding-x);
+  border: 1px solid transparent;
+  border-radius: var(--oj-button-radius);
+  background: var(--oj-button-bg);
+  color: var(--oj-button-color);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.oj-button[data-size='mini'] {
+  height: var(--oj-control-height-xs);
+  padding: 0 var(--oj-space-2);
+}
+
+.oj-button:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-button[data-active] {
+  background: var(--oj-bg-active);
+  color: var(--oj-text-brand);
+}
+
+.oj-button[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.oj-button:focus-visible,
+.oj-grid-picker__cell:focus-visible,
+.oj-grid-picker__detail:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+.oj-icon {
+  display: inline-flex;
+  width: var(--oj-button-icon-size);
+  height: var(--oj-button-icon-size);
+  flex: none;
+}
+
+.oj-icon > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.oj-popper,
+.oj-tooltip {
+  position: fixed;
+  z-index: var(--oj-z-dropdown);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+  border-radius: var(--oj-radius-sm);
+  box-shadow: var(--oj-shadow-2);
+}
+
+.oj-tooltip {
+  z-index: var(--oj-z-popover);
+  padding: 4px 8px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.oj-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.oj-grid-picker {
+  --oj-grid-picker-cell: 24px;
+  padding: 8px;
+}
+
+.oj-grid-picker__cells {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--oj-gp-cols), var(--oj-grid-picker-cell));
+  gap: var(--oj-grid-picker-gap);
+}
+
+.oj-grid-picker__overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(var(--oj-gp-col) * (var(--oj-grid-picker-cell) + var(--oj-grid-picker-gap)) - var(--oj-grid-picker-gap));
+  height: calc(var(--oj-gp-row) * (var(--oj-grid-picker-cell) + var(--oj-grid-picker-gap)) - var(--oj-grid-picker-gap));
+  background: var(--oj-grid-picker-cell-active-bg);
+  border-radius: 2px;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.oj-grid-picker__overlay[data-empty] {
+  display: none;
+}
+
+.oj-grid-picker__cell {
+  position: relative;
+  width: var(--oj-grid-picker-cell);
+  height: var(--oj-grid-picker-cell);
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: var(--oj-grid-picker-cell-bg);
+  cursor: pointer;
+}
+
+.oj-grid-picker__cell::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+.oj-grid-picker__size,
+.oj-grid-picker__exceed {
+  margin: 8px 0 0;
+  color: var(--oj-grid-picker-label-color);
+  font-size: 12px;
+}
+
+.oj-grid-picker__detail {
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--oj-text-link);
+  font: inherit;
+  cursor: pointer;
+}

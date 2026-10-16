@@ -39,7 +39,7 @@ function entryPaths(ctx: JobContext, entries: string[]): string[] {
 
 export function jobsFor(ctx: JobContext): Job[] {
   const { spec, pkgDir, outRoot } = ctx
-  const external = [spec.name, '@jitoffice/tokens', '@jitoffice/shared', '@jitoffice/i18n']
+  const external = [spec.name, '@jitoffice/tokens', '@jitoffice/shared', '@jitoffice/i18n', 'vue']
 
   // `cwd` 必须钉在包目录：rolldown 会在每个模块前写一行 `//#region <相对 cwd 的路径>`，
   // 而它的默认值是 process.cwd()。实测同一份源码在仓库根 / internal/build / 包目录里跑，

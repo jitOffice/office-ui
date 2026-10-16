@@ -74,6 +74,11 @@ const enUS: OjLocale = {
         maxLength: '{max, plural, one {Up to # character} other {Up to # characters}}',
         invalidColor: 'Invalid color format',
       },
+      command: {
+        bold: 'Bold',
+        horizontalRule: 'Horizontal line',
+        insertTable: 'Insert table',
+      },
     },
   },
 }

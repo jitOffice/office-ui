@@ -76,6 +76,11 @@ const jaJP: OjLocale = {
         maxLength: '最大 {max} 文字です',
         invalidColor: '色の形式が正しくありません',
       },
+      command: {
+        bold: '太字',
+        horizontalRule: '水平線',
+        insertTable: '表の挿入',
+      },
     },
   },
 }

@@ -71,6 +71,11 @@ const zhCN: OjLocale = {
         maxLength: '最多 {max} 个字符',
         invalidColor: '颜色格式不正确',
       },
+      command: {
+        bold: '加粗',
+        horizontalRule: '分隔线',
+        insertTable: '插入表格',
+      },
     },
   },
 }

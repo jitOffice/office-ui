@@ -12,7 +12,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -63,6 +63,10 @@ async function main(): Promise<void> {
       for (const job of jobsFor({ spec, pkgDir, outRoot })) {
         await runJob(job)
       }
+      // ADR-0003：组件样式是一份文件，不进 JS 包。vite 的 lib 趟不会看见没人 import 的 CSS，
+      // 所以在趟次结束后按源文件原样复制。`--check` 的 outRoot 是临时目录，比对能盖到它。
+      const styleSrc = join(pkgDir, 'src', 'style.css')
+      if (existsSync(styleSrc)) copyFileSync(styleSrc, join(outRoot, 'style.css'))
       if (check) {
         const problems = compareTrees(join(pkgDir, 'dist'), outRoot)
         if (problems.length > 0) {
