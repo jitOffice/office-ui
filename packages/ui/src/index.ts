@@ -10,10 +10,17 @@ export type { EditorCall, MemoryEditor, OjEditorHost, OjEditorState } from './ed
 export { tiptapEditorHost } from './tiptap-host.ts'
 export type { TiptapLikeEditor } from './tiptap-host.ts'
 export {
+  COMMAND_BLOCKQUOTE,
   COMMAND_BOLD,
+  COMMAND_BULLET_LIST,
+  COMMAND_CODE_BLOCK,
+  COMMAND_HARD_BREAK,
+  COMMAND_HEADING,
   COMMAND_HORIZONTAL_RULE,
+  COMMAND_ORDERED_LIST,
   COMMAND_TABLE,
   editorCommands,
+  isHeadingLevel,
   isTableSize,
   registerEditorCommands,
 } from './commands.ts'
@@ -26,3 +33,44 @@ export { createTooltipMachine } from './tooltip.ts'
 export type { TooltipMachine, TooltipOptions } from './tooltip.ts'
 export { iconMarkup, icons } from './icons.ts'
 export type { OjIconName } from './icons.ts'
+export { selectByKey } from './shell/tabs.ts'
+export { neighbor, replaceAll, replaceOne, searchHits } from './shell/search.ts'
+export type { SearchHit, SearchQuery } from './shell/search.ts'
+export { clampZoom, stepZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './shell/zoom.ts'
+export { filterTree, toggleId } from './shell/files.ts'
+export type { FileNode } from './shell/files.ts'
+export { A4_WIDTH_PX, pageWidth, rulerTicks } from './shell/ruler.ts'
+export type { RulerTick } from './shell/ruler.ts'
+export { extendStroke, startStroke, strokePath } from './shell/signature.ts'
+export type { SignaturePoint, SignatureStroke } from './shell/signature.ts'
+export { COMMAND_ALIGN_LEFT, COMMAND_ITALIC, COMMAND_UNDERLINE } from './commands.ts'
+export {
+  HORIZONTAL_RULE_GROUP,
+  HORIZONTAL_RULE_INPUT,
+  HORIZONTAL_RULE_MARKDOWN,
+  HORIZONTAL_RULE_MARKDOWN_TOKEN,
+  HORIZONTAL_RULE_NAME,
+  applyHorizontalRuleInput,
+  horizontalRuleOptions,
+  isHorizontalRuleInput,
+  mergeAttributes,
+  parseHorizontalRuleHTML,
+  parseHorizontalRuleMarkdown,
+  renderHorizontalRule,
+  renderHorizontalRuleMarkdown,
+  setHorizontalRule,
+} from './nodes/horizontal-rule.ts'
+export type { HorizontalRuleOptions, OjHorizontalRule } from './nodes/horizontal-rule.ts'
+export { matchNodeInput, nodeExtension, starterNodes } from './nodes/catalog.ts'
+export type { OjInputMatch, OjNodeExtension, OjNodeGroup, OjParseRule } from './nodes/catalog.ts'
+export {
+  applyNodeInput,
+  setHardBreak,
+  toggleBlockquote,
+  toggleBulletList,
+  toggleCodeBlock,
+  toggleHeading,
+  toggleOrderedList,
+} from './nodes/document.ts'
+export { blockPlain, createDocument, isTextblockType, plainText, textblock, withPlain } from './nodes/tree.ts'
+export type { OjDocument, OjNode, OjSelection } from './nodes/tree.ts'

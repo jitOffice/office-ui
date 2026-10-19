@@ -1,7 +1,7 @@
 //#region src/editor-host.ts
 var ENABLED = Object.freeze({ enabled: true });
 /**
-* 测试与 demo 用的内存宿主。`format.bold` 被执行时翻转 `active`，用来证明按钮能跟上选区。
+* 测试与 demo 用的内存宿主。`format.*` 被执行时翻转 `active`，用来证明按钮能跟上选区。
 */
 function createMemoryEditor(initial = {}) {
 	const states = new Map(Object.entries(initial));
@@ -22,7 +22,7 @@ function createMemoryEditor(initial = {}) {
 				arg
 			});
 			if (!host.can(id)) return false;
-			if (id === "format.bold") {
+			if (id.startsWith("format.")) {
 				const current = read(id);
 				states.set(id, {
 					...current,

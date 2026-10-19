@@ -28,6 +28,6 @@ export interface MemoryEditor {
     set(id: string, patch: OjEditorState): void;
 }
 /**
- * 测试与 demo 用的内存宿主。`format.bold` 被执行时翻转 `active`，用来证明按钮能跟上选区。
+ * 测试与 demo 用的内存宿主。`format.*` 被执行时翻转 `active`，用来证明按钮能跟上选区。
  */
 export declare function createMemoryEditor(initial?: Record<string, OjEditorState>): MemoryEditor;

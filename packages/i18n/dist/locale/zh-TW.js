@@ -70,8 +70,70 @@
 			},
 			command: {
 				bold: "粗體",
+				italic: "斜體",
+				underline: "底線",
+				alignLeft: "靠左對齊",
+				heading: "標題",
+				blockquote: "引用",
+				bulletList: "項目符號",
+				orderedList: "編號清單",
+				codeBlock: "程式碼區塊",
+				hardBreak: "換行",
 				horizontalRule: "分隔線",
 				insertTable: "插入表格"
+			},
+			shell: {
+				tabs: {
+					start: "開始",
+					insert: "插入",
+					view: "檢視"
+				},
+				search: {
+					find: "尋找",
+					replace: "取代為",
+					next: "下一個",
+					previous: "上一個",
+					matchCase: "區分大小寫",
+					count: "{current}/{total}",
+					replaceAction: "取代",
+					replaceAll: "全部取代"
+				},
+				zoom: {
+					zoomOut: "縮小",
+					zoomIn: "放大",
+					reset: "100%"
+				},
+				files: {
+					title: "檔案",
+					search: "搜尋檔案",
+					empty: "沒有相符的檔案"
+				},
+				dialog: {
+					insertTitle: "插入表格",
+					rows: "列數",
+					cols: "欄數"
+				},
+				paper: { untitled: "未命名文件" },
+				watermark: {
+					sample: "內部資料",
+					toggle: "浮水印"
+				},
+				ai: {
+					title: "助手",
+					placeholder: "描述你想做的事",
+					send: "傳送",
+					notice: "尚未連接模型。傳送的內容只留在這一頁。"
+				},
+				signature: {
+					clear: "清除",
+					open: "簽名"
+				},
+				stamp: {
+					sample: "印",
+					open: "印章"
+				},
+				status: { kernel: "圖片、連結和正文編輯需要文件核心，目前的倉庫不包含它。" },
+				insert: { image: "圖片" }
 			}
 		} }
 	};

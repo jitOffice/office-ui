@@ -89,8 +89,40 @@ export interface OjMessages {
     }
     command: {
       bold: string
+      italic: string
+      underline: string
+      alignLeft: string
+      heading: string
+      blockquote: string
+      bulletList: string
+      orderedList: string
+      codeBlock: string
+      hardBreak: string
       horizontalRule: string
       insertTable: string
+    }
+    shell: {
+      tabs: { start: string; insert: string; view: string }
+      search: {
+        find: string
+        replace: string
+        next: string
+        previous: string
+        matchCase: string
+        count: string
+        replaceAction: string
+        replaceAll: string
+      }
+      zoom: { zoomOut: string; zoomIn: string; reset: string }
+      files: { title: string; search: string; empty: string }
+      dialog: { insertTitle: string; rows: string; cols: string }
+      paper: { untitled: string }
+      watermark: { sample: string; toggle: string }
+      ai: { title: string; placeholder: string; send: string; notice: string }
+      signature: { clear: string; open: string }
+      stamp: { sample: string; open: string }
+      status: { kernel: string }
+      insert: { image: string }
     }
   }
 }

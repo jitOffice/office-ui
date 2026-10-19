@@ -35,7 +35,7 @@ export interface MemoryEditor {
 const ENABLED: OjEditorState = Object.freeze({ enabled: true })
 
 /**
- * 测试与 demo 用的内存宿主。`format.bold` 被执行时翻转 `active`，用来证明按钮能跟上选区。
+ * 测试与 demo 用的内存宿主。`format.*` 被执行时翻转 `active`，用来证明按钮能跟上选区。
  */
 export function createMemoryEditor(initial: Record<string, OjEditorState> = {}): MemoryEditor {
   const states = new Map<string, OjEditorState>(Object.entries(initial))
@@ -56,7 +56,7 @@ export function createMemoryEditor(initial: Record<string, OjEditorState> = {}):
     exec: (id, arg) => {
       calls.push({ id, arg })
       if (!host.can(id)) return false
-      if (id === 'format.bold') {
+      if (id.startsWith('format.')) {
         const current = read(id)
         states.set(id, { ...current, active: current.active !== true })
         notify()

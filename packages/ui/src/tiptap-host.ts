@@ -1,8 +1,9 @@
 /**
  * Tiptap 形编辑器的命令桥。
  *
- * 这里故意不 import `@tiptap/core`：节点实现（`<hr>` 解析、光标落到规则后、文末补段落、
- * 行首 `---` 输入规则）留在内核，见 prd/06。本文件只把稳定的命令 id 译成 Tiptap 的方法名。
+ * 这里故意不 import `@tiptap/core`。分隔线的节点约定在 `nodes/horizontal-rule.ts`，
+ * 给没有 ProseMirror 的宿主用。接到真正的 Tiptap 时，本文件只把命令 id 译成
+ * `commands.setHorizontalRule()`，光标和输入规则由那个编辑器自己执行。
  */
 
 import type { OjEditorHost, OjEditorState } from './editor-host.ts'
@@ -25,6 +26,14 @@ interface BridgeEntry {
 
 const BRIDGE: Record<string, BridgeEntry> = {
   'format.bold': { can: 'toggleBold', run: 'toggleBold', active: 'bold' },
+  'format.italic': { can: 'toggleItalic', run: 'toggleItalic', active: 'italic' },
+  'format.underline': { can: 'toggleUnderline', run: 'toggleUnderline', active: 'underline' },
+  'format.heading': { can: 'toggleHeading', run: 'toggleHeading', active: 'heading' },
+  'format.blockquote': { can: 'toggleBlockquote', run: 'toggleBlockquote', active: 'blockquote' },
+  'format.bulletList': { can: 'toggleBulletList', run: 'toggleBulletList', active: 'bulletList' },
+  'format.orderedList': { can: 'toggleOrderedList', run: 'toggleOrderedList', active: 'orderedList' },
+  'format.codeBlock': { can: 'toggleCodeBlock', run: 'toggleCodeBlock', active: 'codeBlock' },
+  'insert.hardBreak': { can: 'setHardBreak', run: 'setHardBreak' },
   'insert.horizontalRule': { can: 'setHorizontalRule', run: 'setHorizontalRule' },
   'insert.table': { can: 'insertTable', run: 'insertTable' },
 }

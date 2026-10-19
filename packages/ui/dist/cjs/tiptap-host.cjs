@@ -5,6 +5,45 @@ var BRIDGE = {
 		run: "toggleBold",
 		active: "bold"
 	},
+	"format.italic": {
+		can: "toggleItalic",
+		run: "toggleItalic",
+		active: "italic"
+	},
+	"format.underline": {
+		can: "toggleUnderline",
+		run: "toggleUnderline",
+		active: "underline"
+	},
+	"format.heading": {
+		can: "toggleHeading",
+		run: "toggleHeading",
+		active: "heading"
+	},
+	"format.blockquote": {
+		can: "toggleBlockquote",
+		run: "toggleBlockquote",
+		active: "blockquote"
+	},
+	"format.bulletList": {
+		can: "toggleBulletList",
+		run: "toggleBulletList",
+		active: "bulletList"
+	},
+	"format.orderedList": {
+		can: "toggleOrderedList",
+		run: "toggleOrderedList",
+		active: "orderedList"
+	},
+	"format.codeBlock": {
+		can: "toggleCodeBlock",
+		run: "toggleCodeBlock",
+		active: "codeBlock"
+	},
+	"insert.hardBreak": {
+		can: "setHardBreak",
+		run: "setHardBreak"
+	},
 	"insert.horizontalRule": {
 		can: "setHorizontalRule",
 		run: "setHorizontalRule"

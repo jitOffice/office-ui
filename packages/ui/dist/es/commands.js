@@ -1,25 +1,70 @@
 //#region src/commands.ts
 var COMMAND_BOLD = "format.bold";
+var COMMAND_ITALIC = "format.italic";
+var COMMAND_UNDERLINE = "format.underline";
+var COMMAND_ALIGN_LEFT = "format.alignLeft";
+var COMMAND_HEADING = "format.heading";
+var COMMAND_BLOCKQUOTE = "format.blockquote";
+var COMMAND_BULLET_LIST = "format.bulletList";
+var COMMAND_ORDERED_LIST = "format.orderedList";
+var COMMAND_CODE_BLOCK = "format.codeBlock";
+var COMMAND_HARD_BREAK = "insert.hardBreak";
 var COMMAND_HORIZONTAL_RULE = "insert.horizontalRule";
 var COMMAND_TABLE = "insert.table";
+function isHeadingLevel(arg) {
+	if (arg === null || typeof arg !== "object") return false;
+	const level = arg.level;
+	return typeof level === "number" && Number.isInteger(level) && level >= 1 && level <= 6;
+}
 function isTableSize(arg) {
 	if (arg === null || typeof arg !== "object") return false;
 	const row = arg.rows;
 	const col = arg.cols;
 	return typeof row === "number" && typeof col === "number" && Number.isInteger(row) && Number.isInteger(col) && row > 0 && col > 0;
 }
+function toggleCommand(id, labelKey, icon, keys) {
+	const command = {
+		id,
+		label: { key: labelKey },
+		icon,
+		group: "开始",
+		history: "undoable",
+		state: (host) => host.state(id),
+		run: (host) => {
+			host.exec(id);
+		}
+	};
+	if (keys) command.keys = keys;
+	return command;
+}
 function editorCommands() {
 	return [
+		toggleCommand(COMMAND_BOLD, "oj.command.bold", "oj-format-bold", "mod+b"),
+		toggleCommand(COMMAND_ITALIC, "oj.command.italic", "oj-format-italic", "mod+i"),
+		toggleCommand(COMMAND_UNDERLINE, "oj.command.underline", "oj-format-underline", "mod+u"),
+		toggleCommand(COMMAND_ALIGN_LEFT, "oj.command.alignLeft", "oj-align-left"),
 		{
-			id: COMMAND_BOLD,
-			label: { key: "oj.command.bold" },
-			icon: "oj-format-bold",
-			keys: "mod+b",
+			id: COMMAND_HEADING,
+			label: { key: "oj.command.heading" },
 			group: "开始",
 			history: "undoable",
-			state: (host) => host.state(COMMAND_BOLD),
+			state: (host) => host.state(COMMAND_HEADING),
+			run: (host, arg) => {
+				host.exec(COMMAND_HEADING, { level: isHeadingLevel(arg) ? arg.level : 1 });
+			}
+		},
+		toggleCommand(COMMAND_BLOCKQUOTE, "oj.command.blockquote", "oj-comment"),
+		toggleCommand(COMMAND_BULLET_LIST, "oj.command.bulletList", "oj-list-bullet"),
+		toggleCommand(COMMAND_ORDERED_LIST, "oj.command.orderedList", "oj-list-number"),
+		toggleCommand(COMMAND_CODE_BLOCK, "oj.command.codeBlock", "oj-code"),
+		{
+			id: COMMAND_HARD_BREAK,
+			label: { key: "oj.command.hardBreak" },
+			group: "插入",
+			history: "undoable",
+			state: (host) => host.state(COMMAND_HARD_BREAK),
 			run: (host) => {
-				host.exec(COMMAND_BOLD);
+				host.exec(COMMAND_HARD_BREAK);
 			}
 		},
 		{
@@ -50,7 +95,7 @@ function editorCommands() {
 		}
 	];
 }
-/** 登记三条命令，返回一次性注销。 */
+/** 登记编辑命令，返回一次性注销。 */
 function registerEditorCommands(sink) {
 	const offs = editorCommands().map((command) => sink.register(command));
 	return () => {
@@ -58,4 +103,4 @@ function registerEditorCommands(sink) {
 	};
 }
 //#endregion
-export { COMMAND_BOLD, COMMAND_HORIZONTAL_RULE, COMMAND_TABLE, editorCommands, isTableSize, registerEditorCommands };
+export { COMMAND_ALIGN_LEFT, COMMAND_BLOCKQUOTE, COMMAND_BOLD, COMMAND_BULLET_LIST, COMMAND_CODE_BLOCK, COMMAND_HARD_BREAK, COMMAND_HEADING, COMMAND_HORIZONTAL_RULE, COMMAND_ITALIC, COMMAND_ORDERED_LIST, COMMAND_TABLE, COMMAND_UNDERLINE, editorCommands, isHeadingLevel, isTableSize, registerEditorCommands };

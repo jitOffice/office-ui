@@ -3,9 +3,10 @@
 > A set of out-of-the-box Office component libraries that make it easy to build various office applications.
 > 一套开箱即用的 Office 组件库，轻松构建各种办公类应用。
 
-**状态 / Status: E1 已落地，尚未发布.** The design-token, i18n and command-registry packages
-(`@jitoffice/tokens` / `i18n` / `shared`) are landed. `@jitoffice/ui` now has the command bridge,
-table-grid picker and horizontal-rule adapter; nothing is published to npm yet.
+**状态 / Status: 外壳已可演示，尚未发布.** The design-token, i18n and command-registry packages
+(`@jitoffice/tokens` / `i18n` / `shared`) are landed. `@jitoffice/ui` now renders an office shell
+(tabs, dialog, search, zoom, file tree, rulers, watermark, signature, stamp, AI dock) on top of the
+command bridge; nothing is published to npm yet.
 Design docs are below — 当前仓库包含 M0 地基与产品/架构设计文档，见下方 [设计文档](#设计文档-design-docs)。
 
 English | [简体中文](#简体中文)
@@ -101,7 +102,7 @@ accessibility reports get buried when filed as ordinary bugs), **feature**.
 
 用通用组件库做办公应用，最终会写出几百行 `:deep()` 样式覆盖——因为 Ribbon 里的按钮要求 24px 高、图标主导、按下后保持 active、Tooltip 延迟 400ms 且可键盘唤出，这些差异无法靠主题配置弥合。而文档引擎自带的 UI 又只服务于它自己的内核。
 
-**当前进度**：设计文档在 `prd/`（含 [E1 执行计划](./prd/06-e1-execution.md)）。**M0 地基已落地**——`packages/tokens`（163 个变量 → 6 个产物）、`packages/i18n`（44 个 key × 四语一致）、`packages/shared`（命令注册表）。**E1 已落地** `packages/ui`：三条命令（加粗 / 分隔线 / 插入表格）、表格框选、浮层与 Tooltip 延迟，以及 `@jitoffice/ui/vue` 上的六个组件。验证：89 个零依赖用例 + 契约检查 + `tsc` 0 error。**尚未开始**：`packages/icons` 图标管线、文档站与 CI。里程碑见 [prd/03-component-system.md §6](./prd/03-component-system.md)，E1 范围见 [prd/06-e1-execution.md](./prd/06-e1-execution.md)。
+**当前进度**：设计文档在 `prd/`（含 [E1 执行计划](./prd/06-e1-execution.md)）。**M0 地基已落地**——`packages/tokens`（163 个变量 → 6 个产物）、`packages/i18n`（86 个 key × 四语一致）、`packages/shared`（命令注册表）。**`packages/ui` 外壳已可演示**：标题、引用、列表、代码块、分隔线和表格命令、31 枚自绘图标、表格框选，以及选项卡、弹窗、查找替换、缩放、文件树、标尺、水印、签名、印章和 AI 侧栏。节点扩展对齐 [Tiptap Nodes](https://tiptap.dev/docs/editor/extensions/nodes)：段落、标题、引用、列表、代码块、硬换行、分隔线和图片共用 name / group / content / parseHTML / 命令 / 输入规则。命令桥仍然只调用编辑器自己的 `commands.*`。`@jitoffice/ui/vue` 上共 17 个组件。验证：105 个零依赖用例 + 契约检查 + `tsc` 0 error。文档与表格内核不在这个仓库里。**尚未开始**：`packages/icons` 图标管线、文档站与 CI。里程碑见 [prd/03-component-system.md §6](./prd/03-component-system.md)。
 
 **许可**：Apache-2.0。所有依赖限定为 MIT / Apache-2.0 / BSD / ISC / OFL，图标一律自绘且只发 SVG（不发图标字体，避免字形许可被静默合并），字体仅捆绑 OFL 许可字族。合规清单见 [prd/00-product-positioning.md §4](./prd/00-product-positioning.md)。
 
