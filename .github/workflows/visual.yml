@@ -1,9 +1,10 @@
 name: visual
 
-# 视觉/排版回归（B5）。独立于 pull-request.yml 的理由有二：
+# 视觉/排版/无构建器回归。独立于 pull-request.yml 的理由有二：
 #   1. 它要下载 Playwright 浏览器（约 197 MiB），比整条零依赖链还慢；
-#   2. 它锁的是**排版引擎行为**（禁则断点、CJK↔拉丁间距），换内核版本结论就会变，
-#      这类红是"环境变了"还是"代码变了"，要单独一个可重跑的入口来分辨。
+#   2. 它锁的是**引擎行为**——排版禁则、CJK↔拉丁间距，以及 `file://` 打开 UMD 页面时的
+#      渲染与告警。换内核版本结论就会变，这类红是"环境变了"还是"代码变了"，
+#      要单独一个可重跑的入口来分辨。
 # 所以：定时 + 手动，不挡每个 PR。
 
 on:
@@ -12,8 +13,8 @@ on:
     - cron: '0 18 * * *'
 
 jobs:
-  typography:
-    name: 中日文排版（Chromium）
+  visual:
+    name: 排版与无构建器（Chromium）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +32,9 @@ jobs:
       # CI 必须走默认项目，否则测的是 runner 上碰巧装了什么浏览器。
       - run: pnpm exec playwright install --with-deps chromium
 
-      # 需要先有 tokens 的 dist 产物：被测对象就是它，不是 dev server。
-      - run: pnpm --filter @jitoffice/tokens build
-
-      - run: pnpm --filter @jitoffice/tokens test:visual
+      # 两个包各有自己的用例集，turbo 会把 `build` 作为前置跑掉（turbo.json 里
+      # `test:visual` 声明了 `dependsOn: ["build"]`）：
+      #   tokens —— 排版（01 §7 那批数字，被测对象是 dist/index.css）
+      #   ui     —— 无构建器页面（05 §2 DoD #1，被测对象是 examples/ 下的静态页 + dist/umd）
+      # 两者都刻意不起 dev server：直连产物才是用户真实的打开方式。
+      - run: pnpm exec turbo run test:visual

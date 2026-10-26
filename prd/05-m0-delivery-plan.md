@@ -45,8 +45,15 @@ M0 的目标不是"做出组件"，而是**把后面所有组件都要依赖的�
    实测**直接白屏超时**，这正是 02 §4.1 警告的"template 字符串静默空白"。
    两条无效探针记在这里：第一次断言"按钮背景不是透明"是**假探针**——`--oj-button-bg` 本身就是
    `transparent`；换成对比 `--oj-button-height` 与 `.oj-button` 的计算高度后才真的在测两份 CSS。
-   **仍未自动化**：Playwright 只在 `packages/tokens` 里，把这条用例挪进 CI 需要给 `ui` 加依赖并重跑
-   `pnpm install`（本机 pnpm 版本不够，装不了），所以现在它是"人跑过的页面"，不是"CI 守着的门禁"。
+   **已自动化**（同日）：用例落成 `packages/ui/test/visual/no-bundler.spec.ts`，`@playwright/test` 进
+   `ui` 的 devDependencies；`test/visual` 与 `node --test` 两条线互不干扰（前者收 `*.spec.ts`，后者收 `*.test.ts`）。
+   `.github/workflows/visual.yml` 改成 `turbo run test:visual`，一次跑 tokens 的排版 3 例 + ui 的 2 例。
+   **破坏性验证**：页面换回 `vue.runtime.global.js` → 这条用例 30s 超时变红；恢复 → 2 passed。
+   **踩到的坑**：turbo 2.11 的 strict env 模式会**过滤掉 `OJ_BROWSER_CHANNEL`**，
+   于是 `turbo run test:visual` 下两个包都掉回默认 Chromium，报
+   `Executable doesn't exist at .../chrome-headless-shell`——这个报错看着像"机器没装浏览器"，
+   实际是"配置没让变量进去"。修法是 `turbo.json` 的 `test:visual.passThroughEnv` 显式声明
+   （刻意不进 hash：它只决定本机用哪套内核，而这个任务本来就 `cache: false`）。
 2. **`OjIcon` 的可访问名契约落地**（03 §2 已同步修订）：`iconLabelProblem()` 是纯函数，
    组件在 dev 下按图标名去重报一次；配套一条结构门禁——组件里每处 `h(OjIcon, …)` 必须带
    `label` 或 `decorative`。实测把 `decorative` 删掉，门禁变红。
@@ -63,7 +70,7 @@ M0 的目标不是"做出组件"，而是**把后面所有组件都要依赖的�
 
 | # | DoD | 状态 |
 |---|---|---|
-| 1 | UMD 端到端，控制台无编译缺失警告 | **✅ 人跑过**（Chrome 151，见上）；CI 未自动化 |
+| 1 | UMD 端到端，控制台无编译缺失警告 | **✅ 已过**：Chrome 151 本地跑通 + `packages/ui` 的 Playwright 用例守着，`visual.yml` 每日跑 |
 | 2 | tree-shaking 后 gzip ≤ 8 KB（size-limit 断言） | ❌ 依赖未进 catalog |
 | 3 | 按需引入下组件样式不丢 | ⚠️ 契约 13 守住了"样式变量都存在于 token 表"，没有 size/覆盖率断言 |
 | 4 | 同一命令渲染在两处只重渲染一次 | ❌ 未验证（注册表侧有合帧用例，"两处渲染"没有） |
@@ -72,8 +79,11 @@ M0 的目标不是"做出组件"，而是**把后面所有组件都要依赖的�
 | 7 | `ui` 的 `dependencies` 为空 | ✅ 契约 1 |
 | 8 | ADR-0001~0004 已合入 | ✅ |
 
-**结论没变**：M0 未完成，卡在 #2 / #4 / #6 三条，而它们的共同前置是"能装依赖"——
-本机 `pnpm` 版本低于仓库要求（`pnpm@12.5.1`），`pnpm install` 与 `pnpm verify` 都跑不了。
+**结论没变**：M0 仍未完成，卡在 #2 / #4 / #6。但"能装依赖"这个前置**已经解除**——
+本机换上 Node 24.14 + pnpm 12.5.1 后，`pnpm verify` / `pnpm typecheck` / `pnpm build:check` 三条链
+**首次真正跑起来并全绿**（此前它们只被逐段手工验证过）。剩下的是三条都还没写的东西：
+size-limit 与 license-checker 的依赖未进 catalog（#2）、"同一命令渲染两处只重渲染一次"没有用例（#4）、
+CI 上的"故意破坏"未实跑（#6）。
 
 ---
 

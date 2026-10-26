@@ -37,6 +37,7 @@
   "scripts": {
     "build": "node ../../internal/build/src/build.ts ui",
     "test": "node --test \"test/**/*.test.ts\"",
+    "test:visual": "playwright test --config playwright.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config vite.config.ts"
   },
@@ -49,6 +50,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "vite": "catalog:",
     "vue": "catalog:"
   }

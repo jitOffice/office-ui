@@ -346,7 +346,7 @@ A2 第一切片补上了表里**需要依赖**的那两行的前半段：`pnpm b
 所以"类型"与"兼容性"两行现在是**部分成立**：三个发布包的 ESM/CJS/types 都过，
 `ui` 的两条 UMD 也过 `es-check es2018`，但**信创老内核上的实测仍未开始**（没有可装的目标环境，
 见 ADR-0002）；`attw`、size-limit、许可扫描仍属目标态。
-Playwright 只开了个头：`packages/tokens/playwright.config.ts` 与 `test/visual/typography.spec.ts`
+Playwright 现在有两条线，`packages/tokens` 那条先说：`packages/tokens/playwright.config.ts` 与 `test/visual/typography.spec.ts`
 三条用例已落地（B5 第一切片，锁住 01 §7 那批数字），依赖进了 catalog，`turbo run test:visual`
 已声明且刻意 `cache: false`。**三条已在 2026-10-09 真跑通过**，跑的是本机已装的两套内核
 （Chrome 151.0.7922.175、Edge 154.0.4258.62，`OJ_BROWSER_CHANNEL=chrome|msedge`）；
@@ -355,6 +355,15 @@ Playwright 自己那份 197.5 MiB 的 `chrome-headless-shell` 在本机下到 10
 首次真跑立刻暴露了一个假锁：两条行为用例都在盒子上**内联**设值，读的其实是 UA 行为，
 把产物改成 `line-break: auto` 它们照样绿。改成"不声明、从 body 继承"之后，
 `line-break` 与 `text-autospace` 各做了一次故意破坏（改值 / 整条删掉），红与绿两条分支都实测过。
+
+**另一条线是 `packages/ui` 的无构建器回归**（2026-10-26）：`test/visual/no-bundler.spec.ts` 用 `file://`
+打开 `examples/no-bundler/index.html`，锁的是 §4.1 那张契约本身——UMD 挂载、两份 CSS 生效
+（对比 `--oj-button-height` 与 `.oj-button` 的计算高度，不用背景色：`--oj-button-bg` 本来就是 transparent，
+拿它当探针是永远为真的假锁）、键盘 focus 唤出 tooltip、框选回传、控制台零告警。
+页面刻意用含编译器的 **dev** 构建，换成 runtime-only 后这条用例 30s 超时变红——
+"template 字符串静默空白"从此是被测过的事实。两个包共用 `turbo run test:visual`，
+`OJ_BROWSER_CHANNEL` 必须在 `turbo.json` 的 `passThroughEnv` 里声明，否则 turbo 的 strict env
+会把它过滤掉、两个包都掉回默认 Chromium（报错长得像"没装浏览器"，极易误判）。
 Vitest / axe / size-limit / license-checker / attw / vue-tsc 连配置文件都还没有，属于 A2、A3 的交付物，
 PR 里不许把它们写成"lint 已过"（`CONTRIBUTING.md` §2 同条禁令）。
 
