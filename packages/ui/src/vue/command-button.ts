@@ -62,7 +62,7 @@ export const OjCommandButton = defineComponent({
             if (enabled) void props.source.run(props.id)
           },
         },
-        [command?.icon ? h(OjIcon, { name: command.icon }) : null, h('span', { class: 'oj-button__label' }, label)],
+        [command?.icon ? h(OjIcon, { name: command.icon, decorative: true }) : null, h('span', { class: 'oj-button__label' }, label)],
       )
     }
   },

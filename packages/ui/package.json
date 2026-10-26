@@ -25,6 +25,9 @@
     },
     "./style.css": "./dist/styles/office-ui.css",
     "./layered.css": "./dist/styles/office-ui.layered.css",
+    "./es/*": "./dist/es/*",
+    "./cjs/*": "./dist/cjs/*",
+    "./styles/*": "./dist/styles/*",
     "./package.json": "./package.json"
   },
   "files": [

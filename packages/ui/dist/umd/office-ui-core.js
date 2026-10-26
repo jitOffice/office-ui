@@ -480,6 +480,17 @@
 	function iconMarkup(name) {
 		if (Object.prototype.hasOwnProperty.call(icons, name)) return icons[name];
 	}
+	function iconLabelProblem(name, options = {}) {
+		if (typeof options.label === "string" && options.label.length > 0 || options.decorative === true) return void 0;
+		return `[OjIcon] "${name}" 既没有 label 也没有标 decorative：纯图标元素不进无障碍树，读屏用户读到的是一片空白（prd/03 §2）。给 label（有语义）或 decorative（装饰性，渲染 aria-hidden）二选一。`;
+	}
+	/**
+	* 只有构建器**明确**说是 dev 才告警。宁可线上漏报，也不要在产物里刷控制台——
+	* 这个判定读的是 `import.meta.env.DEV`，Vite 在 dev server 下注入 true，产物里没有它。
+	*/
+	function isDevEnv(env) {
+		return (env === null || env === void 0 ? void 0 : env.DEV) === true;
+	}
 	//#endregion
 	//#region src/shell/tabs.ts
 	/** 选项卡键盘模型。方向键在一组 id 里循环，Home / End 跳到两端。 */
@@ -1353,8 +1364,10 @@
 	exports.extendStroke = extendStroke;
 	exports.filterTree = filterTree;
 	exports.horizontalRuleOptions = horizontalRuleOptions;
+	exports.iconLabelProblem = iconLabelProblem;
 	exports.iconMarkup = iconMarkup;
 	exports.icons = icons;
+	exports.isDevEnv = isDevEnv;
 	exports.isHeadingLevel = isHeadingLevel;
 	exports.isHorizontalRuleInput = isHorizontalRuleInput;
 	exports.isTableSize = isTableSize;

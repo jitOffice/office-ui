@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN" data-oj-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>office-ui · 无构建器</title>
+    <!--
+      PRD 02 §4.1 / 05 §2 DoD #1 的验收对象：**没有 bundler 的页面**。
+
+      这里没有一个 import、没有 JSX、没有构建步骤——两个 <link> 加两个 <script>。
+      路径指向本仓库的产物与 devDependency，真实部署时换成 CDN 或自行复制出来的文件：
+        <link rel="stylesheet" href="https://cdn.example/oj/tokens.css">
+        <link rel="stylesheet" href="https://cdn.example/oj/office-ui.css">
+        <script src="https://cdn.example/vue.global.prod.js"></script>
+        <script src="https://cdn.example/oj/office-ui.js"></script>
+
+      两个刻意的选择：
+      1. 用 `vue.global.js`（**含编译器的完整构建**）而不是 runtime-only。02 §4.1 的契约就是
+         "无构建器场景必须用含编译器的全局构建，否则 `template:` 字符串静默空白"，
+         下面用 `template` 写组件正是为了真的走一遍编译器；用 `h()` 会绕开这条契约，
+         这个页面也就测不到任何东西了。
+      2. 用 dev 构建而不是 prod：prod 会吞掉警告，而 DoD #1 的验收话术是
+         "控制台无 Vue 编译缺失警告"——在会吞警告的构建上验这句话没有意义。
+    -->
+    <link rel="stylesheet" href="../../packages/tokens/dist/index.css" />
+    <link rel="stylesheet" href="../../packages/ui/dist/styles/office-ui.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: var(--oj-bg-layout);
+        color: var(--oj-text-1);
+        font: 14px/1.5715 var(--oj-font-sans);
+      }
+      .bar {
+        display: flex;
+        gap: var(--oj-space-1);
+        padding: var(--oj-space-2);
+        background: var(--oj-bg-container);
+        border: 1px solid var(--oj-border-1);
+        border-radius: var(--oj-radius-md);
+      }
+      .panel {
+        margin-top: 16px;
+        display: inline-block;
+        padding: var(--oj-space-3);
+        background: var(--oj-bg-container);
+        border: 1px solid var(--oj-border-1);
+        border-radius: var(--oj-radius-md);
+      }
+      .log {
+        margin-top: 16px;
+        font-family: var(--oj-font-mono);
+        color: var(--oj-text-2);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <script src="../../packages/ui/node_modules/vue/dist/vue.global.js"></script>
+    <script src="../../packages/ui/dist/umd/office-ui.js"></script>
+    <script>
+      const { createApp } = Vue
+      const { OjIcon, OjTooltip, OjTableGridPicker } = OfficeUI
+
+      createApp({
+        components: { OjIcon, OjTooltip, OjTableGridPicker },
+        data: () => ({ size: '', bold: false }),
+        methods: {
+          pick(cell) {
+            this.size = `${cell.row} × ${cell.col}`
+          },
+        },
+        template: `
+          <div>
+            <div class="bar" role="toolbar" aria-label="格式">
+              <oj-tooltip label="加粗 (Ctrl+B)">
+                <button type="button" class="oj-button" :data-active="bold ? '' : undefined"
+                        data-testid="bold" @click="bold = !bold">
+                  <oj-icon name="oj-format-bold" />
+                </button>
+              </oj-tooltip>
+              <oj-tooltip label="分隔线">
+                <button type="button" class="oj-button" data-testid="rule">
+                  <oj-icon name="oj-horizontal-rule" />
+                </button>
+              </oj-tooltip>
+            </div>
+
+            <div class="panel">
+              <oj-table-grid-picker @select="pick" />
+              <p class="log" data-testid="log">{{ size || '未选择' }}</p>
+            </div>
+          </div>
+        `,
+      }).mount('#app')
+    </script>
+  </body>
+</html>

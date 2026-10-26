@@ -45,6 +45,13 @@ components/
 ```
 **每个组件必须有自己的 `index.ts` 入口**，且 `components/index.ts` 只做 re-export 不含任何逻辑。任何在聚合入口里写 `const install = ...` 的做法都会让 tree-shaking 失效（打包器无法证明副作用可剔除）。
 
+> **2026-10-26 落地偏差**：`packages/ui` 没有建 `components/<name>/index.ts` 这一层，实际是 `src/vue/<name>.ts` 平铺 + `src/vue/index.ts` 纯 re-export。
+> 这条要求守的是"模块粒度和副作用"，而 `preserveModules: true` 已经把每个组件产出成独立文件，
+> 摇树粒度并未损失；聚合入口里也确实只有 `export {}` 行、没有 `install()`。
+> **没做到的是深路径的形状**：没有 `@jitoffice/ui/components/button` 这种按组件命名的稳定路径，
+> 只有 `./es/*`、`./cjs/*` 两个通配逃生门（见 §2.2）。要不要补这一层，等 M1 组件铺开时一起定——
+> 现在补等于给 17 个组件各造一个目录，收益（路径更好看）与成本（17 次移动 + `exports` 全表重写）不成比例。
+
 ---
 
 ## 2. 产物矩阵
@@ -135,6 +142,12 @@ Element Plus 现在的构建器是 **rolldown**（`internal/build/src/tasks/full
 "./*": "./*"
 ```
 最后一条 `./*` 是逃生门（让用户能引 `@jitoffice/ui/dist/styles/components/button.css` 这类未预告的路径）。它的开放性与"API 收敛"有张力：**保留但只承诺 `exports` 中显式列出的路径为稳定 API**，通配路径随时可变。这条要写进文档，否则会有人依赖通配路径然后在大版本升级时投诉。
+
+> **2026-10-26 落地**：`packages/ui` 已开 `"./es/*"`、`"./cjs/*"`、`"./styles/*"` 三条通配，`"./*"` 那条**没开**。
+> 理由：`"./*": "./*"` 会把 `package.json`、`dist/types`、`dist/umd` 全部暴露成可引路径，
+> 而它对"按需引入"没有增量价值——`./es/*` 已经覆盖了单组件深引。
+> 另有一处已知欠缺：通配路径**没有 `types` 条件**，`@jitoffice/ui/es/vue/icon.js` 在 TS 里拿不到类型，
+> 需要显式引 `./dist/types/...`。补法是在 `exports` 里给每条通配加嵌套条件（Node 支持，但 vite/webpack 的解析差异要先实测），归 A2 余下部分。
 
 ---
 

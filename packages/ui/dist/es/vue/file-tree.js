@@ -40,7 +40,13 @@ var OjFileTree = defineComponent({
 					if (node.kind === "folder") emit("toggle", node.id);
 					emit("select", node.id);
 				}
-			}, [node.kind === "folder" ? h(OjIcon, { name: open ? "oj-chevron-down" : "oj-chevron-right" }) : h(OjIcon, { name: "oj-file" }), h("span", node.name)]), node.kind === "folder" && open && node.children ? h("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
+			}, [node.kind === "folder" ? h(OjIcon, {
+				name: open ? "oj-chevron-down" : "oj-chevron-right",
+				decorative: true
+			}) : h(OjIcon, {
+				name: "oj-file",
+				decorative: true
+			}), h("span", node.name)]), node.kind === "folder" && open && node.children ? h("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
 		}
 		return () => {
 			if (props.nodes.length === 0) return h("p", { class: "oj-files__empty" }, props.emptyLabel);

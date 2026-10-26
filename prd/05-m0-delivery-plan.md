@@ -35,6 +35,46 @@ M0 的目标不是"做出组件"，而是**把后面所有组件都要依赖的�
 本机 `pnpm verify` 跑不了（engines 要求 Node ≥24 / pnpm ≥12，本机是 23.9 / 9.15），
 四步是逐个用 `node` 直跑验证的。
 
+**2026-10-26 第二轮（照 PRD 逐条对账之后补的四项）**：
+
+1. **DoD #1 终于有证据了**：新增 `examples/no-bundler/index.html` —— 两个 `<link>` + 两个 `<script>`，
+   没有任何 import 与构建步骤。**真跑过**（本机 Chrome 151，用 Playwright 临时脚本，跑完即删）：
+   UMD 渲染出 SVG 图标、两份 CSS 生效（按钮高度 32px 取自 `--oj-button-height`，圆角 6px）、
+   键盘 focus 唤出 tooltip、框选 2×3 回传、控制台**零 warning / zero error**。
+   页面刻意用 `vue.global.js`（含编译器的 **dev** 构建）+ `template` 字符串：换成 `vue.runtime.global.js`
+   实测**直接白屏超时**，这正是 02 §4.1 警告的"template 字符串静默空白"。
+   两条无效探针记在这里：第一次断言"按钮背景不是透明"是**假探针**——`--oj-button-bg` 本身就是
+   `transparent`；换成对比 `--oj-button-height` 与 `.oj-button` 的计算高度后才真的在测两份 CSS。
+   **仍未自动化**：Playwright 只在 `packages/tokens` 里，把这条用例挪进 CI 需要给 `ui` 加依赖并重跑
+   `pnpm install`（本机 pnpm 版本不够，装不了），所以现在它是"人跑过的页面"，不是"CI 守着的门禁"。
+2. **`OjIcon` 的可访问名契约落地**（03 §2 已同步修订）：`iconLabelProblem()` 是纯函数，
+   组件在 dev 下按图标名去重报一次；配套一条结构门禁——组件里每处 `h(OjIcon, …)` 必须带
+   `label` 或 `decorative`。实测把 `decorative` 删掉，门禁变红。
+   原文的"强制 label"落地时发现会误伤 `<button aria-label="关闭"><OjIcon/></button>` 这类**正确**用法，
+   于是收紧成"必须声明意图"，这是对 PRD 的修订而不是偏离。
+3. **`OjDialog` 有了 `teleport` prop**（03 §2「弹层归属」）：`'body' | '[selector]' | false`。
+   `OjDropdown` 暂不加：它的面板定位用的是视口坐标 + `position: absolute`，
+   真投到 body 会随滚动错位，得先把 `OjPopper` 的 `strategy: 'fixed'` 做出来。
+4. **`exports` 三条通配子路径**（`./es/*`、`./cjs/*`、`./styles/*`）。`"./*"` 逃生门**刻意没开**，
+   理由与一处已知欠缺（通配路径没有 `types` 条件）写进 02 §2.2。`packages/ui` 的每组件
+   `components/<name>/index.ts` 结构仍未采纳，理由写进 02 §1。
+
+**M0 八条 DoD 的现状**（哪条过了、哪条只是"产物有了但没验"）：
+
+| # | DoD | 状态 |
+|---|---|---|
+| 1 | UMD 端到端，控制台无编译缺失警告 | **✅ 人跑过**（Chrome 151，见上）；CI 未自动化 |
+| 2 | tree-shaking 后 gzip ≤ 8 KB（size-limit 断言） | ❌ 依赖未进 catalog |
+| 3 | 按需引入下组件样式不丢 | ⚠️ 契约 13 守住了"样式变量都存在于 token 表"，没有 size/覆盖率断言 |
+| 4 | 同一命令渲染在两处只重渲染一次 | ❌ 未验证（注册表侧有合帧用例，"两处渲染"没有） |
+| 5 | token CSS/JS 同源 | ✅ 契约 4 + `parity` 用例 |
+| 6 | 门禁可失败（三条故意破坏让 CI 红） | ⚠️ 契约 13/14 与图标门禁都实测红过；CI 层仍未跑过 |
+| 7 | `ui` 的 `dependencies` 为空 | ✅ 契约 1 |
+| 8 | ADR-0001~0004 已合入 | ✅ |
+
+**结论没变**：M0 未完成，卡在 #2 / #4 / #6 三条，而它们的共同前置是"能装依赖"——
+本机 `pnpm` 版本低于仓库要求（`pnpm@12.5.1`），`pnpm install` 与 `pnpm verify` 都跑不了。
+
 ---
 
 ### 首轮执行记录

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -16,8 +16,10 @@ import {
   createMemoryEditor,
   createTooltipMachine,
   editorCommands,
+  iconLabelProblem,
   iconMarkup,
   icons,
+  isDevEnv,
   placePopper,
   registerEditorCommands,
   tiptapEditorHost,
@@ -258,6 +260,40 @@ test('命令表与 Tiptap 桥没有漂移', () => {
     .sort()
   // 少一条映射时 host.can/exec 会静默返回 false，UI 上表现为按钮永远灰着、点了没反应。
   assert.deepEqual([...bridgedCommandIds()].sort(), declared)
+})
+
+test('图标可访问名：必须声明意图，dev 判定宁可漏报不误报', () => {
+  const missing = iconLabelProblem('oj-format-bold')
+  assert.equal(typeof missing, 'string')
+  assert.equal(missing?.includes('oj-format-bold'), true)
+  // 报错文案必须点出两种合法出路，否则使用者只能靠猜
+  assert.equal(missing?.includes('decorative'), true)
+
+  assert.equal(iconLabelProblem('oj-format-bold', { label: '加粗' }), undefined)
+  assert.equal(iconLabelProblem('oj-format-bold', { decorative: true }), undefined)
+  // 空串等于没给：`label=""` 是标签里最常见的"传了但没用"
+  assert.equal(typeof iconLabelProblem('oj-format-bold', { label: '' }), 'string')
+
+  assert.equal(isDevEnv(undefined), false)
+  assert.equal(isDevEnv({ DEV: false }), false)
+  assert.equal(isDevEnv({ DEV: true }), true)
+})
+
+test('组件里每处 OjIcon 都声明了 label 或 decorative', () => {
+  const dir = join(here, '../src/vue')
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.ts') || name === 'index.ts' || name === 'icon.ts') continue
+    const text = readFileSync(join(dir, name), 'utf8')
+    for (const m of text.matchAll(/h\(OjIcon,\s*\{([^}]*)\}/g)) {
+      const props = m[1] as string
+      // 漏声明在运行时不报错，只在 dev 控制台刷一行——而控制台没人看。
+      assert.equal(
+        /(^|[\s,{])(label|decorative):/.test(props),
+        true,
+        `${name} 的 h(OjIcon, {${props}}) 既没 label 也没 decorative`,
+      )
+    }
+  }
 })
 
 test('三枚图标使用 currentColor，样式用一层 overlay', () => {

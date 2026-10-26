@@ -40,7 +40,13 @@ var OjFileTree = (0, vue.defineComponent)({
 					if (node.kind === "folder") emit("toggle", node.id);
 					emit("select", node.id);
 				}
-			}, [node.kind === "folder" ? (0, vue.h)(require_icon.OjIcon, { name: open ? "oj-chevron-down" : "oj-chevron-right" }) : (0, vue.h)(require_icon.OjIcon, { name: "oj-file" }), (0, vue.h)("span", node.name)]), node.kind === "folder" && open && node.children ? (0, vue.h)("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
+			}, [node.kind === "folder" ? (0, vue.h)(require_icon.OjIcon, {
+				name: open ? "oj-chevron-down" : "oj-chevron-right",
+				decorative: true
+			}) : (0, vue.h)(require_icon.OjIcon, {
+				name: "oj-file",
+				decorative: true
+			}), (0, vue.h)("span", node.name)]), node.kind === "folder" && open && node.children ? (0, vue.h)("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
 		}
 		return () => {
 			if (props.nodes.length === 0) return (0, vue.h)("p", { class: "oj-files__empty" }, props.emptyLabel);

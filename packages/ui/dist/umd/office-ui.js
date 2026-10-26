@@ -44,11 +44,27 @@
 	function iconMarkup(name) {
 		if (Object.prototype.hasOwnProperty.call(icons, name)) return icons[name];
 	}
+	function iconLabelProblem(name, options = {}) {
+		if (typeof options.label === "string" && options.label.length > 0 || options.decorative === true) return void 0;
+		return `[OjIcon] "${name}" 既没有 label 也没有标 decorative：纯图标元素不进无障碍树，读屏用户读到的是一片空白（prd/03 §2）。给 label（有语义）或 decorative（装饰性，渲染 aria-hidden）二选一。`;
+	}
+	/**
+	* 只有构建器**明确**说是 dev 才告警。宁可线上漏报，也不要在产物里刷控制台——
+	* 这个判定读的是 `import.meta.env.DEV`，Vite 在 dev server 下注入 true，产物里没有它。
+	*/
+	function isDevEnv(env) {
+		return (env === null || env === void 0 ? void 0 : env.DEV) === true;
+	}
 	//#endregion
 	//#region src/vue/icon.ts
 	function cssSize(size) {
 		return typeof size === "number" ? `${size}px` : size;
 	}
+	/**
+	* dev 告警按图标名去重：一个 Ribbon 里同一枚图标会出现十几次，
+	* 每个实例刷一行只会让人把控制台关掉——那等于没有告警。
+	*/
+	var reported = /* @__PURE__ */ new Set();
 	var OjIcon = (0, vue.defineComponent)({
 		name: "OjIcon",
 		props: {
@@ -63,9 +79,29 @@
 			label: {
 				type: String,
 				default: void 0
+			},
+			/** 装饰性图标：显式声明「这枚图标没有语义」，渲染 `aria-hidden`（03 §2）。 */
+			decorative: {
+				type: Boolean,
+				default: false
 			}
 		},
 		setup(props) {
+			const env = {
+				"BASE_URL": "/",
+				"DEV": false,
+				"MODE": "production",
+				"PROD": true,
+				"SSR": false
+			};
+			const problem = iconLabelProblem(props.name, {
+				label: props.label,
+				decorative: props.decorative
+			});
+			if (problem !== void 0 && isDevEnv(env) && !reported.has(props.name)) {
+				reported.add(props.name);
+				console.warn(problem);
+			}
 			return () => {
 				const markup = iconMarkup(props.name);
 				const labelled = typeof props.label === "string" && props.label.length > 0;
@@ -132,7 +168,10 @@
 					onClick: () => {
 						if (enabled) props.source.run(props.id);
 					}
-				}, [(command === null || command === void 0 ? void 0 : command.icon) ? (0, vue.h)(OjIcon, { name: command.icon }) : null, (0, vue.h)("span", { class: "oj-button__label" }, label)]);
+				}, [(command === null || command === void 0 ? void 0 : command.icon) ? (0, vue.h)(OjIcon, {
+					name: command.icon,
+					decorative: true
+				}) : null, (0, vue.h)("span", { class: "oj-button__label" }, label)]);
 			};
 		}
 	});
@@ -673,6 +712,16 @@
 	});
 	//#endregion
 	//#region src/vue/dialog.ts
+	/**
+	* 03 §2「弹层归属」：`teleport: 'body' | '[selector]' | false`。
+	*
+	* Office 场景里弹窗不能一律挂 body：全屏放映要投进放映容器、iframe 内要投进 iframe 的
+	* document、打印区域同理。`false` 留在原地，给已经自己做了层级管理的宿主用。
+	*/
+	function teleportTarget(value) {
+		if (value === false) return void 0;
+		return typeof value === "string" && value.length > 0 ? value : "body";
+	}
 	var OjDialog = (0, vue.defineComponent)({
 		name: "OjDialog",
 		props: {
@@ -691,6 +740,10 @@
 			cancelLabel: {
 				type: String,
 				default: ""
+			},
+			teleport: {
+				type: [String, Boolean],
+				default: "body"
 			}
 		},
 		emits: [
@@ -723,7 +776,7 @@
 			return () => {
 				var _slots$default;
 				if (!props.open) return null;
-				return (0, vue.h)("div", {
+				const content = (0, vue.h)("div", {
 					class: "oj-dialog__mask",
 					onClick: () => cancel()
 				}, [(0, vue.h)("div", {
@@ -739,7 +792,10 @@
 						"data-size": "mini",
 						"aria-label": props.cancelLabel,
 						onClick: () => cancel()
-					}, [(0, vue.h)(OjIcon, { name: "oj-close" })])]),
+					}, [(0, vue.h)(OjIcon, {
+						name: "oj-close",
+						decorative: true
+					})])]),
 					(0, vue.h)("div", { class: "oj-dialog__body" }, (_slots$default = slots.default) === null || _slots$default === void 0 ? void 0 : _slots$default.call(slots)),
 					(0, vue.h)("footer", { class: "oj-dialog__footer" }, [props.cancelLabel ? (0, vue.h)("button", {
 						type: "button",
@@ -752,6 +808,8 @@
 						onClick: () => confirm()
 					}, props.confirmLabel) : null])
 				])]);
+				const to = teleportTarget(props.teleport);
+				return to === void 0 ? content : (0, vue.h)(vue.Teleport, { to }, [content]);
 			};
 		}
 	});
@@ -912,7 +970,10 @@
 					"data-size": "mini",
 					"aria-label": props.zoomOutLabel,
 					onClick: () => emit("update:modelValue", stepZoom(props.modelValue, -1))
-				}, [(0, vue.h)(OjIcon, { name: "oj-zoom-out" })]),
+				}, [(0, vue.h)(OjIcon, {
+					name: "oj-zoom-out",
+					decorative: true
+				})]),
 				(0, vue.h)("span", { class: "oj-zoom__value" }, `${props.modelValue}%`),
 				(0, vue.h)("button", {
 					type: "button",
@@ -920,7 +981,10 @@
 					"data-size": "mini",
 					"aria-label": props.zoomInLabel,
 					onClick: () => emit("update:modelValue", stepZoom(props.modelValue, 1))
-				}, [(0, vue.h)(OjIcon, { name: "oj-zoom-in" })]),
+				}, [(0, vue.h)(OjIcon, {
+					name: "oj-zoom-in",
+					decorative: true
+				})]),
 				(0, vue.h)("button", {
 					type: "button",
 					class: "oj-button",
@@ -971,7 +1035,13 @@
 						if (node.kind === "folder") emit("toggle", node.id);
 						emit("select", node.id);
 					}
-				}, [node.kind === "folder" ? (0, vue.h)(OjIcon, { name: open ? "oj-chevron-down" : "oj-chevron-right" }) : (0, vue.h)(OjIcon, { name: "oj-file" }), (0, vue.h)("span", node.name)]), node.kind === "folder" && open && node.children ? (0, vue.h)("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
+				}, [node.kind === "folder" ? (0, vue.h)(OjIcon, {
+					name: open ? "oj-chevron-down" : "oj-chevron-right",
+					decorative: true
+				}) : (0, vue.h)(OjIcon, {
+					name: "oj-file",
+					decorative: true
+				}), (0, vue.h)("span", node.name)]), node.kind === "folder" && open && node.children ? (0, vue.h)("ul", { role: "group" }, node.children.map((child) => renderNode(child, depth + 1))) : null]);
 			}
 			return () => {
 				if (props.nodes.length === 0) return (0, vue.h)("p", { class: "oj-files__empty" }, props.emptyLabel);

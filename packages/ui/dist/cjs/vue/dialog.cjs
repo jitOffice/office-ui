@@ -1,6 +1,16 @@
 const require_icon = require("./icon.cjs");
 let vue = require("vue");
 //#region src/vue/dialog.ts
+/**
+* 03 §2「弹层归属」：`teleport: 'body' | '[selector]' | false`。
+*
+* Office 场景里弹窗不能一律挂 body：全屏放映要投进放映容器、iframe 内要投进 iframe 的
+* document、打印区域同理。`false` 留在原地，给已经自己做了层级管理的宿主用。
+*/
+function teleportTarget(value) {
+	if (value === false) return void 0;
+	return typeof value === "string" && value.length > 0 ? value : "body";
+}
 var OjDialog = (0, vue.defineComponent)({
 	name: "OjDialog",
 	props: {
@@ -19,6 +29,10 @@ var OjDialog = (0, vue.defineComponent)({
 		cancelLabel: {
 			type: String,
 			default: ""
+		},
+		teleport: {
+			type: [String, Boolean],
+			default: "body"
 		}
 	},
 	emits: [
@@ -47,7 +61,7 @@ var OjDialog = (0, vue.defineComponent)({
 		});
 		return () => {
 			if (!props.open) return null;
-			return (0, vue.h)("div", {
+			const content = (0, vue.h)("div", {
 				class: "oj-dialog__mask",
 				onClick: () => cancel()
 			}, [(0, vue.h)("div", {
@@ -63,7 +77,10 @@ var OjDialog = (0, vue.defineComponent)({
 					"data-size": "mini",
 					"aria-label": props.cancelLabel,
 					onClick: () => cancel()
-				}, [(0, vue.h)(require_icon.OjIcon, { name: "oj-close" })])]),
+				}, [(0, vue.h)(require_icon.OjIcon, {
+					name: "oj-close",
+					decorative: true
+				})])]),
 				(0, vue.h)("div", { class: "oj-dialog__body" }, slots.default?.()),
 				(0, vue.h)("footer", { class: "oj-dialog__footer" }, [props.cancelLabel ? (0, vue.h)("button", {
 					type: "button",
@@ -76,6 +93,8 @@ var OjDialog = (0, vue.defineComponent)({
 					onClick: () => confirm()
 				}, props.confirmLabel) : null])
 			])]);
+			const to = teleportTarget(props.teleport);
+			return to === void 0 ? content : (0, vue.h)(vue.Teleport, { to }, [content]);
 		};
 	}
 });

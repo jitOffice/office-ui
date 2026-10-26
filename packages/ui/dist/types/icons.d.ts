@@ -37,3 +37,25 @@ export declare const icons: {
 };
 export type OjIconName = keyof typeof icons;
 export declare function iconMarkup(name: string): string | undefined;
+/**
+ * 03 §2「可访问名」：纯图标元素对读屏用户等同于空白。
+ *
+ * 判定做成纯函数而不是在组件里直接 `console.warn`，因为它要能在零依赖的 `node --test`
+ * 里被断言——那条链不加载 vue，组件层只负责在 dev 下调一次。
+ *
+ * 为什么还要 `decorative`：`<button aria-label="关闭"><OjIcon name="oj-close" /></button>`
+ * 里的图标是**装饰**，正确做法就是 `aria-hidden`；硬逼它写 label 会让读屏念两遍。
+ * 所以契约从"必须给 label"收紧成"必须声明意图"：给 label（有语义），或标 decorative。
+ */
+export interface IconNameOptions {
+    label?: string | undefined;
+    decorative?: boolean | undefined;
+}
+export declare function iconLabelProblem(name: string, options?: IconNameOptions): string | undefined;
+/**
+ * 只有构建器**明确**说是 dev 才告警。宁可线上漏报，也不要在产物里刷控制台——
+ * 这个判定读的是 `import.meta.env.DEV`，Vite 在 dev server 下注入 true，产物里没有它。
+ */
+export declare function isDevEnv(env: {
+    DEV?: boolean;
+} | undefined): boolean;

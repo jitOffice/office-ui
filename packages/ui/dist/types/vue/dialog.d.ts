@@ -15,6 +15,10 @@ export declare const OjDialog: import("vue").DefineComponent<import("vue").Extra
         type: StringConstructor;
         default: string;
     };
+    teleport: {
+        type: (BooleanConstructor | StringConstructor)[];
+        default: string;
+    };
 }>, () => import("vue").VNode<import("vue").RendererNode, import("vue").RendererElement, {
     [key: string]: any;
 }> | null, {}, {}, {}, import("vue").ComponentOptionsMixin, import("vue").ComponentOptionsMixin, ("cancel" | "confirm" | "update:open")[], "cancel" | "confirm" | "update:open", import("vue").PublicProps, Readonly<import("vue").ExtractPropTypes<{
@@ -34,6 +38,10 @@ export declare const OjDialog: import("vue").DefineComponent<import("vue").Extra
         type: StringConstructor;
         default: string;
     };
+    teleport: {
+        type: (BooleanConstructor | StringConstructor)[];
+        default: string;
+    };
 }>> & Readonly<{
     onCancel?: (...args: any[]) => any;
     onConfirm?: (...args: any[]) => any;
@@ -41,4 +49,5 @@ export declare const OjDialog: import("vue").DefineComponent<import("vue").Extra
 }>, {
     confirmLabel: string;
     cancelLabel: string;
+    teleport: string | boolean;
 }, {}, {}, {}, string, import("vue").ComponentProvideOptions, true, {}, any>;

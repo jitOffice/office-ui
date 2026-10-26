@@ -33,7 +33,7 @@ export const OjFileTree = defineComponent({
             },
           },
           [
-            node.kind === 'folder' ? h(OjIcon, { name: open ? 'oj-chevron-down' : 'oj-chevron-right' }) : h(OjIcon, { name: 'oj-file' }),
+            node.kind === 'folder' ? h(OjIcon, { name: open ? 'oj-chevron-down' : 'oj-chevron-right', decorative: true }) : h(OjIcon, { name: 'oj-file', decorative: true }),
             h('span', node.name),
           ],
         ),

@@ -47,7 +47,10 @@ var OjCommandButton = (0, vue.defineComponent)({
 				onClick: () => {
 					if (enabled) props.source.run(props.id);
 				}
-			}, [command?.icon ? (0, vue.h)(require_icon.OjIcon, { name: command.icon }) : null, (0, vue.h)("span", { class: "oj-button__label" }, label)]);
+			}, [command?.icon ? (0, vue.h)(require_icon.OjIcon, {
+				name: command.icon,
+				decorative: true
+			}) : null, (0, vue.h)("span", { class: "oj-button__label" }, label)]);
 		};
 	}
 });

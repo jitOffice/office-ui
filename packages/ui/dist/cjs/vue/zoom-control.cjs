@@ -34,7 +34,10 @@ var OjZoomControl = (0, vue.defineComponent)({
 				"data-size": "mini",
 				"aria-label": props.zoomOutLabel,
 				onClick: () => emit("update:modelValue", require_zoom.stepZoom(props.modelValue, -1))
-			}, [(0, vue.h)(require_icon.OjIcon, { name: "oj-zoom-out" })]),
+			}, [(0, vue.h)(require_icon.OjIcon, {
+				name: "oj-zoom-out",
+				decorative: true
+			})]),
 			(0, vue.h)("span", { class: "oj-zoom__value" }, `${props.modelValue}%`),
 			(0, vue.h)("button", {
 				type: "button",
@@ -42,7 +45,10 @@ var OjZoomControl = (0, vue.defineComponent)({
 				"data-size": "mini",
 				"aria-label": props.zoomInLabel,
 				onClick: () => emit("update:modelValue", require_zoom.stepZoom(props.modelValue, 1))
-			}, [(0, vue.h)(require_icon.OjIcon, { name: "oj-zoom-in" })]),
+			}, [(0, vue.h)(require_icon.OjIcon, {
+				name: "oj-zoom-in",
+				decorative: true
+			})]),
 			(0, vue.h)("button", {
 				type: "button",
 				class: "oj-button",

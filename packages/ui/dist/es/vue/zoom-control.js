@@ -34,7 +34,10 @@ var OjZoomControl = defineComponent({
 				"data-size": "mini",
 				"aria-label": props.zoomOutLabel,
 				onClick: () => emit("update:modelValue", stepZoom(props.modelValue, -1))
-			}, [h(OjIcon, { name: "oj-zoom-out" })]),
+			}, [h(OjIcon, {
+				name: "oj-zoom-out",
+				decorative: true
+			})]),
 			h("span", { class: "oj-zoom__value" }, `${props.modelValue}%`),
 			h("button", {
 				type: "button",
@@ -42,7 +45,10 @@ var OjZoomControl = defineComponent({
 				"data-size": "mini",
 				"aria-label": props.zoomInLabel,
 				onClick: () => emit("update:modelValue", stepZoom(props.modelValue, 1))
-			}, [h(OjIcon, { name: "oj-zoom-in" })]),
+			}, [h(OjIcon, {
+				name: "oj-zoom-in",
+				decorative: true
+			})]),
 			h("button", {
 				type: "button",
 				class: "oj-button",

@@ -122,7 +122,7 @@ oj.list({ group: '开始', includeUnavailable: false })
 | 受控/非受控 | 所有可选面板组件同时支持 `v-model` 与 `defaultVisible` | 只给受控会把简单场景写复杂 |
 | 弹层归属 | 统一 `teleport` prop：`'body'\|'[selector]'\|false` | Office 场景必须能投进特定容器（全屏放映、iframe 内、打印区域） |
 | 图标传参 | `icon` 接受字符串（注册表 id）**或**组件/插槽，二者等价 | UMD 用户无法传组件对象，只能给字符串 |
-| 可访问名 | 所有纯图标组件强制 `label`（或 `aria-label`），缺失时 dev 模式告警 | 图标按钮无文本是办公界面最普遍的 a11y 缺陷 |
+| 可访问名 | 所有纯图标组件**必须声明意图**：给 `label`（有语义）或标 `decorative`（装饰性，渲染 `aria-hidden`），两者皆无时 dev 模式告警 | 图标按钮无文本是办公界面最普遍的 a11y 缺陷。**2026-10-26 修订**：原文写的是"强制 `label`"，落地时发现 `<button aria-label="关闭"><OjIcon name="oj-close"/></button>` 这类正确用法会被误报——图标是装饰，硬写 label 会让读屏念两遍。契约因此从"必须给 label"收紧成"必须声明意图"，多出来的 `decorative` 是这条修订的产物 |
 
 ### 命名禁止清单
 - 禁止 `show`/`isShow` → 用 `visible`
@@ -236,6 +236,33 @@ oj.list({ group: '开始', includeUnavailable: false })
 | 🟡 `OjMinimap` | 长文档缩略导航 |
 | 🟡 `OjSlideCanvas` / `OjLayerPanel` / `OjSlideThumbnails` / `OjPresenterBar` | 演示外壳 |
 | 🟡 `OjConditionalFormatPanel` | 条件格式规则编辑 |
+
+### 实现状态（2026-10-26）
+
+上面 45 件是**目标清单**，不是已完成清单。当前实际交付 17 件（`@jitoffice/ui/vue`），其中 8 件在清单内、9 件在清单外：
+
+| 清单内已实现 | 所属组 |
+|---|---|
+| `OjIcon` | A |
+| `OjCommandButton`、`OjTooltip` | B |
+| `OjTableGridPicker`、`OjZoomControl` | C |
+| `OjPopper` | D |
+| `OjSearchReplaceBar` | F |
+| `OjRuler` | G（L2 首个） |
+
+| 清单外已实现 | 位置 | 为什么在这里 |
+|---|---|---|
+| `OjDropdown` | B 的邻域 | 与 `OjDropdownButton` 有重叠但**不等价**：它只提供触发器 + 浮层，不绑定命令。要么并进 B 作为 `OjDropdownButton` 的底座，要么在 B 里单列——**待定** |
+| `OjTabs` | B 的邻域 | Ribbon 的选项卡是它的一个用法，但它本身是通用外壳件 |
+| `OjDialog` | B 的邻域 | `OjCommandLauncher` 要打开的就是它；清单里漏了"对话框"这一件 |
+| `OjFileTree` | F 的邻域 | 与 `OjOutlineTree`（G）语义不同：文件树是文件，大纲是文档结构 |
+| `OjSignaturePad` | 新增 | 印章/签名是 Office 场景刚需，45 件清单里完全没有这一类 |
+| `OjStamp` | 新增 | 同上 |
+| `OjWatermark` | 新增 | 同上 |
+| `OjAiPanel` | E 的邻域 | 与 `OjTaskPane` 重叠；AI 侧栏是 JitWord/JitKnow 的实际需求，建议把 `OjTaskPane` 的定位改成"通用任务面板"、AI 面板作为它的一个 preset |
+| `OjCodeBlock` | G 的邻域 | 文档节点级渲染件，严格说属于内核适配层 |
+
+这 9 件是 E1/E2 为"外壳可演示"加进来的，先落地再回写。**需要你拍板的只有一处**：`OjDropdown` 与 `OjDropdownButton`、`OjAiPanel` 与 `OjTaskPane` 这两对是合并还是并列——合并会让 API 更少但语义更含糊，并列会让清单从 45 涨到 47。其余 7 件的归属按上表补进 §3 即可。
 
 ---
 
