@@ -26,6 +26,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "turbo": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "nx": "24.0.0"
   }
 }

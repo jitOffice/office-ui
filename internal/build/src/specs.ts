@@ -49,9 +49,12 @@ function globalSuffix(code: string): string {
 }
 
 /**
- * 只登记已存在的包。`ui` 的 Vue 层是 `h()` 写的 `.ts`，走与 shared 相同的四套产物
- * 里的 ESM / CJS / 类型三套；样式是单独复制的 `dist/style.css`（ADR-0003），
- * 不按组件拆。UMD 仍未做：Vue 运行时要作为全局 `Vue` 外部化，见 prd/06。
+ * 只登记已存在的包。`ui` 的 Vue 层是 `h()` 写的 `.ts`，走与 shared 相同的 ESM / CJS / 类型三套，
+ * 另加两条兼容线 UMD；样式由 `dist/styles/` 下的两份 CSS 交付（ADR-0003），不按组件拆。
+ *
+ * 两条 UMD 是两种消费者，不能合成一条：
+ * `office-ui.js` 从 `./vue` 入口出，`vue` 是外部依赖（全局 `Vue`），无构建器页面要的就是它；
+ * `office-ui-core.js` 从根入口出，不含 Vue，给只想要命令表 / 框选模型的 `<script>` 用户。
  */
 export const specs: PackageSpec[] = [
   {
@@ -77,6 +80,10 @@ export const specs: PackageSpec[] = [
     dir: 'ui',
     name: '@jitoffice/ui',
     entries: ['src/index.ts', 'src/vue/index.ts'],
+    umd: [
+      { entry: 'src/vue/index.ts', outDir: 'dist/umd', file: 'office-ui', global: 'OfficeUI' },
+      { entry: 'src/index.ts', outDir: 'dist/umd', file: 'office-ui-core', global: 'OfficeUICore' },
+    ],
   },
 ]
 

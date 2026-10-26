@@ -1,0 +1,37 @@
+name: visual
+
+# 视觉/排版回归（B5）。独立于 pull-request.yml 的理由有二：
+#   1. 它要下载 Playwright 浏览器（约 197 MiB），比整条零依赖链还慢；
+#   2. 它锁的是**排版引擎行为**（禁则断点、CJK↔拉丁间距），换内核版本结论就会变，
+#      这类红是"环境变了"还是"代码变了"，要单独一个可重跑的入口来分辨。
+# 所以：定时 + 手动，不挡每个 PR。
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 18 * * *'
+
+jobs:
+  typography:
+    name: 中日文排版（Chromium）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 不设 `OJ_BROWSER_CHANNEL`：那个变量是给拉不到下载源的开发机用的，
+      # CI 必须走默认项目，否则测的是 runner 上碰巧装了什么浏览器。
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # 需要先有 tokens 的 dist 产物：被测对象就是它，不是 dev server。
+      - run: pnpm --filter @jitoffice/tokens build
+
+      - run: pnpm --filter @jitoffice/tokens test:visual

@@ -32,3 +32,5 @@ minimumReleaseAge: 1440
 onlyBuiltDependencies:
   - esbuild
   - sass-embedded
+allowBuilds:
+  nx: true

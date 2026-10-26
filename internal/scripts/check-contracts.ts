@@ -24,6 +24,10 @@
  * 12. 老消费方那张脸必须和 `exports` 同源：`main`/`module`/`types` 逐字等于 `exports["."]` 的
  *     `require`/`import`/`types` 目标（对侧条件存在却缺字段同样违反），有 `dist/umd` 产物就必须
  *     声明 `unpkg`/`jsdelivr` 并指向其中的文件 —— 只改一张脸会在 webpack4 / Jest / CDN 用户里坏掉
+ * 13. 组件样式只能引用 token：每个 `var(--oj-*)` 都要在 token 产物里有声明，且不许写字面色值
+ *     （拼错的变量名会让整条声明静默失效，而两侧测试各自都是绿的）
+ * 14. `ui` 的 UMD 必须把 `vue` 留在外部：Vue 层产物要引用全局 `Vue`，框架无关产物一个引用都不许有
+ *     （内联进去的后果是页面上出现两份 Vue，`provide`/`inject` 静默失效）
  *
  * 第 8 条守的是一类会静默通过的缺陷：选择器写成语义精确匹配的 `html[lang="ja"]`，而语言包
  * `name` 是 `ja-JP`，于是整层字号/字距/行高覆写对日文界面完全不生效，两边各自测试都还是绿的。
@@ -454,6 +458,88 @@ for (const m of langCss.matchAll(/\[lang\s*=/g)) {
   )
 }
 
+// ---------------------------------------------------------------- 组件样式 ↔ token 表
+/**
+ * 组件 CSS 不许出现字面色值，且每个 `var(--oj-*)` 都必须在 token 产物里有声明（02 §7 一致性）。
+ *
+ * 拼错的变量名是这个仓库里最安静的一类缺陷：`var(--oj-text-4)` 写成 `var(--oj-txt-4)`，
+ * 浏览器不会报错、不会回退，而是**整条声明失效**——按钮背景退回 UA 默认色。
+ * 组件测试读的是 JS 状态，tokens 测试读的是自己那张表，两边都是绿的。
+ *
+ * token 名字只从 `dist/index.css` 与两个主题产物里取，不读生成器常量：与契约 8 同一条规矩，
+ * 门禁要盯的是发出去的东西。
+ */
+const declaredVars = new Set<string>()
+for (const [rel, content] of Object.entries(artifacts)) {
+  if (!rel.endsWith('.css')) continue
+  for (const m of content.matchAll(/(--oj-[\w-]+)\s*:/g)) declaredVars.add(m[1] as string)
+}
+
+/**
+ * 组件自己设置的局部变量（`--oj-gp-row` 这类）不是 token，但它们**必须在组件源码里被赋值**。
+ * 一开始这里写的是白名单，实测第一轮就发现它已经漏了 `--oj-gp-cols`：白名单会漂移，
+ * 而"谁赋的值"是数据，不是维护者的记忆。
+ */
+function assignedVars(dir: string): Set<string> {
+  const out = new Set<string>()
+  const walk = (current: string): void => {
+    for (const name of readdirSync(current)) {
+      const abs = join(current, name)
+      if (statSync(abs).isDirectory()) walk(abs)
+      else if (name.endsWith('.ts') && existsSync(abs)) {
+        for (const m of readFileSync(abs, 'utf8').matchAll(/['"](--oj-[\w-]+)['"]\s*:/g)) {
+          out.add(m[1] as string)
+        }
+      }
+    }
+  }
+  const src = join(packagesDir, dir, 'src')
+  if (existsSync(src)) walk(src)
+  return out
+}
+
+let styleVars = 0
+for (const dir of pkgNames) {
+  const file = join(packagesDir, dir, 'src', 'style.css')
+  if (!existsSync(file)) continue
+  const css = stripComments(readFileSync(file, 'utf8'))
+  const relFile = relative(repoRoot, file)
+  // 字面色值等于绕过主题与暗色镜像：暗色模式下这一处不会跟着变。
+  for (const m of css.matchAll(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g)) {
+    problems.push(`${relFile} 出现字面色值 ${m[0]}：组件样式只能引用 var(--oj-*)（02 §7）`)
+  }
+  const local = assignedVars(dir)
+  const used = new Set([...css.matchAll(/var\((--oj-[\w-]+)/g)].map((m) => m[1] as string))
+  styleVars += used.size
+  for (const name of used) {
+    if (declaredVars.has(name) || local.has(name)) continue
+    problems.push(
+      `${relFile} 用了未定义的 ${name}：既不在 token 表里，也没有任何组件源码给它赋值` +
+        `——浏览器会丢弃整条声明，而两侧测试都是绿的`,
+    )
+  }
+}
+
+// ---------------------------------------------------------------- UMD 与外部框架
+/**
+ * `office-ui.js` 是 Vue 层的兼容线产物，`vue` 必须留在外部（页面上的全局 `Vue`）。
+ * 外部化被改回内联的话产物照样能跑，代价藏在两处：体积翻倍，以及页面上同时存在两份 Vue ——
+ * `inject` / `provide` / 全局指令全部失效，症状是"组件渲染出来了但点击没反应"。
+ * `office-ui-core.js` 是框架无关入口，任何 vue 引用出现在那里都是错的。
+ */
+for (const file of jsFilesUnder(join(packagesDir, 'ui', 'dist', 'umd'))) {
+  const text = readFileSync(file, 'utf8')
+  const relFile = relative(repoRoot, file)
+  const expectsVue = file.endsWith('office-ui.js')
+  const referencesVue = /require\("vue"\)|global\.Vue/.test(text)
+  if (expectsVue && !referencesVue) {
+    problems.push(`${relFile} 没有把 vue 作为外部依赖：Vue 运行时被内联进了产物（02 §2 四套产物）`)
+  }
+  if (!expectsVue && referencesVue) {
+    problems.push(`${relFile} 是框架无关入口，却把 vue 拉进了产物（ADR-0005）`)
+  }
+}
+
 // ---------------------------------------------------------------- 治理文档链接
 /**
  * 逐级**区分大小写**地判断路径可达。
@@ -510,6 +596,7 @@ console.log(
   `[contracts] 通过 · 检查 ${pkgNames.length} 个包 · catalog ${catalog.size} 个键 · ` +
     `${declarationFiles} 份入库 .d.ts 说明符全部可解析 · ` +
     `${publishFaces} 个发布面扁平字段与 exports 同源 · ` +
+    `组件样式 ${styleVars} 个变量全部命中 token 表 · ` +
     `i18n ${locales.length} 语 ↔ tokens ${varLayers.length} 个变量覆写层 + ${resetLayers.length} 个排版层 · ` +
     `${governanceDocs.length} 份治理文档链接完好`,
 )

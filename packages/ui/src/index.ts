@@ -7,7 +7,7 @@
 
 export { createMemoryEditor } from './editor-host.ts'
 export type { EditorCall, MemoryEditor, OjEditorHost, OjEditorState } from './editor-host.ts'
-export { tiptapEditorHost } from './tiptap-host.ts'
+export { bridgedCommandIds, tiptapEditorHost } from './tiptap-host.ts'
 export type { TiptapLikeEditor } from './tiptap-host.ts'
 export {
   COMMAND_BLOCKQUOTE,

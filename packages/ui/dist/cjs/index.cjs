@@ -41,6 +41,7 @@ exports.ZOOM_STEP = require_zoom.ZOOM_STEP;
 exports.applyHorizontalRuleInput = require_horizontal_rule.applyHorizontalRuleInput;
 exports.applyNodeInput = require_document.applyNodeInput;
 exports.blockPlain = require_tree.blockPlain;
+exports.bridgedCommandIds = require_tiptap_host.bridgedCommandIds;
 exports.clampZoom = require_zoom.clampZoom;
 exports.createDocument = require_tree.createDocument;
 exports.createGridPicker = require_table_grid.createGridPicker;

@@ -1,0 +1,73 @@
+name: pull-request
+
+# 两段门禁刻意不合成一个 job（05 §A3）：
+#   verify 是**零依赖**链：不 install 也要能跑，这是内网/信创环境的验收前提；
+#   build  需要 node_modules，管类型、产物同源与兼容线语法。
+# 分开跑，红的时候一眼能看出去的是哪一段，而不是在一堆 install 日志里找。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: 零依赖门禁（tokens / i18n / 单测 / 契约）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # 版本由 package.json 的 packageManager 决定
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 这一步**不许**加 `pnpm install`。`pnpm verify` 的契约就是"没有依赖也能验证"，
+      # 一旦 CI 先装依赖再跑，"零依赖"就退化成没人测过的承诺（05 §A1）。
+      - run: pnpm verify
+
+      # 生成物（tokens 的 dist、i18n 的 generated/keys.ts）是入库的。
+      # 改了 seed / 文案却忘记重跑生成器时，本机全绿，下一个人的 `build:check` 才炸——
+      # 这里让它当场红，并且报出是哪些文件。
+      - name: 生成物必须已提交
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::生成物与源码不同源，请提交下列改动："
+            git status --porcelain
+            git --no-pager diff --stat
+            exit 1
+          fi
+
+  build:
+    name: 类型与产物（tsc / build / build:check）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
+
+      # 重建进临时目录与入库 dist 逐字节比对，再用 es-check 复核兼容线语法。
+      # 后者不能省：构建参数写错时产物仍然生成，只是老内核解析失败（ADR-0002）。
+      - run: pnpm build:check
+
+# 尚未接入的门禁，别在 PR 里写成"lint 已过"（CONTRIBUTING §2）：
+#   stylelint 魔法数、license-checker 白名单、size-limit 体积、attw 双解析 ——
+#   四个都还没进 catalog。它们要的依赖一旦装上，各自补一个 job，并**先故意破坏一次**
+#   确认会红（05 §A3 验收：门禁不做故意破坏验证等于没有门禁）。
+# 视觉回归走 visual.yml，因为它需要下载 Playwright 浏览器，不适合挡住每个 PR。

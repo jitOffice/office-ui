@@ -7,12 +7,15 @@ import { fileURLToPath } from 'node:url'
 import { createCommandRegistry } from '../../shared/src/commands/index.ts'
 import type { OjHistoryAdapter } from '../../shared/src/commands/index.ts'
 import {
+  bridgedCommandIds,
+  COMMAND_ALIGN_LEFT,
   COMMAND_BOLD,
   COMMAND_HORIZONTAL_RULE,
   COMMAND_TABLE,
   createGridPicker,
   createMemoryEditor,
   createTooltipMachine,
+  editorCommands,
   iconMarkup,
   icons,
   placePopper,
@@ -211,6 +214,50 @@ test('tooltip 未到 400ms 离开则不打开', () => {
   machine.enter()
   if (clock.alive) clock.fire?.()
   assert.equal(machine.open, true)
+})
+
+test('左对齐经 Tiptap 宿主翻译成 setTextAlign("left")，且 active 读同一参数', () => {
+  const seen: unknown[] = []
+  const active: unknown[] = []
+  const host = tiptapEditorHost({
+    isActive: (name) => {
+      active.push(name)
+      return true
+    },
+    can: () => ({
+      setTextAlign: (...args: unknown[]) => {
+        seen.push(['can', ...args])
+        return true
+      },
+    }),
+    commands: {
+      setTextAlign: (...args: unknown[]) => {
+        seen.push(['run', ...args])
+        return true
+      },
+    },
+    on: () => {},
+    off: () => {},
+  })
+
+  assert.equal(host.can(COMMAND_ALIGN_LEFT), true)
+  assert.equal(host.exec(COMMAND_ALIGN_LEFT), true)
+  // 调用方没传参时用桥里钉住的 'left'，不能把 undefined 透给 Tiptap。
+  assert.deepEqual(seen, [
+    ['can', 'left'],
+    ['run', 'left'],
+  ])
+  // 对齐不是布尔命令：active 必须按属性值问，否则「右对齐」也会让左对齐按钮高亮。
+  assert.deepEqual(host.state(COMMAND_ALIGN_LEFT), { enabled: true, active: true })
+  assert.deepEqual(active, [{ textAlign: 'left' }])
+})
+
+test('命令表与 Tiptap 桥没有漂移', () => {
+  const declared = editorCommands()
+    .map((command) => command.id)
+    .sort()
+  // 少一条映射时 host.can/exec 会静默返回 false，UI 上表现为按钮永远灰着、点了没反应。
+  assert.deepEqual([...bridgedCommandIds()].sort(), declared)
 })
 
 test('三枚图标使用 currentColor，样式用一层 overlay', () => {

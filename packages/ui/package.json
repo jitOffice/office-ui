@@ -10,6 +10,8 @@
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/es/index.js",
   "types": "./dist/types/index.d.ts",
+  "unpkg": "./dist/umd/office-ui.js",
+  "jsdelivr": "./dist/umd/office-ui.js",
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
@@ -21,7 +23,8 @@
       "import": "./dist/es/vue/index.js",
       "require": "./dist/cjs/vue/index.cjs"
     },
-    "./style.css": "./dist/style.css",
+    "./style.css": "./dist/styles/office-ui.css",
+    "./layered.css": "./dist/styles/office-ui.layered.css",
     "./package.json": "./package.json"
   },
   "files": [

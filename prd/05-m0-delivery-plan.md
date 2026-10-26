@@ -6,7 +6,38 @@ M0 的目标不是"做出组件"，而是**把后面所有组件都要依赖的�
 
 ---
 
-## 实际进度（截至首轮执行）
+## 实际进度
+
+**2026-10-26 续执行的四项**（都在本机真跑过，含红绿两条分支）：
+
+1. **`format.alignLeft` 的 Tiptap 桥补上了**。此前 `commands.ts` 声明了这条命令，`BRIDGE` 表里却没有，
+   接真实 Tiptap 时 `can/exec/state` 会**静默返回 false**（按钮永远灰着，而所有测试用的是内存宿主，
+   一条都看不见）。顺带加了 `bridgedCommandIds()` 并补一条"命令表 ↔ 桥没有漂移"的用例：
+   以后漏映射会在测试里红，而不是在用户界面上表现为"点了没反应"。
+2. **`packages/ui` 的兼容线产物落地**：`dist/umd/office-ui.js`（Vue 层，`vue` 外部化成全局 `Vue`）
+   与 `office-ui-core.js`（框架无关入口，产物里 0 处 `vue`），`es-check es2018` 两个文件均通过，
+   `unpkg`/`jsdelivr` 已挂。**样式改成双产物** `dist/styles/office-ui.css` 与 `office-ui.layered.css`
+   （同一份源码，后者包 `@layer oj-ui`）——`@layer` 是 Chromium 99+ 才有的，
+   而兼容线 floor 是 86，所以它不能是唯一形态。
+3. **两条新契约（13、14）**：组件样式里的每个 `var(--oj-*)` 必须命中 token 产物或由组件源码赋值，
+   且不许出现字面色值；`ui` 的 UMD 必须把 `vue` 留在外部，框架无关入口一处引用都不许有。
+   契约 13 上线第一轮就抓到 `--oj-gp-cols`（组件自己赋值的局部变量），于是把"白名单"改成
+   "谁赋的值"——白名单会漂移，数据不会。四条破坏性探针（拼错变量、字面色值、Vue 未外部化、
+   框架无关产物拉进 vue）都实测红过。
+4. **`.github/workflows/pull-request.yml`**：两条 job，`verify` 刻意**不 install**（零依赖契约），
+   并在末尾用 `git status --porcelain` 卡住"改了源码忘记提交生成物"；`build` 跑
+   `typecheck → build → build:check`。另有 `visual.yml`（定时 + 手动）跑排版回归。
+   **卡点**：stylelint / license-checker / size-limit / attw 四个门禁的依赖都还没进 catalog，
+   `release.yml` 要先有 changesets 与 B3 的书面确认，两者都没有落地，所以没有写——写一个跑不起来的
+   流水线比没有更糟。
+
+当前 **107 个零依赖用例、14 条契约检查**通过；`tsc` 在五个包里 0 error；`build:check` 三个包逐字节同源。
+本机 `pnpm verify` 跑不了（engines 要求 Node ≥24 / pnpm ≥12，本机是 23.9 / 9.15），
+四步是逐个用 `node` 直跑验证的。
+
+---
+
+### 首轮执行记录
 
 已完成的部分**全部能在没有 `node_modules` 的环境下验证**：`pnpm verify`
 （= `tokens:gen` → `i18n:gen` → `node --test "packages/*/test/**/*.test.ts"` → `check-contracts`）
@@ -28,13 +59,16 @@ CI 里必须自己 `playwright install chromium`，否则这三条只能靠通�
 | A4 ADR | 完成 | `docs/adr/` 五份；0002 浏览器基线已 **Accepted**（2026-10-09 负责人拍板：legacy 线 floor = Chromium 86，方案 C 成立；目标内核的**具体版本清单**仍未拿到） |
 | A5 仓库治理文件 | 完成（**两处需负责人填空**） | `CONTRIBUTING.md`、`CODE_OF_CONDUCT.md`、`SECURITY.md`、`SUPPORT.md`、`.github/ISSUE_TEMPLATE/`（bug 强制复现链接 / a11y 独立模板 / feature / `config.yml`）、`.gitignore` 补反忽略与许可扫描中间产物。仍缺：**CoC 举报邮箱与治理小组名单**、**SECURITY 的邮件渠道与 PGP 指纹** —— 两处都以 `TODO(需仓库负责人确认)` 写在文件里 |
 | B1–B3 tokens 双产物 | 完成 | `packages/tokens`，163 变量 → 6 产物，`parity` + `contrast` + `palette` + `typography` 32 用例 |
-| B 系列门禁 | 完成 | 合帧/对比度/同源对账/产物新鲜度/框架中立/i18n 生成表新鲜度/**语言档位↔`html[lang\|="…"]` 层双向比对（变量覆写层与元素级排版层分别要求命中，产物里禁止 `[lang="` 精确匹配）**/**治理文档内部链接（区分大小写）**/**`exports` 不许指回 `./src/*.ts`**/**入库 `.d.ts` 的相对说明符必须在产物树里可解析**/**`main`/`module`/`types` 逐字等于 `exports["."]` 的对应条件，有 `dist/umd` 就必须挂 `unpkg`/`jsdelivr`**等十二条，`internal/scripts/check-contracts.ts` |
+| B 系列门禁 | 完成 | 合帧/对比度/同源对账/产物新鲜度/框架中立/i18n 生成表新鲜度/**语言档位↔`html[lang\|="…"]` 层双向比对（变量覆写层与元素级排版层分别要求命中，产物里禁止 `[lang="` 精确匹配）**/**治理文档内部链接（区分大小写）**/**`exports` 不许指回 `./src/*.ts`**/**入库 `.d.ts` 的相对说明符必须在产物树里可解析**/**`main`/`module`/`types` 逐字等于 `exports["."]` 的对应条件，有 `dist/umd` 就必须挂 `unpkg`/`jsdelivr`**/**组件样式里每个 `var(--oj-*)` 必须命中 token 产物或由组件源码赋值，且不许字面色值**/**`ui` 的 UMD 必须把 `vue` 留在外部、框架无关入口一处都不许引用**等十四条，`internal/scripts/check-contracts.ts` |
 | i18n 运行时（**计划外**，见下方偏差 6） | 完成 | `packages/i18n`，30 用例（24 例走 `src` + 6 例 `artifacts.test.ts` 走 `dist`）；41 个 key × 四语一致、消息文法、`Intl` 封装、`subscribe` 运行时，零框架依赖 |
 | D1 命令注册表 | 完成 | `packages/shared/src/commands/`，19 用例（15 例走 `src` + 4 例 `artifacts.test.ts` 走 `dist`），含四条事故来源验收 |
 | B4 中英日排版档 | 完成 | tokens 生成器：语言变量覆写层 + `resetSection()` 元素级排版层；`typography.test.ts` 6 例；计算样式在 Chromium 150 实测命中。**`line-break: strict` 与 `text-autospace: normal` 都实测生效**（后者每处中日韩↔拉丁边界插入 0.25em，16px 样本 +8.000px；该内核 UA 默认值就是 `no-autospace`，所以删不得）。两条此前都因**量法错误**被误判为"量不出效果"，教训见 01 §7 |
 | B5 视觉基线 | **部分落地**（第一切片已实跑通过） | 已落 `packages/tokens/test/visual/typography.spec.ts` 三条用例（真解析器下四个声明的计算值、`text-autospace` 的 8px 差值、`line-break` 的行末违禁字符集），`turbo run test:visual` 已声明且 `cache: false`。页面侧逻辑此前在手工会话里跑通（`<link>` 直连 `dist/index.css`，读数 `8.000px`、`auto`=`ゥ止スト`、`strict`=`の末テト`，见 01 §7），本轮由 runner **真跑并全绿两次**：`OJ_BROWSER_CHANNEL=chrome`（151.0.7922.175）与 `=msedge`（154.0.4258.62）各 3 passed。第一次真跑立刻暴露一个假锁——两条行为用例在盒子上内联设值，读的是 UA 而不是产物，把 `line-break` 改成 `auto` 它们照样绿；改成"不声明、从 body 继承"后，`line-break` 与 `text-autospace` 各破坏一次（改值、整条删掉），红绿两条分支都实测过。剩下的仍是像素级项目：`text-spacing-trim` 的标点压缩（盒子坐标看不见，只能截图比对）、字体族首选项与行高 |
-| A2 构建管线（两趟） | **部分落地**（第一切片 = 两个纯 TS 包；`ui` 那条链仍未开始） | 新增 `internal/build`（`@jitoffice/internal-build`，private）：`specs.ts` 声明每包的入口与 UMD 目标，`jobs.ts` 把一趟展开成 **ESM / CJS / types / UMD** 四条产出链，`build.ts` 串行跑（并行会两趟抢同一个 outDir），`--check` 重建进临时目录与入库 `dist` 逐字节比对。`packages/shared`、`packages/i18n` 的 `exports` 已从 `./src/*.ts` 改指 `dist/*`（`types`/`import`/`require` 三条件），i18n 另加 `unpkg`/`jsdelivr` 与四条 `./locales/*` 子路径；两包 `dist` **入库**（`.gitignore` 的反忽略从 tokens 一包扩到 `packages/*/dist/**`）。三个发布包的 `main`/`module`/`types` 现在逐字等于各自 `exports["."]` 的条件目标——`packages/tokens` 此前**一个都没写**，是新增的门禁 12 抓出来的，见偏差 16。**实测到的**：`preserveModules` 两条链都保留模块结构（深路径 `require('dist/cjs/commands/registry.cjs')` 有用例锁）；兼容线真的降了级（源码里 `?.`/`??` 遍布，`dist/umd`+`dist/locale` 里 0 处，`dist/es` 保留 4 处；`es-check es2018` 扫 5 个文件通过）；UMD 三种加载形态（CJS/AMD/全局）与"没有 require 也没有 define 的空 `node:vm` 里靠全局跑通一次日文取值"都有用例；构建确定（`--check` 绿 + 同一份源码在仓库根 / `internal/build` / 包目录三种 cwd 下产出的四棵树逐字节相同）。**踩到并钉死的四条 vite/rolldown 行为**见偏差 14、15。仍未做：`packages/ui` 的 SFC 链（`vue` + `@vitejs/plugin-vue` + `vue-tsc`）、02 §2.1 的样式入口 `treeshake: false` 单独一趟、`office-ui.css` / `office-ui.layered.css` 双产物、UMD 把 `vue` 设 external、`attw` 双解析 |
-| A3、C1/C2、D2–D4 | 未开始 | 依赖**已可安装**（本轮实测 `pnpm install` 与 `pnpm typecheck` 均通）。真正卡住的是：`packages/ui` 还没建（A3 的 ESLint/Stylelint 与 A2 余下的 SFC/样式链都挂在它上面）、C1/C2 仍要等 **B4 决策**（图标产能）。Playwright 这边**runner 与用例都已真跑通**：`cdn.playwright.dev` 的 197.5 MiB 二进制在本机仍下不下来（长时间停在 10%，npm 侧每条请求 30–60s），所以跑的是本机已装的 Chrome 151 / Edge 154——`playwright.config.ts` 里的 `OJ_BROWSER_CHANNEL` 就是为这类拉不到下载源的机器留的口子。A3、D 系列的阻塞不在浏览器上，也不在决策上，就是 `packages/ui` 还没建；C 系列另外还等 B4 的图标产能。 |
+| A2 构建管线（两趟） | **基本落地**（三个发布包都有 ESM/CJS/types；`ui` 另有两条 UMD） | 新增 `internal/build`（`@jitoffice/internal-build`，private）：`specs.ts` 声明每包的入口与 UMD 目标，`jobs.ts` 把一趟展开成 **ESM / CJS / types / UMD** 四条产出链，`build.ts` 串行跑（并行会两趟抢同一个 outDir），`--check` 重建进临时目录与入库 `dist` 逐字节比对。`packages/shared`、`packages/i18n` 的 `exports` 已从 `./src/*.ts` 改指 `dist/*`（`types`/`import`/`require` 三条件），i18n 另加 `unpkg`/`jsdelivr` 与四条 `./locales/*` 子路径；两包 `dist` **入库**（`.gitignore` 的反忽略从 tokens 一包扩到 `packages/*/dist/**`）。三个发布包的 `main`/`module`/`types` 现在逐字等于各自 `exports["."]` 的条件目标——`packages/tokens` 此前**一个都没写**，是新增的门禁 12 抓出来的，见偏差 16。**实测到的**：`preserveModules` 两条链都保留模块结构（深路径 `require('dist/cjs/commands/registry.cjs')` 有用例锁）；兼容线真的降了级（源码里 `?.`/`??` 遍布，`dist/umd`+`dist/locale` 里 0 处，`dist/es` 保留 4 处；`es-check es2018` 扫 5 个文件通过）；UMD 三种加载形态（CJS/AMD/全局）与"没有 require 也没有 define 的空 `node:vm` 里靠全局跑通一次日文取值"都有用例；构建确定（`--check` 绿 + 同一份源码在仓库根 / `internal/build` / 包目录三种 cwd 下产出的四棵树逐字节相同）。**踩到并钉死的四条 vite/rolldown 行为**见偏差 14、15。**2026-10-26 补上**：`ui` 的两条 UMD（`vue` 外部化成全局 `Vue`、`es-check es2018` 通过、框架无关入口 0 处 `vue`）、`dist/styles/office-ui.css` 与 `office-ui.layered.css` 双产物、`unpkg`/`jsdelivr` 两个 CDN 字段。仍未做：`packages/ui` 的 SFC 链（现有组件是 `h()` 写的 `.ts`，`vue-tsc` 与 `@vitejs/plugin-vue` 都没用上）、`attw` 双解析。02 §2.1 的"样式入口单独一趟"在这套结构里**不适用**：ADR-0003 决定只有一份 CSS，没有逐组件样式入口可被摇掉，取而代之的是契约 13（样式变量必须命中 token 表）。 |
+| A3 CI 流水线 | **部分落地**（2026-10-26） | `.github/workflows/pull-request.yml`：`verify`（零依赖，**不 install**）与 `build`（typecheck → build → build:check）两条 job，末尾用 `git status --porcelain` 卡住"改了源码忘记提交生成物"。`visual.yml` 定时 + 手动跑 B5 排版回归。**未接入**：stylelint 魔法数、license-checker 白名单、size-limit 体积、attw 双解析——四个依赖都还没进 catalog；`release.yml`（changesets + provenance + publish）与 `preview.yml`（文档站预览）分别在等 changesets 依赖与文档站本体。**未验证**：本机没有 Actions runner，Workflow 只做过 YAML 解析与命令存在性校验，"故意破坏让 CI 红"这条验收仍未实跑。 |
+| C1 图标构建管线 | **未开始** | 现有 29 枚图标是 `packages/ui/src/icons.ts` 里的内联 SVG 字符串，没有 `packages/icons` 包、没有 `sprite.svg`、没有 `manifest.json`。C1 是工程活，不依赖 B4；B4 只挡 C2（谁画那 40 枚）。 |
+| C2 首批 40 图标 | **未开始 · 等 B4** | 设计产能决策没定。当前 29 枚覆盖 E1/E2 用到的命令，不足以铺满 M1 的 Ribbon。 |
+| D2–D4 浮层与图标 | **部分落地** | `OjPopper` 的定位纯函数（`placePopper`，含边界翻转与夹取）＋ `OjTooltip`（400ms 延迟状态机）＋ `OjIcon` 已在 `@jitoffice/ui/vue`，且都有用例。**缺**：`OjPortal`（现在没有任何 `Teleport`）、`OjTrigger` 的 hover/click/focus/manual 组合、焦点陷阱与"关闭归还焦点"、SSR 下零 DOM 访问的验收。 |
 
 与计划的偏差，十六条都是执行时才暴露出来的：
 

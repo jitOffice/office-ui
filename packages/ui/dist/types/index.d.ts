@@ -6,7 +6,7 @@
  */
 export { createMemoryEditor } from './editor-host.ts';
 export type { EditorCall, MemoryEditor, OjEditorHost, OjEditorState } from './editor-host.ts';
-export { tiptapEditorHost } from './tiptap-host.ts';
+export { bridgedCommandIds, tiptapEditorHost } from './tiptap-host.ts';
 export type { TiptapLikeEditor } from './tiptap-host.ts';
 export { COMMAND_BLOCKQUOTE, COMMAND_BOLD, COMMAND_BULLET_LIST, COMMAND_CODE_BLOCK, COMMAND_HARD_BREAK, COMMAND_HEADING, COMMAND_HORIZONTAL_RULE, COMMAND_ORDERED_LIST, COMMAND_TABLE, editorCommands, isHeadingLevel, isTableSize, registerEditorCommands, } from './commands.ts';
 export type { OjCommandLike, OjCommandSink, TableSize } from './commands.ts';

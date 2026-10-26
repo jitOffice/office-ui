@@ -139,6 +139,10 @@ export function jobsFor(ctx: JobContext): Job[] {
               // `<script src="…/dist/locale/ja-JP.js">`，兼容线门禁的 glob 也只收 `**/*.js`。
               entryFileNames: '[name].js',
               exports: 'auto',
+              // 外部依赖在这条线上只能靠全局变量拿：`<script src="vue.global.prod.js">` 之后
+              // 产物里的 `require('vue')` 会读 `globalThis.Vue`。不写这条，rolldown 会给
+              // 每个外部模块编一个名字，而 Vue 的全局名不是它猜的那个。
+              globals: { vue: 'Vue' },
             },
           },
         },

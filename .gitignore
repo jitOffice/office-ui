@@ -177,3 +177,9 @@ licenses-report/
 Thumbs.db
 desktop.ini
 .idea/
+
+
+
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs

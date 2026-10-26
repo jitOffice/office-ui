@@ -323,14 +323,16 @@ UMD 无法 `import './style.css'`（Rollup 会输出 JS 注入或丢弃）。提
 `exports` 真实存在且**不指回 `./src/*`**、入库 `.d.ts` 的相对说明符可解析、`catalog:` 键、
 `main`/`module`/`types` 与 `exports["."]` 逐字同源、有 `dist/umd` 就必须挂 `unpkg`/`jsdelivr`、
 产物新鲜度、框架中立、i18n 生成表、**语言档位↔`html[lang|="…"]`
-的变量覆写层与排版层双向比对**、治理文档链接）+ `node --test` 的 81 个用例，细节见 01 §8。
+的变量覆写层与排版层双向比对**、治理文档链接、**组件样式变量必须命中 token 表且无字面色值**、
+**`ui` 的 UMD 必须把 `vue` 留在外部**）+ `node --test` 的 107 个用例，细节见 01 §8。
 `pnpm typecheck` 也已经真跑起来了：`tsc` 7.0.2 在四个包上 0 error——第一条 d.ts 缺陷正是它抓出来的，
 运行时测试一条都看不见它。
 A2 第一切片补上了表里**需要依赖**的那两行的前半段：`pnpm build` 出 ESM/CJS/types/UMD 四条链，
 `pnpm build:check` 把源码重建结果与入库 `dist` 逐字节比对，再用 `es-check es2018` 扫兼容线产物
-（`dist/umd` + `dist/locale`，5 个文件）。所以"类型"与"兼容性"两行现在是**部分成立**：
-两个纯 TS 包已过，`packages/ui` 的 SFC/样式链与信创老内核实测仍未开始；`attw`、size-limit、
-许可扫描仍属目标态。
+（`dist/umd` + `dist/locale`，7 个文件——`ui` 的两条 UMD 已并入）。
+所以"类型"与"兼容性"两行现在是**部分成立**：三个发布包的 ESM/CJS/types 都过，
+`ui` 的两条 UMD 也过 `es-check es2018`，但**信创老内核上的实测仍未开始**（没有可装的目标环境，
+见 ADR-0002）；`attw`、size-limit、许可扫描仍属目标态。
 Playwright 只开了个头：`packages/tokens/playwright.config.ts` 与 `test/visual/typography.spec.ts`
 三条用例已落地（B5 第一切片，锁住 01 §7 那批数字），依赖进了 catalog，`turbo run test:visual`
 已声明且刻意 `cache: false`。**三条已在 2026-10-09 真跑通过**，跑的是本机已装的两套内核
