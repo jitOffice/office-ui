@@ -1,6 +1,6 @@
 {
   "name": "@jitoffice/ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Office 交互外壳。根入口框架无关；Vue 组件在 ./vue 子路径。",
   "license": "Apache-2.0",
   "repository": {
