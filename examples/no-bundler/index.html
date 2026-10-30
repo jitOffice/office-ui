@@ -28,7 +28,7 @@
       body {
         margin: 0;
         padding: 24px;
-        background: var(--oj-bg-layout);
+        background: var(--oj-bg-page);
         color: var(--oj-text-1);
         font: 14px/1.5715 var(--oj-font-sans);
       }
@@ -48,6 +48,11 @@
         border: 1px solid var(--oj-border-1);
         border-radius: var(--oj-radius-md);
       }
+      .section-title {
+        margin: 24px 0 8px;
+        font-size: 15px;
+        font-weight: 600;
+      }
       .log {
         margin-top: 16px;
         font-family: var(--oj-font-mono);
@@ -57,6 +62,20 @@
   </head>
   <body>
     <div id="app"></div>
+
+    <!--
+      02 §4.2 / §4.3：给不写 Vue 的 jQuery 项目准备的第二条路。
+      下面两个 <span> 没有写任何 JS —— 属性即声明，由 OfficeUI.hydrate() 扫描挂载。
+    -->
+    <h2 class="section-title">无构建器 API</h2>
+    <div class="bar" role="group" aria-label="命令式与声明式">
+      <button type="button" class="oj-button" id="make-dialog" data-testid="make-dialog">
+        命令式创建对话框
+      </button>
+      <span data-oj="icon" data-oj-prop-name="oj-format-bold" data-oj-prop-size="20"></span>
+      <span data-oj="icon" data-oj-prop-name="oj-horizontal-rule" data-oj-prop-size="20"></span>
+    </div>
+    <p class="log" data-testid="hydrate-log">尚未 hydrate</p>
 
     <script src="../../packages/ui/node_modules/vue/dist/vue.global.js"></script>
     <script src="../../packages/ui/dist/umd/office-ui.js"></script>
@@ -95,6 +114,35 @@
           </div>
         `,
       }).mount('#app')
+    </script>
+
+    <script>
+      // 02 §4.3 声明式：一行扫描，两个 <span data-oj> 变成真图标组件。
+      // 它们与上面 createApp 那个 app 是**独立实例**，不共享任何上下文。
+      const mounted = OfficeUI.hydrate()
+      document.querySelector('[data-testid="hydrate-log"]').textContent =
+        `hydrate() 挂载了 ${mounted.length} 个实例`
+
+      // 02 §4.2 命令式：anchor 用选择器，实例插在按钮之后（不是塞进按钮里）。
+      // on 的键就是 Vue 的 emit 名，会被转成 onUpdate:open —— 冒号是合法的 props 键。
+      let dialog
+      document.querySelector('#make-dialog').addEventListener('click', () => {
+        dialog = OfficeUI.create('oj-dialog', {
+          anchor: '#make-dialog',
+          props: {
+            open: true,
+            title: '命令式创建的对话框',
+            confirmLabel: '确定',
+            cancelLabel: '关闭',
+          },
+          on: {
+            'update:open': (open) => {
+              if (!open) dialog.destroy()
+            },
+          },
+        })
+        window.__ojDialog = dialog
+      })
     </script>
   </body>
 </html>

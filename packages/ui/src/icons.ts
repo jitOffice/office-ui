@@ -1,7 +1,11 @@
 /**
  * 自绘图标。只发 SVG 字符串，不发图标字体（prd/00 许可红线）。
  * 完整图标管线仍是后续的 `@jitoffice/icons`，这里先覆盖外壳会用到的三十枚。
+ * 业务侧要加图标不要改这张表——用 `registerIcon`（见 `icon-registry.ts`），
+ * 否则每次升级都会把改动冲掉。
  */
+
+import { registeredIconMarkup } from './icon-registry.ts'
 
 const SVG_OPEN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor">'
 
@@ -77,6 +81,10 @@ export const icons = {
 export type OjIconName = keyof typeof icons
 
 export function iconMarkup(name: string): string | undefined {
+  // 注册表优先：业务图标与内置图标同名是不可能的（`registerIcon` 拒绝 `oj-` 前缀），
+  // 但把这一层写在前面能让"运行时替换"在读代码时一目了然。
+  const registered = registeredIconMarkup(name)
+  if (registered !== undefined) return registered
   if (Object.prototype.hasOwnProperty.call(icons, name)) return icons[name as OjIconName]
   return undefined
 }

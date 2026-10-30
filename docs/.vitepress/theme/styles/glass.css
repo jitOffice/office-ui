@@ -1,0 +1,92 @@
+/**
+ * 文档站唯一允许的自定义样式层（04 §2）：蓝白 + 毛玻璃。
+ *
+ * 毛玻璃必须可关，两个条件都要判：
+ *   - `@supports (backdrop-filter: …)`：Chromium 86 的兼容线上没有它；
+ *   - `prefers-reduced-transparency: no-preference`：这是 Windows 系统级"透明效果"开关，
+ *     办公用户常年关着它，而文档站是侧栏常驻的长页面，模糊层会实打实拖慢滚动。
+ * 不满足就退回不透明 `--oj-bg-container`——不是"降级得难看"，而是本来就该是不透明的。
+ */
+
+:root {
+  --vp-c-brand-1: var(--oj-brand-6);
+  --vp-c-brand-2: var(--oj-brand-5);
+  --vp-c-brand-3: var(--oj-brand-7);
+  /* 曾写成 `var(--oj-bg-layout)`——token 表里没有这个变量，自定义属性因此解析成无效值，
+     整个站点的 `--vp-c-bg` 一直是空的（白底看不出来，浮层一出现就暴露成透明）。
+     正确的页面底色是 `--oj-bg-page`，浮层用 `--oj-bg-elevated`。 */
+  --vp-c-bg: var(--oj-bg-page);
+  --vp-c-bg-alt: var(--oj-bg-container);
+  --vp-c-text-1: var(--oj-text-1);
+  --vp-c-text-2: var(--oj-text-2);
+  --vp-c-text-3: var(--oj-text-3);
+  /* 文档站不用 Inter：内网拿不到 Google Fonts，系统字体栈在中文下观感更稳 */
+  --vp-font-family-base: var(--oj-font-sans);
+  --vp-font-family-mono: var(--oj-font-mono);
+  --vp-nav-height: 56px;
+}
+
+/* 顶栏与侧栏：默认不透明，玻璃是"支持并且用户没关"时的增强 */
+.VPNav,
+.VPSidebar,
+.VPLocalNav {
+  background: var(--oj-bg-container);
+  border-bottom: 1px solid var(--oj-border-1);
+}
+
+@supports (backdrop-filter: blur(1px)) and (prefers-reduced-transparency: no-preference) {
+  .VPNav,
+  .VPSidebar,
+  .VPLocalNav {
+    background: var(--oj-bg-glass, color-mix(in srgb, var(--oj-bg-container) 78%, transparent));
+    backdrop-filter: var(--oj-glass-blur, blur(20px));
+    -webkit-backdrop-filter: var(--oj-glass-blur, blur(20px));
+  }
+}
+
+/* 首页 Hero：淡蓝网格纹理（JitKnow 同款），只用 token 里的色，不写第二套 */
+.VPHero {
+  position: relative;
+  background:
+    linear-gradient(180deg, var(--oj-brand-1) 0%, var(--oj-bg-page) 100%);
+}
+
+.VPHero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--oj-border-1) 1px, transparent 1px),
+    linear-gradient(90deg, var(--oj-border-1) 1px, transparent 1px);
+  background-size: 32px 32px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.VPHero .name,
+.VPHero .text {
+  position: relative;
+}
+
+/* 示例卡片：上白下灰双区（04 §2 的实测基线） */
+.oj-demo {
+  margin: var(--oj-space-4) 0;
+  border: 1px solid var(--oj-border-1);
+  border-radius: var(--oj-radius-lg);
+  overflow: hidden;
+}
+
+.oj-demo__preview {
+  padding: var(--oj-space-5);
+  background: var(--oj-bg-container);
+}
+
+.oj-demo__code {
+  border-top: 1px solid var(--oj-border-1);
+  background: var(--oj-bg-page);
+}
+
+.oj-demo__code div[class*='language-'] {
+  margin: 0;
+  border-radius: 0;
+}

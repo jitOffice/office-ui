@@ -1,0 +1,44 @@
+// 体积门禁（PRD 02 §7 / 05 §2 DoD #2）。
+//
+// 全部开 `gzip: true`：size-limit 14 默认报 **brotli**，而 PRD 的阈值是 gzip 口径。
+// 两者数值差 15% 左右，混着用等于门禁和规格各说各话——所以宁可用 gzip 这个更大的数。
+//
+// `import` + `ignore` 是本文件的关键：`import` 让 size-limit 只引入指定的具名导出，
+// esbuild 的 treeShaking 才真正生效；`ignore: ["vue"]` 把框架划到外部，
+// 否则量的是 Vue 而不是我们。没有这两项，测出来的只是"整个入口文件有多大"。
+[
+  {
+    // 05 §2 DoD #2 原文：`import { OjIcon }` 经构建后 gzip ≤ 8 KB。
+    // 原文写的是从 `@jitoffice/ui` 根入口引，但根入口按 ADR-0005 是框架无关的、不含 OjIcon，
+    // 所以这里从 `./vue` 子路径引——口径不变，路径按架构修正。
+    "name": "ui/vue · OjIcon（tree-shaken）",
+    "path": "packages/ui/dist/es/vue/index.js",
+    "import": "{ OjIcon }",
+    "ignore": ["vue"],
+    "gzip": true,
+    "limit": "8 KB"
+  },
+  {
+    // C1 验收：`import { OjIconFormatBold }` 单独打包 ≤ 1 KB。
+    "name": "icons/vue · 单枚图标（tree-shaken）",
+    "path": "packages/icons/dist/es/vue/index.js",
+    "import": "{ OjIconFormatBold }",
+    "ignore": ["vue"],
+    "gzip": true,
+    "limit": "1 KB"
+  },
+  {
+    // 02 §7 目标：全量 ESM gzip ≤ 90 KB。框架无关入口，不含 vue。
+    "name": "ui · 全量 ESM（框架无关入口）",
+    "path": "packages/ui/dist/es/index.js",
+    "gzip": true,
+    "limit": "90 KB"
+  },
+  {
+    // 02 §7 目标：CSS gzip ≤ 16 KB。
+    "name": "ui · 组件样式（gzip）",
+    "path": "packages/ui/dist/styles/office-ui.css",
+    "gzip": true,
+    "limit": "16 KB"
+  }
+]

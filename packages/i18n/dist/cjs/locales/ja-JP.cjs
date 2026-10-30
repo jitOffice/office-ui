@@ -30,7 +30,8 @@ var jaJP = {
 			yes: "はい",
 			no: "いいえ",
 			inputPlaceholder: "入力してください",
-			selectPlaceholder: "選択してください"
+			selectPlaceholder: "選択してください",
+			language: "言語"
 		},
 		tableGridPicker: {
 			label: "表",

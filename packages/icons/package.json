@@ -1,0 +1,71 @@
+{
+  "name": "@jitoffice/icons",
+  "version": "0.0.0",
+  "description": "自绘图标集：SVG 源 → 常量（供 canvas）/ sprite（供 <use>）/ 每图标一个 Vue 组件（tree-shakable）。不发图标字体。",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitOffice/office-ui.git",
+    "directory": "packages/icons"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/es/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "vue": [
+        "./dist/types/vue/index.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/es/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./vue": {
+      "import": {
+        "types": "./dist/types/vue/index.d.ts",
+        "default": "./dist/es/vue/index.js"
+      },
+      "require": {
+        "types": "./dist/types/vue/index.d.cts",
+        "default": "./dist/cjs/vue/index.cjs"
+      }
+    },
+    "./sprite.svg": "./dist/sprite.svg",
+    "./manifest.json": "./dist/manifest.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node ../../internal/build/src/build.ts icons",
+    "icons:gen": "node scripts/generate.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "test:visual": "playwright test --config playwright.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "vue": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "vue": "catalog:"
+  }
+}

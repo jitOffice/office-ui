@@ -1,0 +1,68 @@
+name: release
+
+# 发布是**两段式**，中间有人看一眼（02 §A3）：
+#   1. 推/合并到 main 后，changesets/action 开一个 "chore: version packages" PR，
+#      内容是版本号 + CHANGELOG 的 diff —— 这就是发布前的最后一道人工闸；
+#   2. 合并那个 PR，同一个 workflow 再次触发，这次 build → publish → 打 tag → GitHub Release。
+# 不做"push 即发布"：changelog 写错、bump 级别选错，发出去就撤不回来了。
+
+on:
+  push:
+    branches: [main]
+
+# 发布不允许并发：两个 release job 同时跑会出现"两个都以为自己在发同一版"
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # 打 tag、建 GitHub Release
+  pull-requests: write # 开/更新 Version Packages PR
+  id-token: write # npm provenance 的 OIDC 签名，不给就拿不到可信发布
+
+jobs:
+  release:
+    name: 版本 PR 或发布
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 是必须的：changesets 要读完整历史来找 tag 与 merge-base，
+      # 浅克隆下会算错"哪些 changeset 还没发"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      # 类型与产物门禁在 PR 上已经跑过；这里再跑一次是因为
+      # Version Packages PR 只改了 package.json 与 CHANGELOG，产物必须按**新版本号**重建。
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm build:check
+
+      # 发布前先确认包内容：`catalog:` / `workspace:` 协议必须已经被解析成具体版本，
+      # 否则下游装不上（`pnpm pack` 会解析，`npm publish` 不会）。这条用真实的 dist 打一次包。
+      - name: 打包产物自检（协议已解析 / src 未泄漏）
+        run: node internal/scripts/check-package-artifacts.ts
+
+      - uses: changesets/action@v1
+        with:
+          version: pnpm version:packages
+          # 这里不调 `pnpm release`：那条命令自带一次 build，而上面已经 build 过；
+          # dist 里不含版本号，所以 version bump 之后不需要重建
+          publish: pnpm exec changeset publish
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # changesets v3 会按 packageManager 选 `pnpm publish`（catalog: 由 pnpm 解析），
+          # 但 token 仍走 npm 的约定变量名
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

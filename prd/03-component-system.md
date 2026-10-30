@@ -139,9 +139,9 @@ oj.list({ group: '开始', includeUnavailable: false })
 ### A. 图标（`@jitoffice/icons`）
 | 组件 | 说明 |
 |---|---|
-| ⭐🔴 `OjIcon` | 消费 SVG 组件 / `sprite.svg` `<use>` / JS 常量三种形态；`spin` `size` `label`；继承 currentColor |
-| 🔴 `IconRegistry` | `add(name, svgString)` 运行时注册，支持业务自定义图标接入 Ribbon |
-| 🔴 办公图标集 | **v1 交付 120 个**，覆盖：字体（B/I/U/S/上下标/字符间距/清除格式）、段落（6 向对齐/缩进 4 种/行距/项目符号/编号/增加减少级别）、表格（插入/删除行列单元格/合并/边框九宫格/底纹）、插入（表格/图片/图标/页码/批注/链接/分隔线/分页符）、审阅（接受/拒绝/修订模式/显示标记）、视图（页面/大纲/Web/阅读/缩放/标尺/网格线）、文件（新建/分享/下载/打印/历史/权限/收藏/重命名） |
+| ⭐🔴 `OjIcon` | 消费 SVG 组件 / `sprite.svg` `<use>` / JS 常量三种形态；`spin` `size` `label`；继承 currentColor。**2026-10-29 状态**：前两种已交付（`@jitoffice/icons/vue` 的每图组件、`dist/sprite.svg` 的 `<symbol>`），第三种是 `@jitoffice/icons` 根入口的 `icons` 常量（含 `viewBox`/`attrs`/`body`，canvas 直接用 `body` 绘制）；`spin` 未做。单枚组件 tree-shaken 后 **836 B gzip**（阈值 1 KB），由 size-limit 守着 |
+| 🔴 `IconRegistry` | `add(name, svgString)` 运行时注册，支持业务自定义图标接入 Ribbon。**未做**——业务图标接入是 JitWord 实际采用时才会逼出来的需求，现在做等于凭空设计 API |
+| 🔴 办公图标集 | **v1 交付 120 个**（当前 31 个，覆盖 E1/E2 用到的命令；管线已就绪，缺的是画，见 05 C2）；覆盖：字体（B/I/U/S/上下标/字符间距/清除格式）、段落（6 向对齐/缩进 4 种/行距/项目符号/编号/增加减少级别）、表格（插入/删除行列单元格/合并/边框九宫格/底纹）、插入（表格/图片/图标/页码/批注/链接/分隔线/分页符）、审阅（接受/拒绝/修订模式/显示标记）、视图（页面/大纲/Web/阅读/缩放/标尺/网格线）、文件（新建/分享/下载/打印/历史/权限/收藏/重命名） |
 | 🟡 多色/分层图标 | 中日韩字形图标、彩色文档类型图标（docx/xlsx/pptx/pdf） |
 
 图标必须**自绘**（见 00 号文档许可红线）。SVG 源文件入库，构建产出三种形态：Vue 组件（tree-shakable）、`sprite.svg`（供 `<use>` 消费，覆盖无构建器场景）、JS 常量（供 canvas 绘制）。**不产出图标字体**——字体二进制会静默合并各字形的原始许可且丢失许可文件，是授权链断裂的经典来源；`sprite.svg` 在无构建器场景下同样可用，没有理由承担这个风险。
@@ -187,9 +187,9 @@ oj.list({ group: '开始', includeUnavailable: false })
 ### D. 浮层与布局底座（内部共用，同时对外导出）
 | 组件 | 说明 |
 |---|---|
-| 🔴 `OjPopper` | 定位引擎。**自研极小实现，不引入 Popper.js**：需支持锚定"矩形区域"（选区）而非仅元素、多区间选区取包围盒、边界翻转、`strategy: 'fixed'` 以适配 canvas 滚动容器 |
-| 🔴 `OjPortal` | teleport 封装 + 层级取自 `--oj-z-*` + 滚动锁 + 焦点陷阱 |
-| 🔴 `OjTrigger` | `hover/click/focus/manual` 组合触发器，含离开延迟（下拉面板必须能移进去） |
+| 🔴 `OjPopper` | 定位引擎。**自研极小实现，不引入 Popper.js**：需支持锚定"矩形区域"（选区）而非仅元素、多区间选区取包围盒、边界翻转、`strategy: 'fixed'` 以适配 canvas 滚动容器。**2026-10-29 状态**：`placePopper()` 纯函数已落地（锚矩形/翻转/夹取，单测覆盖），面板本身就是 `position: fixed`；**多区间选区取包围盒**未做 |
+| 🔴 `OjPortal` | teleport 封装 + 层级取自 `--oj-z-*` + 滚动锁 + 焦点陷阱。**2026-10-29 交付**：`to: 'body'\|'#sel'\|false`；`zIndex` 默认 `var(--oj-z-popover)`；滚动锁用计数（多个浮层同时开不会互相踩，解除时恢复原值而不是清空）；焦点陷阱含 Tab 首尾环绕，**卸载归还焦点**——这条掉不得，否则键盘用户关掉弹层就丢了位置 |
+| 🔴 `OjTrigger` | `hover/click/focus/manual` 组合触发器，含离开延迟（下拉面板必须能移进去）。**2026-10-29 交付**：交互语义在零依赖的 `createTriggerMachine()`（注入 scheduler，9 例把每条时序钉死），组件只负责接线 + `OjPortal`/`OjPopper` 组合；受控/非受控都支持（`open` + `@update:open`） |
 | 🔴 `OjSplitter` / `OjPaneGroup` | 可拖拽分栏（文档 + 批注侧栏），支持折叠到 0 与最小宽度约束 |
 | 🔴 `OjDockPanel` | 可停靠/浮动/收起的面板（右侧属性、AI 任务面板） |
 | 🔴 `OjVirtualList` | 变高虚拟列表（大纲、评论、缩略图），必须支持 `scrollToIndex` 与"锚点稳定"（上方插入不跳动） |
@@ -263,6 +263,25 @@ oj.list({ group: '开始', includeUnavailable: false })
 | `OjCodeBlock` | G 的邻域 | 文档节点级渲染件，严格说属于内核适配层 |
 
 这 9 件是 E1/E2 为"外壳可演示"加进来的，先落地再回写。**需要你拍板的只有一处**：`OjDropdown` 与 `OjDropdownButton`、`OjAiPanel` 与 `OjTaskPane` 这两对是合并还是并列——合并会让 API 更少但语义更含糊，并列会让清单从 45 涨到 47。其余 7 件的归属按上表补进 §3 即可。
+
+### 实现状态（2026-10-29 增补）
+
+M1「Ribbon 闭环」的**组件面已收口**（`@jitoffice/ui/vue`）：`OjRibbon` / `OjRibbonTab` /
+`OjRibbonGroup`（large/medium/small 自动降级、宽度自探、`»` 溢出、`launcher` 插槽）、
+`OjToolbar`（`menu`/`scroll`/`wrap`）、`OjToggleButton` / `OjSplitButton` / `OjDropdownButton`、
+`OjCommandLauncher`（组右下角入口，`aria-haspopup="dialog"`）、
+`OjContextMenu`（**按矩形锚点定位**，canvas 右键没有 DOM 目标也成立）、
+`OjHotkey`（冲突检测与 `mod` 平台适配）、`OjStatusBar`、`OjRibbonGallery`、`OjCommandPalette`；
+D 组的 `OjPopper`（新增 `anchorBox`）/ `OjPortal` / `OjTrigger` 已交付。
+
+语言层（04 §6.1）同时补上：`OjLocaleProvider` + `useLocale`（**结构类型**收运行时，`ui` 的
+`dependencies` 仍为空）、`OjLocaleSwitcher`（原生 `<select>`，受控与非受控都给），
+以及 `oj.common.language` 四语文案。Provider 负责把 `html[lang]` / `html[dir]` 与语言包同步、
+卸载时归还宿主原值——tokens 的语言覆写层选择器正是 `html[lang|="ja"]`，少这一步就是"文案换了、
+字体栈没换"的半切换。
+
+**M1 仍缺**：图标 40 → 120（等 B4 的设计产能决策）、文档站骨架（毛玻璃 + 搜索 + 在线预览）。
+`OjQuickAccessBar` 不在 M1 清单内，仍属未开工的 B 组件。
 
 ---
 

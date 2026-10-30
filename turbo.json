@@ -12,6 +12,9 @@
       "dependsOn": ["build"],
       "outputs": []
     },
+    "test:unit": {
+      "outputs": []
+    },
     "test:visual": {
       "dependsOn": ["build"],
       "cache": false,

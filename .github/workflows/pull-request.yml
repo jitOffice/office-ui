@@ -20,12 +20,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # changeset 检查要用 merge-base 算改动范围，浅克隆（默认 depth 1）算不出来，
+          # 会退化成"跳过"——一个永远绿的检查比没有检查更糟
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4 # 版本由 package.json 的 packageManager 决定
 
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+
+      # 先跑这条：缺失 changeset 属于"改错了流程"，和代码是否通过无关，
+      # 放在最后跑等于让人先读一屏测试输出才知道白忙
+      - name: PR 必须附 changeset
+        run: node internal/scripts/check-changeset.ts
 
       # 这一步**不许**加 `pnpm install`。`pnpm verify` 的契约就是"没有依赖也能验证"，
       # 一旦 CI 先装依赖再跑，"零依赖"就退化成没人测过的承诺（05 §A1）。
@@ -60,14 +69,53 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Vue 层的单测车道（Vitest + @vue/test-utils + happy-dom）。
+      # 与 `verify` 里的 `node --test` 是两条线：那条零依赖、验行为纯函数；
+      # 这条要真加载 vue，验的是「重渲染几次」这类只有调度器才能回答的问题（05 §2 DoD #4）。
+      - run: pnpm test:unit
+
       - run: pnpm build
 
       # 重建进临时目录与入库 dist 逐字节比对，再用 es-check 复核兼容线语法。
       # 后者不能省：构建参数写错时产物仍然生成，只是老内核解析失败（ADR-0002）。
       - run: pnpm build:check
 
+      # 体积门禁（02 §7 / 05 §2 DoD #2）。必须排在 build 之后：量的是 dist 产物，不是源码。
+      # 四条阈值都是 gzip 口径（配置里显式开了 `gzip: true`，size-limit 14 默认报 brotli）。
+      - run: pnpm size
+
+      # 发布前的最后一个门禁，也放在 PR 上跑：真打五个包，检查 tarball 里的
+      # 协议是否已解析、files 是否漏了入口文件、有没有 src/测试文件混进去。
+      # 放到 release.yml 才第一次跑的话，问题会在"已经决定发版"那一刻才出现。
+      - run: pnpm lint:package
+
+      # 类型出口（02 §7）：node10 / node16-CJS / node16-ESM / bundler 四种解析模式。
+      # 首次接入就抓到五个包全部 Masquerading as ESM —— 那种问题 tsc --noEmit 看不见，
+      # 而 node16+commonjs 的消费者装上就是一堆报错。
+      - run: pnpm lint:types
+
+      # 许可（00 §4 红线 1）。只查生产依赖树；开发依赖里的非白名单许可只打印不失败，
+      # 理由写在 internal/scripts/check-licenses.ts 头部。
+      - run: pnpm lint:license
+
+      # 字号与时延的魔法数（02 §7）。契约 13 只拦颜色，这条补另外两类：
+      # `font-size: 12px` 写死后，ja 档位把 --oj-fs-14 降到 13px 时它不跟着降，
+      # 而没人会去 diff 两份截图。间距/圆角暂不查——token 标度覆盖不了 2px/7px/28px，
+      # 硬塞会静默改版式，见 internal/scripts/check-css-magic.ts 头部。
+      - run: pnpm lint:css-magic
+
+      # 产物外链（02 §7 / A3 验收）。扫 5 个发布包的 dist 里会**发起请求**的引用：
+      # CSS 的 url()/@import 与 HTML/SVG 的 src/href。内网环境下这类请求不报错，
+      # 只让首屏挂着等超时，还会出现在客户的外联审计里——本地开发永远看不见。
+      # 产物已在手，所以这条不需要 install。
+      - run: pnpm lint:artifact-offline
+
 # 尚未接入的门禁，别在 PR 里写成"lint 已过"（CONTRIBUTING §2）：
-#   stylelint 魔法数、license-checker 白名单、size-limit 体积、attw 双解析 ——
-#   四个都还没进 catalog。它们要的依赖一旦装上，各自补一个 job，并**先故意破坏一次**
-#   确认会红（05 §A3 验收：门禁不做故意破坏验证等于没有门禁）。
+#   只剩**间距/圆角的魔法数**一项没守（颜色由契约 13、字号与时延由 lint:css-magic）。
+#   卡在 token 标度上：现有 4/8/12/16/20/24/32/40 覆盖不了样式表里真实的 2px / 7px / 28px / 56px，
+#   要么补档位（设计决策），要么给每个值逐条登记理由——两条路都得先定，别先用白名单糊过去
+#   （05 §A3 验收：门禁不做故意破坏验证等于没有门禁）。
+#   size-limit 已于 2026-10-29 接入（见上面的 `pnpm size`），四条阈值都实测破坏过；
+#   attw 类型出口与许可白名单同日接入，同样各自破坏过一次（改坏 require.types → 报
+#   Masquerading as ESM；从白名单删掉 MIT → 报出 vue 的违规）。
 # 视觉回归走 visual.yml，因为它需要下载 Playwright 浏览器，不适合挡住每个 PR。

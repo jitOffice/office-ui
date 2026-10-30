@@ -58,7 +58,8 @@ JitWord 的卖点是"支持主流浏览器和国产浏览器、企业内网、�
 - ~~CI 增加 `es-check es2018`~~ **已落地**：`pnpm --filter @jitoffice/internal-build check:legacy`，
   实际 glob 比原计划宽——`packages/*/dist/umd/**/*.js` **和** `packages/*/dist/locale/**/*.js`，
   因为语言包同样是给 `<script>` 用的。实测 5 个文件通过；`es-check` 对空 glob 退出码 1，
-  所以这条不会因为"没匹配到文件"而静默通过。`attw` **仍未跑过**（见 05 A2 的说明）。
+  所以这条不会因为"没匹配到文件"而静默通过。`attw` 已于 2026-10-30 接入并真跑过
+  （`pnpm lint:types`，四种解析模式全绿；未接入前五个包全部 `Masquerading as ESM`）。
 - 文档"安装"页第一屏给出选择表（M1）。
 
 ## 需要业务侧确认的点

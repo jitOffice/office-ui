@@ -25,7 +25,9 @@
  *     `require`/`import`/`types` 目标（对侧条件存在却缺字段同样违反），有 `dist/umd` 产物就必须
  *     声明 `unpkg`/`jsdelivr` 并指向其中的文件 —— 只改一张脸会在 webpack4 / Jest / CDN 用户里坏掉
  * 13. 组件样式只能引用 token：每个 `var(--oj-*)` 都要在 token 产物里有声明，且不许写字面色值
- *     （拼错的变量名会让整条声明静默失效，而两侧测试各自都是绿的）
+ *     （拼错的变量名会让整条声明静默失效，而两侧测试各自都是绿的）。
+ *     同一条规则也扫 `docs/.vitepress/theme/`：文档站是组件库的第一个真实消费者，
+ *     它曾把 `--vp-c-bg` 映射到不存在的 `--oj-bg-layout`，整站底色一直是空值
  * 14. `ui` 的 UMD 必须把 `vue` 留在外部：Vue 层产物要引用全局 `Vue`，框架无关产物一个引用都不许有
  *     （内联进去的后果是页面上出现两份 Vue，`provide`/`inject` 静默失效）
  *
@@ -243,18 +245,37 @@ for (const dir of pkgNames) {
       .filter(({ pointer }) => pointer.startsWith('. > '))
       .map(({ pointer, target }) => [pointer.slice('. > '.length), target] as const),
   )
-  for (const [field, condition] of [
-    ['main', 'require'],
-    ['module', 'import'],
+  for (const [field, pointer] of [
+    ['main', 'require > default'],
+    ['module', 'import > default'],
     ['types', 'types'],
   ] as const) {
-    const expected = rootEntry.get(condition)
+    const expected = rootEntry.get(pointer)
     if (expected === undefined || invalidFlat.has(field)) continue
     publishFaces += 1
     if (flat[field] !== expected) {
       problems.push(
-        `${label}: ${field} 必须逐字等于 exports["."] 的 ${condition} 目标 ${expected}，` +
+        `${label}: ${field} 必须逐字等于 exports["."] 的 ${pointer} 目标 ${expected}，` +
           `实为 ${JSON.stringify(flat[field])}（只改一张脸 = 新打包器绿、webpack4 / Jest 红）`,
+      )
+    }
+  }
+
+  // dual package 的每条 JS 分支都要有自己的类型声明（2026-10-30，attw 实测后补）。
+  // 只发一份 `.d.ts` 时，`type: module` 让它被当成 ESM 声明，而 `require` 指向 `.cjs` ——
+  // TS 在 node16+CJS 下直接拒绝这个包，attw 称之为 Masquerading as ESM。
+  // 这条**必须在这里**守着：顶层 `types` 存在会让"缺 CJS 类型"看起来像没问题。
+  for (const [pointer, expectExt] of [
+    ['require > types', '.d.cts'],
+    ['import > types', '.d.ts'],
+  ] as const) {
+    const target = rootEntry.get(pointer)
+    if (target === undefined) continue
+    publishFaces += 1
+    if (!target.endsWith(expectExt)) {
+      problems.push(
+        `${label}: exports["."] 的 ${pointer} 指向 ${target}，应以 ${expectExt} 结尾` +
+          `（CJS 与 ESM 必须各有一份声明，否则 node16 下有一侧会解析到错的模块格式）`,
       )
     }
   }
@@ -520,6 +541,43 @@ for (const dir of pkgNames) {
   }
 }
 
+// ---------------------------------------------------------------- 文档站样式 ↔ token 表
+/**
+ * 文档站是组件库的**第一个真实消费者**，它的样式同样只能引用 token 表里存在的变量。
+ *
+ * 这条是补上去的：`docs/.vitepress/theme/styles/glass.css` 曾把 `--vp-c-bg` 映射成
+ * `var(--oj-bg-layout)`，而 token 表里只有 `--oj-bg-page`。自定义属性解析成无效值后，
+ * 整站的 `--vp-c-bg` 一直是空的——白底页面看不出来，搜索浮层一出现就是一块透明面板。
+ * 契约 13 当时只扫 `packages/包名/src/style.css`，文档站是自建样式的法外之地。
+ */
+let docsVars = 0
+const docsThemeDir = join(repoRoot, 'docs', '.vitepress', 'theme')
+const nameChars = 'abcdefghijklmnopqrstuvwxyz0123456789-'
+for (const sub of ['styles', 'components']) {
+  const dir = join(docsThemeDir, sub)
+  if (!existsSync(dir)) continue
+  for (const entry of readdirSync(dir)) {
+    if (!entry.endsWith('.css') && !entry.endsWith('.vue')) continue
+    const file = join(dir, entry)
+    const relFile = relative(repoRoot, file)
+    const text = stripComments(readFileSync(file, 'utf8'))
+    const used = new Set<string>()
+    let at = text.indexOf('var(--oj-')
+    while (at !== -1) {
+      const start = at + 4
+      let end = start
+      while (end < text.length && nameChars.includes(text[end] ?? '')) end += 1
+      used.add(text.slice(start, end))
+      at = text.indexOf('var(--oj-', end)
+    }
+    docsVars += used.size
+    for (const name of used) {
+      if (declaredVars.has(name)) continue
+      problems.push(relFile + ' 用了未定义的 ' + name + ' · 文档站也吃这张 token 表')
+    }
+  }
+}
+
 // ---------------------------------------------------------------- UMD 与外部框架
 /**
  * `office-ui.js` 是 Vue 层的兼容线产物，`vue` 必须留在外部（页面上的全局 `Vue`）。
@@ -597,6 +655,7 @@ console.log(
     `${declarationFiles} 份入库 .d.ts 说明符全部可解析 · ` +
     `${publishFaces} 个发布面扁平字段与 exports 同源 · ` +
     `组件样式 ${styleVars} 个变量全部命中 token 表 · ` +
+    `文档站 ${docsVars} 个变量全部命中 token 表 · ` +
     `i18n ${locales.length} 语 ↔ tokens ${varLayers.length} 个变量覆写层 + ${resetLayers.length} 个排版层 · ` +
     `${governanceDocs.length} 份治理文档链接完好`,
 )

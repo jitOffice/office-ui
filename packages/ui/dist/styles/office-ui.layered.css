@@ -55,6 +55,29 @@
   display: block;
 }
 
+/* 加载态旋转。周期取 token（--oj-motion-duration-slow），不写字面量时延：
+   契约只拦得了色值，时延靠自觉会一路漂到 1.2s。 */
+.oj-icon--spin {
+  animation: oj-icon-spin var(--oj-motion-duration-slow) linear infinite;
+}
+
+@keyframes oj-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 尊重系统的"减少动态效果"：前庭功能障碍用户会被持续旋转困住，
+   而加载态本身还有 aria-busy / 文案在承担语义，停转不会丢信息。 */
+@media (prefers-reduced-motion: reduce) {
+  .oj-icon--spin {
+    animation: none;
+  }
+}
+
 .oj-popper,
 .oj-tooltip {
   position: fixed;
@@ -68,7 +91,7 @@
 .oj-tooltip {
   z-index: var(--oj-z-popover);
   padding: 4px 8px;
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
   pointer-events: none;
 }
 
@@ -126,7 +149,7 @@
 .oj-grid-picker__exceed {
   margin: 8px 0 0;
   color: var(--oj-grid-picker-label-color);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-grid-picker__detail {
@@ -160,7 +183,7 @@
 
 .oj-shell__title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--oj-fs-14);
   font-weight: 600;
 }
 
@@ -232,7 +255,7 @@
 .oj-files__empty {
   margin: var(--oj-space-2) 0 0;
   color: var(--oj-text-3);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-stage {
@@ -285,7 +308,7 @@
 .oj-paper h1,
 .oj-paper h2,
 .oj-paper h3 {
-  font-size: 20px;
+  font-size: var(--oj-fs-20);
 }
 
 .oj-paper blockquote {
@@ -354,7 +377,7 @@
   background: var(--oj-bg-page);
   color: var(--oj-text-2);
   font-family: ui-monospace, monospace;
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
   white-space: pre-wrap;
 }
 
@@ -377,7 +400,7 @@
   align-items: center;
   gap: var(--oj-space-1);
   color: var(--oj-text-2);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-search input,
@@ -395,7 +418,7 @@
 .oj-search__count {
   min-width: 3em;
   color: var(--oj-text-3);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-zoom {
@@ -408,7 +431,7 @@
 .oj-zoom__value {
   min-width: 3.5em;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-shell__footer {
@@ -465,7 +488,7 @@
 .oj-dialog__title {
   flex: 1;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--oj-fs-14);
 }
 
 .oj-dialog__body {
@@ -506,7 +529,7 @@
 .oj-ai__log {
   margin: 0;
   color: var(--oj-text-3);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
 }
 
 .oj-ai__log {
@@ -532,6 +555,590 @@
 
 .oj-status {
   color: var(--oj-text-3);
-  font-size: 12px;
+  font-size: var(--oj-fs-12);
+}
+
+/* 浮层底座（03 §3 D 组）。层级一律走 token：写死 z-index 的库和宿主应用拼层级时必输。 */
+.oj-portal {
+  position: relative;
+}
+
+.oj-trigger {
+  display: inline-flex;
+}
+
+.oj-trigger__panel {
+  min-width: 160px;
+  padding: var(--oj-space-1);
+}
+
+/* 拆分按钮（03 §3 B 组）。主区与箭头是两个独立按钮：合成一个再判断点击坐标，
+   触屏上必然错，而且键盘用户永远只能执行主操作。 */
+.oj-split {
+  display: inline-flex;
+}
+
+/* 下拉按钮（03 §3 B 组）：整颗按钮都是触发器，没有主操作区。
+   触发器本身复用 `.oj-button`，这里只补浮层容器。 */
+.oj-dropdown-button {
+  display: inline-flex;
+}
+
+.oj-dropdown-button__menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--oj-space-1);
+}
+
+.oj-split__main {
+  border-radius: var(--oj-button-radius) 0 0 var(--oj-button-radius);
+}
+
+.oj-split__arrow {
+  padding: 0 var(--oj-space-1);
+  border-left: 1px solid var(--oj-border-2);
+  border-radius: 0 var(--oj-button-radius) var(--oj-button-radius) 0;
+}
+
+.oj-split__menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--oj-space-1);
+}
+
+/* 命令面板（03 §3 B 组）：浮层 + 搜索 + 列表。层级、焦点陷阱、关闭归还焦点都由 OjPortal 负责。 */
+.oj-palette__mask {
+  position: fixed;
+  inset: 0;
+  z-index: var(--oj-z-modal);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 12vh var(--oj-space-4) var(--oj-space-4);
+  background: var(--oj-bg-mask);
+}
+
+.oj-palette {
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: 60vh;
+  overflow: hidden;
+  border: 1px solid var(--oj-border-3);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+  box-shadow: var(--oj-shadow-3);
+}
+
+.oj-palette__input {
+  flex: 0 0 auto;
+  height: var(--oj-control-height-md);
+  padding: 0 var(--oj-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--oj-border-2);
+  background: transparent;
+  color: var(--oj-text-1);
+  font: inherit;
+  outline: none;
+}
+
+.oj-palette__list {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--oj-space-1);
+  overflow-y: auto;
+  list-style: none;
+}
+
+.oj-palette__item {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border-radius: var(--oj-radius-sm);
+  cursor: pointer;
+}
+
+.oj-palette__item[data-active] {
+  background: var(--oj-bg-active);
+}
+
+.oj-palette__item[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.oj-palette__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--oj-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oj-palette__group,
+.oj-palette__keys {
+  flex: 0 0 auto;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-palette__keys {
+  padding: 0 var(--oj-space-1);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-sm);
+  font-family: inherit;
+}
+
+.oj-palette__empty {
+  margin: 0;
+  padding: var(--oj-space-3);
+  color: var(--oj-text-3);
+  text-align: center;
+}
+
+/* 网格陈列（03 §3 B 组 🟡）：样式库、符号。列数由组件写进 grid-template-columns，
+   键盘的上下按整行跳（见 shell/gallery.ts）。 */
+.oj-ribbon-gallery {
+  display: grid;
+  gap: var(--oj-space-1);
+  padding: var(--oj-space-1);
+}
+
+.oj-ribbon-gallery__item {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oj-space-1);
+  min-width: var(--oj-control-height-md);
+  min-height: var(--oj-control-height-md);
+  padding: var(--oj-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-1);
+  font: inherit;
+  font-size: var(--oj-fs-12);
+  cursor: pointer;
+}
+
+.oj-ribbon-gallery__item:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-ribbon-gallery__item[data-active] {
+  border-color: var(--oj-brand-6);
+  background: var(--oj-bg-active);
+  color: var(--oj-text-brand);
+}
+
+.oj-ribbon-gallery__item:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+/* 状态栏（03 §3 B 组）。左区放模式、右区放读数，中间是被格式化的计数——
+   文案由使用方给，组件不拼字符串：`${n} 页` 这种拼法在日语里语序是错的。 */
+.oj-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--oj-space-3);
+  height: 28px;
+  padding: 0 var(--oj-space-3);
+  border-top: 1px solid var(--oj-border-2);
+  background: var(--oj-bg-container);
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-status-bar__start,
+.oj-status-bar__end {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--oj-space-2);
+}
+
+.oj-status-bar__center {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oj-space-3);
+  min-width: 0;
+}
+
+.oj-status-bar__item {
+  white-space: nowrap;
+}
+
+/* 工具条（03 §3 B 组）。溢出策略由 data-overflow 切换；`menu` 模式完全交给
+   `.oj-ribbon-group`，两边不各写一套宽度预算。 */
+.oj-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-1);
+  min-width: 0;
+}
+
+.oj-toolbar[data-overflow='scroll'] {
+  overflow-x: auto;
+}
+
+.oj-toolbar[data-overflow='wrap'] {
+  flex-wrap: wrap;
+}
+
+.oj-toolbar__item {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+}
+
+/* Ribbon 外壳（03 §3 B 组）：选项卡 + 面板 + 收起。
+   折叠只把面板 `hidden`，不卸载内容——面板里的选择器、搜索框不该因为收起一次就丢状态。 */
+.oj-ribbon {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-bottom: 1px solid var(--oj-border-2);
+  background: var(--oj-bg-container);
+}
+
+.oj-ribbon__tabbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--oj-space-1);
+  padding: 0 var(--oj-space-2);
+  border-bottom: 1px solid var(--oj-border-2);
+}
+
+.oj-ribbon__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oj-space-1);
+  height: 28px;
+  padding: 0 var(--oj-space-3);
+  border: 0;
+  border-radius: var(--oj-radius-sm) var(--oj-radius-sm) 0 0;
+  background: transparent;
+  color: var(--oj-text-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.oj-ribbon__tab:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-ribbon__tab[aria-selected='true'] {
+  background: var(--oj-bg-hover);
+  color: var(--oj-text-brand);
+  box-shadow: inset 0 -2px 0 var(--oj-brand-6);
+}
+
+/* Key Tips（03 §5 第 2 条）：按 Alt 才浮出的字母提示。方形小牌子，别做成链接色，
+   否则会被当成可点的东西——真正要按的是键盘。 */
+.oj-ribbon__keytip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--oj-space-4);
+  height: var(--oj-space-4);
+  padding: 0 var(--oj-space-1);
+  border: 1px solid var(--oj-border-3);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-brand);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.oj-ribbon__collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--oj-control-height-xs);
+  height: var(--oj-control-height-xs);
+  margin-left: auto;
+  margin-bottom: var(--oj-space-1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-3);
+  cursor: pointer;
+}
+
+.oj-ribbon__collapse:hover {
+  background: var(--oj-bg-hover);
+}
+
+/* 展开时朝上（点击收起），收起时朝下（点击展开） */
+.oj-ribbon__collapse[data-open] .oj-icon {
+  transform: rotate(180deg);
+}
+
+.oj-ribbon__panel {
+  display: flex;
+  align-items: stretch;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-2);
+}
+
+.oj-ribbon__panel[hidden] {
+  display: none;
+}
+
+.oj-ribbon__tab:focus-visible,
+.oj-ribbon__collapse:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+/* Ribbon 组（03 §3 B 组）。gap 与 `»` 的宽度由组件写进 style——预算和排版必须是同一份数字，
+   两处各写一个，降级/溢出的判定就会和眼睛看到的差几像素。 */
+.oj-ribbon-group {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* 探测版：为了量出各档宽度而渲染的那一帧。不可见、不占高度、不接事件。 */
+.oj-ribbon-group[data-probe] {
+  visibility: hidden;
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.oj-ribbon-group__item {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--oj-space-1);
+  padding: 0 var(--oj-space-1);
+  border-radius: var(--oj-radius-sm);
+  cursor: pointer;
+}
+
+.oj-ribbon-group__item:hover {
+  background: var(--oj-bg-hover);
+}
+
+/* medium（图标+文字一行）与 small（只剩图标）横排；small 的文字只对读屏可见 */
+.oj-ribbon-group__item[data-size='medium'],
+.oj-ribbon-group__item[data-size='small'] {
+  flex-direction: row;
+  gap: var(--oj-space-1);
+}
+
+.oj-ribbon-group__item[data-size='small'] .oj-ribbon-group__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.oj-ribbon-group__overflow {
+  flex: 0 0 auto;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.oj-ribbon-group__overflow:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-ribbon-group__overflow:focus-visible,
+.oj-ribbon-group__item:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+.oj-ribbon-group__menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--oj-space-1);
+}
+
+.oj-ribbon-group__menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border-radius: var(--oj-radius-sm);
+  cursor: pointer;
+}
+
+.oj-ribbon-group__menu-item:hover {
+  background: var(--oj-bg-hover);
+}
+
+/* 语言切换器（03 §6 M1、04 §6.1）。原生 select：自绘下拉在这里换不到任何东西，
+   只把它压到工具条一行的高度，横向留白交给内边距而不是 width。 */
+.oj-locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.oj-locale-switcher__select {
+  height: var(--oj-control-height-xs);
+  max-width: 100%;
+  padding: 0 var(--oj-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.oj-locale-switcher__select:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-locale-switcher__select:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+.oj-locale-switcher[data-disabled] {
+  opacity: 0.5;
+}
+
+.oj-locale-switcher__select:disabled {
+  cursor: not-allowed;
+}
+
+/* 组启动器（`OjCommandLauncher`）：贴在组右下角、盖在内容之上。
+   定位放在 `__launcher` 这层包裹上，组件本身不带定位——同一个按钮放到工具条里也能用。 */
+.oj-ribbon-group__launcher {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0;
+  display: flex;
+}
+
+.oj-command-launcher {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-3);
+  cursor: pointer;
+}
+
+.oj-command-launcher:hover {
+  background: var(--oj-bg-hover);
+  color: var(--oj-text-2);
+}
+
+.oj-command-launcher:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+.oj-command-launcher:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 一条右边界 + 一条下边界构成的直角就是 ↘ 箭头：为 7×7 像素引一枚 SVG 不划算，
+   而它也不是办公图标集里的业务图标。 */
+.oj-command-launcher__glyph {
+  width: 7px;
+  height: 7px;
+  margin: -2px 0 0 -2px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+}
+
+/* 右键菜单（`OjContextMenu`）：坐标由 `OjPopper` 写进 inline style，这里只管样子。 */
+.oj-context-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  max-width: 320px;
+  padding: var(--oj-space-1);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-md);
+  background: var(--oj-bg-elevated);
+  box-shadow: var(--oj-shadow-2);
+  outline: none;
+}
+
+.oj-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-3);
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 0;
+  border-radius: var(--oj-radius-sm);
+  background: transparent;
+  color: var(--oj-text-1);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.oj-context-menu__item[data-active] {
+  background: var(--oj-bg-hover);
+}
+
+.oj-context-menu__item[data-danger] {
+  color: var(--oj-danger-6);
+}
+
+.oj-context-menu__item:disabled {
+  color: var(--oj-text-3);
+  cursor: not-allowed;
+}
+
+.oj-context-menu__item:focus-visible {
+  outline: none;
+  box-shadow: var(--oj-focus-ring);
+}
+
+.oj-context-menu__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.oj-context-menu__shortcut {
+  flex: 0 0 auto;
+  color: var(--oj-text-3);
+  font-family: var(--oj-font-mono);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-context-menu__separator {
+  height: 1px;
+  margin: var(--oj-space-1) 0;
+  background: var(--oj-border-2);
 }
 }

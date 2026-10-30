@@ -39,6 +39,8 @@ export interface OjMessages {
             no: string;
             inputPlaceholder: string;
             selectPlaceholder: string;
+            /** 语言切换器的可访问名（`OjLocaleSwitcher`）。 */
+            language: string;
         };
         tableGridPicker: {
             label: string;

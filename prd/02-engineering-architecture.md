@@ -244,6 +244,13 @@ picker.destroy()                   // 必须显式卸载，否则内存泄漏
 <div data-oj="table-grid-picker" data-oj-prop-max-rows="10" data-oj-prop-on-select="window.pickTable"></div>
 ```
 
+> **落地状态（2026-10-30，05 第十五轮）**：`§4.2` / `§4.3` 已实现并跑通真浏览器——
+> `OfficeUI.create` 返回 `{ el, setProps, destroy }`，容器插在 `anchor` 之后；
+> `hydrate` 认 `data-oj-props` 与 `data-oj-prop-*`（含 `max-rows` 嵌套与类型推断、`on-*` 全局函数解引用），
+> 已挂载元素打 `data-oj-hydrated` 防重复。`locale` 透传是通过 `configure({ i18n })` 实现的：
+> 独立 app 拿不到页面 `OjLocaleProvider` 的上下文，这也是 `§4.2` 里那句"需支持透传"的真实原因。
+> **仍缺** `§4.1` 的 `web-types.json` / `tags.json` / `attributes.json`。
+
 ### 4.4 老浏览器与信创环境
 > **基线已拍板（2026-10-09，ADR-0002 → Accepted）：legacy 线 floor = Chromium 86。** 因此下面这些不再是备选设计，A2 的 `modern`/`legacy` 两趟构建与两份 CSS 输出都是交付前提。仍缺一份可实测的内核版本清单（见 05 §0 B2）；`ES2018` 这一条与清单无关，无论 Firefox ESR 78 是否留在范围内都取它——它比 86 能吃的 ES2020 更保守，成本只在产物体积。
 
@@ -320,15 +327,15 @@ UMD 无法 `import './style.css'`（Rollup 会输出 JS 注入或丢弃）。提
 
 | 门禁 | 工具 | 阈值 |
 |---|---|---|
-| 单测 | Vitest + @vue/test-utils | 组件行覆盖 ≥ 85%；命令注册表与 `usePopper` ≥ 95%（这两个是全局故障源） |
+| 单测 | Vitest + @vue/test-utils | 组件行覆盖 ≥ 85%；命令注册表与 `usePopper` ≥ 95%（这两个是全局故障源）。**2026-10-29 落地**：`packages/ui/vitest.config.ts`（happy-dom，收 `test/unit` 下的 `.spec.ts`），`test:unit` 进 `pull-request.yml` 的 build job。**覆盖率已接**（2026-10-30）：`@vitest/coverage-v8` 进 catalog，`test:unit` 自带 `--coverage`，阈值按目录分三档卡在 `vitest.config.ts`——`src/vue/**` 行 ≥85、`registry.ts` ≥95、`popper.ts` ≥95。补测后实测：组件行 92.88%（补测前 79.93% 不达标）、注册表 100%、`usePopper` 96.66%。**破坏验证**：把 85 抬到 99 立刻红，报错直接点名 glob 与实际值；恢复后转绿。注意这不是"追 90% 数字"——补的是弹层/树/框选/签名板这类**有真实分支**的组件，不是快照 |
 | 交互测试 | Playwright（真实浏览器） | Ribbon 键盘导航、IME 输入、拖拽选区、焦点陷阱——**这些在 jsdom 里测不出来** |
 | 视觉回归 | Playwright screenshot | `light/dark × comfortable/compact × zh/zh-TW/ja` 12 组，阈值 0.1%。`en` 不进这个积——它不覆写任何 token（01 §7），文案宽度另走"窄英/宽德不溢出"一组 |
 | 无障碍 | `@axe-core/playwright` | 0 violation（`color-contrast` 规则单独处理，见 01 号文档 §8） |
-| 体积 | size-limit | 全量 ESM gzip ≤ 90 KB；单组件 ≤ 6 KB；UMD ≤ 120 KB；CSS ≤ 16 KB。超标即 CI 失败并输出 diff |
+| 体积 | size-limit | 全量 ESM gzip ≤ 90 KB；单组件 ≤ 6 KB；UMD ≤ 120 KB；CSS ≤ 16 KB。超标即 CI 失败并输出 diff。**2026-10-29 落地**：`.size-limit.jsonc` 四条（OjIcon 8 KB / 单图标 1 KB / 全量 90 KB / CSS 16 KB），实测 1.97 kB、836 B、7.5 kB、1.92 kB。两处必须记住：① size-limit 14 默认报 **brotli**，PRD 是 gzip 口径，每条都要显式 `gzip: true`（差值约 15%，混用等于门禁与规格各说各话）；② `import` + `ignore: ["vue"]` 缺一不可，否则量的是整个入口或 Vue 本身 |
 | 许可 | `license-checker --onlyAllow` | 仅 MIT/Apache-2.0/BSD/ISC/OFL。出现其他即失败 |
 | 类型 | `vue-tsc --noEmit` | 0 error，且 `dist/types` 需通过 `attw`（Are The Types Wrong）检查 ESM/CJS 双解析 |
 | 依赖 | 自研脚本 | `packages/ui` 的 `dependencies` 为空；无循环依赖 |
-| 一致性 | 自研脚本 | i18n 四语 key 集合完全一致；每个 prop 有 JSDoc；每个 `--oj-*` 变量在 token 表中有定义；组件 CSS 无字面色值 |
+| 一致性 | 自研脚本 | i18n 四语 key 集合完全一致；每个 prop 有 JSDoc；每个 `--oj-*` 变量在 token 表中有定义；组件 CSS 无字面色值。**2026-10-29 补**：`pnpm lint:styles` 双向查类名 block——组件用到的 block 必须有规则、样式表里的 block 必须有人用。**2026-10-30 补**：`pnpm lint:css-magic` 把「无字面色值」补全为「颜色 + 字号 + 时延」——16 处 `font-size` 字面量改成 `var(--oj-fs-*)`（此前 `ja` 档位把 `--oj-fs-14` 降到 13px 时组件不跟着降），时延必须走 `--oj-motion-duration-*`；例外按选择器逐条登记（标尺 10px / 水印 48px / Key Tip 11px），例外失效会被报出来。**间距与圆角仍未守**：token 标度覆盖不了 2px / 7px / 28px / 56px，需要先定标度 |
 | 兼容性 | Playwright + Firefox ESR / Chromium 86 | UMD 产物在信创目标内核上可运行 |
 
 **这张表是目标态，不是现状。** 现在真在跑的主体是零依赖那部分：
@@ -345,7 +352,10 @@ A2 第一切片补上了表里**需要依赖**的那两行的前半段：`pnpm b
 （`dist/umd` + `dist/locale`，7 个文件——`ui` 的两条 UMD 已并入）。
 所以"类型"与"兼容性"两行现在是**部分成立**：三个发布包的 ESM/CJS/types 都过，
 `ui` 的两条 UMD 也过 `es-check es2018`，但**信创老内核上的实测仍未开始**（没有可装的目标环境，
-见 ADR-0002）；`attw`、size-limit、许可扫描仍属目标态。
+见 ADR-0002）。**2026-10-30 补**：`attw` 与许可扫描已落地（`pnpm lint:types` / `pnpm lint:license`），
+前者首次接入就抓到五个包全部 `Masquerading as ESM`（`require.types` 指了 `.d.ts`），修完四模式全绿；
+后者零依赖、只查生产依赖树，白名单外的 devDependency 只打印不失败（理由见脚本头部）。
+**仍属目标态**：`@axe-core/playwright` 的 0 violation 断言。
 Playwright 现在有两条线，`packages/tokens` 那条先说：`packages/tokens/playwright.config.ts` 与 `test/visual/typography.spec.ts`
 三条用例已落地（B5 第一切片，锁住 01 §7 那批数字），依赖进了 catalog，`turbo run test:visual`
 已声明且刻意 `cache: false`。**三条已在 2026-10-09 真跑通过**，跑的是本机已装的两套内核
@@ -361,10 +371,19 @@ Playwright 自己那份 197.5 MiB 的 `chrome-headless-shell` 在本机下到 10
 （对比 `--oj-button-height` 与 `.oj-button` 的计算高度，不用背景色：`--oj-button-bg` 本来就是 transparent，
 拿它当探针是永远为真的假锁）、键盘 focus 唤出 tooltip、框选回传、控制台零告警。
 页面刻意用含编译器的 **dev** 构建，换成 runtime-only 后这条用例 30s 超时变红——
-"template 字符串静默空白"从此是被测过的事实。两个包共用 `turbo run test:visual`，
-`OJ_BROWSER_CHANNEL` 必须在 `turbo.json` 的 `passThroughEnv` 里声明，否则 turbo 的 strict env
-会把它过滤掉、两个包都掉回默认 Chromium（报错长得像"没装浏览器"，极易误判）。
-Vitest / axe / size-limit / license-checker / attw / vue-tsc 连配置文件都还没有，属于 A2、A3 的交付物，
+"template 字符串静默空白"从此是被测过的事实。
+
+**第三条线是 `packages/icons` 的 sprite 回归**（2026-10-29，C1 验收）：把 `dist/sprite.svg`
+内联进空页，对 31 个 `<symbol>` 逐个 `<use href="#…">` 并量 `getBBox().width`。
+关键在那个量法——引用不存在的 id **不会报错，只是画不出来**，所以"页面没报错"是一句废话，
+必须有"引用缺失 id 得到 0"的对照用例。跨文件 `<use href="sprite.svg#id">` 不测：`file://` 与跨源
+场景下浏览器本来就挡它，那不是这套产物要负责的事。
+
+三个包共用 `turbo run test:visual`，`OJ_BROWSER_CHANNEL` 必须在 `turbo.json` 的 `passThroughEnv` 里声明，
+否则 turbo 的 strict env 会把它过滤掉、所有包都掉回默认 Chromium
+（报错长得像"没装浏览器"，极易误判）。
+axe 的断言与 vue-tsc 的配置还没有，属于 A2、A3 的交付物（size-limit 与 Vitest 已于 2026-10-29 接入，
+attw 与许可扫描已于 2026-10-30 接入——两者都是`node internal/scripts/*.ts` 调用，配置即脚本本身）。
 PR 里不许把它们写成"lint 已过"（`CONTRIBUTING.md` §2 同条禁令）。
 
 **测试优先级说明**：不要追求 90% 覆盖率数字。办公组件的高危区是"键盘导航、焦点管理、IME、选区、浮层定位"，这些恰是 jsdom 测不出来的。宁可 60% 单测覆盖 + 20 条 Playwright 真实交互用例，也不要 90% 覆盖 + 全是快照测试。
@@ -377,7 +396,7 @@ GitHub Actions（`jitOffice/office-ui`）。
 
 ```
 pull-request.yml    lint → typecheck → unit → build → size-limit → a11y → visual
-preview.yml         构建文档站 + Playground，部署到 PR 预览环境（每个 PR 一个可点开的 URL）
+docs.yml            构建文档站 + Playground，做生成物 --check 与产物离线扫描，上传 artifact（不做在线部署）
 release.yml         changeset version → 构建 → attestation → npm publish → GitHub Release
 ```
 

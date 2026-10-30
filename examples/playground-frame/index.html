@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>office-ui · Playground 沙箱</title>
+    <!--
+      沙箱页（04 §3）。iframe 只给 `sandbox="allow-scripts"`——**没有** allow-same-origin，
+      所以这里读不到宿主的 DOM / localStorage / cookie。
+
+      ⚠ 实测结论（2026-10-30）：因为这个 origin 是 `null`，**ES module 与 import map 用不了**——
+      模块请求是 CORS 请求，浏览器带 `Origin: null`，静态服务器不会回 `Access-Control-Allow-Origin`，
+      于是 `vendor/vue.js` 与 `ui/vue/index.js` 全部 `net::ERR_FAILED`，页面白屏。
+      两条出路里选了后者：
+        1. 加 `allow-same-origin` —— 用户代码能读宿主存储，沙箱等于没有；
+        2. 回到**经典脚本**（UMD）—— 不受 CORS 约束，纯静态托管即可，这也是 02 §4.1
+           "无构建器场景必须用含编译器的 Vue 全局构建"的同一个形态。
+      因此这里没有 import map，也没有 compiler-sfc；多文件 SFC 要走 B 计划（宿主侧预编译）。
+    -->
+    <link rel="stylesheet" href="/playground/tokens.css" />
+    <link rel="stylesheet" href="/playground/office-ui.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--oj-bg-container, #fff);
+        color: var(--oj-text-1, #151515);
+        font: 14px/1.5715 var(--oj-font-sans, system-ui, sans-serif);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="/playground/vendor/vue.global.js"></script>
+    <script src="/playground/office-ui.js"></script>
+    <script>
+      const target = document.getElementById('app')
+      let instance = null
+
+      function post(message) {
+        parent.postMessage(message, '*')
+      }
+
+      function fail(message) {
+        post({ type: 'oj-playground:error', message: String(message) })
+      }
+
+      function reportHeight() {
+        post({ type: 'oj-playground:height', height: document.documentElement.scrollHeight })
+      }
+
+      /**
+       * demo 源码是**组件选项对象字面量**：`{ template: '…', setup() {…} }`。
+       * 用 `new Function` 求值：沙箱里没有打包器，也不需要模块图。
+       */
+      function mount(code) {
+        if (instance) {
+          instance.unmount()
+          instance = null
+        }
+        target.innerHTML = ''
+
+        let options
+        try {
+          options = new Function('Vue', 'OfficeUI', 'return (' + code + ')')(Vue, window.OfficeUI || {})
+        } catch (error) {
+          fail('语法错误：' + (error && error.message ? error.message : error))
+          return
+        }
+
+        try {
+          instance = Vue.createApp(options)
+          instance.config.errorHandler = function (error) {
+            fail('运行时错误：' + (error && error.message ? error.message : error))
+          }
+          instance.mount(target)
+        } catch (error) {
+          fail('挂载失败：' + (error && error.message ? error.message : error))
+          return
+        }
+
+        requestAnimationFrame(function () {
+          reportHeight()
+          post({ type: 'oj-playground:ok' })
+        })
+      }
+
+      window.addEventListener('message', function (event) {
+        const data = event.data
+        if (!data || data.type !== 'oj-playground:run' || typeof data.code !== 'string') return
+        mount(data.code)
+      })
+
+      // 高度自适应：长组件（Ribbon、表格选择器）不能被固定高度截断，由宿主跟着改
+      new ResizeObserver(function () {
+        reportHeight()
+      }).observe(document.body)
+
+      post({ type: 'oj-playground:ready' })
+    </script>
+  </body>
+</html>

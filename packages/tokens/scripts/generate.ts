@@ -313,6 +313,9 @@ export declare const tokenNames: string[]
     'dist/index.js': esm,
     'dist/index.cjs': cjs,
     'dist/index.d.ts': dts,
+    // CJS 类型镜像：tokens 的类型不走 tsc（由本脚本直接发射），所以 .d.cts 也得在这里生成，
+    // 否则 `exports.require.types` 指向一个不存在的文件，attw 对 node16-CJS 报 No types
+    'dist/index.d.cts': dts,
     'dist/themes/dark.css': banner + block(DARK.selector, ['  color-scheme: dark;', ...darkBody]) + '\n',
     'dist/themes/compact.css': banner + block(COMPACT.selector, compactBody) + '\n',
   }

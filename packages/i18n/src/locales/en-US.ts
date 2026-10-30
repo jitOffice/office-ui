@@ -32,6 +32,7 @@ const enUS: OjLocale = {
         no: 'No',
         inputPlaceholder: 'Enter a value',
         selectPlaceholder: 'Select…',
+        language: 'Language',
       },
       tableGridPicker: {
         label: 'Table',

@@ -183,3 +183,9 @@ desktop.ini
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+# 文档站构建产物与缓存（docs/dist 见上面的 dist/ 规则）
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
+# Playground 的 vendored 运行时（由 docs/.vitepress/scripts/prepare-playground.ts 生成）
+docs/public/playground/

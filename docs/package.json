@@ -1,0 +1,19 @@
+{
+  "name": "@jitoffice/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "office-ui 文档站（VitePress）。内网可自托管：不引 CDN、不引 Google Fonts、不引第三方搜索。",
+  "scripts": {
+    "dev": "node .vitepress/scripts/prepare-playground.ts && vitepress dev --port 5174",
+    "build": "node .vitepress/scripts/prepare-playground.ts && vitepress build",
+    "preview": "vitepress preview --port 4174",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "minisearch": "catalog:",
+    "typescript": "catalog:",
+    "vitepress": "catalog:"
+  }
+}

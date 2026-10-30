@@ -3,38 +3,75 @@
   "version": "0.0.0",
   "description": "中英日繁四语包、消息语法与 Intl 封装。零运行时依赖，无框架。",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitOffice/office-ui.git",
+    "directory": "packages/i18n"
+  },
   "type": "module",
   "sideEffects": false,
   "main": "./dist/cjs/index.cjs",
   "module": "./dist/es/index.js",
   "types": "./dist/types/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "locales/*": [
+        "./dist/types/locales/*.d.ts"
+      ]
+    }
+  },
   "unpkg": "./dist/umd/office-ui-i18n.js",
   "jsdelivr": "./dist/umd/office-ui-i18n.js",
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/es/index.js",
-      "require": "./dist/cjs/index.cjs"
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/es/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
     },
     "./locales/zh-CN": {
-      "types": "./dist/types/locales/zh-CN.d.ts",
-      "import": "./dist/es/locales/zh-CN.js",
-      "require": "./dist/cjs/locales/zh-CN.cjs"
+      "import": {
+        "types": "./dist/types/locales/zh-CN.d.ts",
+        "default": "./dist/es/locales/zh-CN.js"
+      },
+      "require": {
+        "types": "./dist/types/locales/zh-CN.d.cts",
+        "default": "./dist/cjs/locales/zh-CN.cjs"
+      }
     },
     "./locales/zh-TW": {
-      "types": "./dist/types/locales/zh-TW.d.ts",
-      "import": "./dist/es/locales/zh-TW.js",
-      "require": "./dist/cjs/locales/zh-TW.cjs"
+      "import": {
+        "types": "./dist/types/locales/zh-TW.d.ts",
+        "default": "./dist/es/locales/zh-TW.js"
+      },
+      "require": {
+        "types": "./dist/types/locales/zh-TW.d.cts",
+        "default": "./dist/cjs/locales/zh-TW.cjs"
+      }
     },
     "./locales/ja-JP": {
-      "types": "./dist/types/locales/ja-JP.d.ts",
-      "import": "./dist/es/locales/ja-JP.js",
-      "require": "./dist/cjs/locales/ja-JP.cjs"
+      "import": {
+        "types": "./dist/types/locales/ja-JP.d.ts",
+        "default": "./dist/es/locales/ja-JP.js"
+      },
+      "require": {
+        "types": "./dist/types/locales/ja-JP.d.cts",
+        "default": "./dist/cjs/locales/ja-JP.cjs"
+      }
     },
     "./locales/en-US": {
-      "types": "./dist/types/locales/en-US.d.ts",
-      "import": "./dist/es/locales/en-US.js",
-      "require": "./dist/cjs/locales/en-US.cjs"
+      "import": {
+        "types": "./dist/types/locales/en-US.d.ts",
+        "default": "./dist/es/locales/en-US.js"
+      },
+      "require": {
+        "types": "./dist/types/locales/en-US.d.cts",
+        "default": "./dist/cjs/locales/en-US.cjs"
+      }
     },
     "./package.json": "./package.json"
   },

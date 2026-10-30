@@ -388,6 +388,242 @@
 		};
 	}
 	//#endregion
+	//#region src/trigger.ts
+	var defaultScheduler = {
+		setTimeout: (task, ms) => globalThis.setTimeout(task, ms),
+		clearTimeout: (handle) => globalThis.clearTimeout(handle)
+	};
+	function createTriggerMachine(options = {}) {
+		var _options$modes, _options$openDelay, _options$closeDelay, _options$scheduler;
+		const modes = new Set((_options$modes = options.modes) !== null && _options$modes !== void 0 ? _options$modes : ["click"]);
+		const openDelay = (_options$openDelay = options.openDelay) !== null && _options$openDelay !== void 0 ? _options$openDelay : 0;
+		const closeDelay = (_options$closeDelay = options.closeDelay) !== null && _options$closeDelay !== void 0 ? _options$closeDelay : 120;
+		const scheduler = (_options$scheduler = options.scheduler) !== null && _options$scheduler !== void 0 ? _options$scheduler : defaultScheduler;
+		let timer;
+		let open = false;
+		function cancel() {
+			if (timer === void 0) return;
+			scheduler.clearTimeout(timer);
+			timer = void 0;
+		}
+		function apply(next, reason) {
+			var _options$onOpen, _options$onClose;
+			cancel();
+			if (next === open) return;
+			open = next;
+			if (open) (_options$onOpen = options.onOpen) === null || _options$onOpen === void 0 || _options$onOpen.call(options);
+			else (_options$onClose = options.onClose) === null || _options$onClose === void 0 || _options$onClose.call(options, reason);
+		}
+		function later(ms, task) {
+			cancel();
+			if (ms <= 0) {
+				task();
+				return;
+			}
+			timer = scheduler.setTimeout(() => {
+				timer = void 0;
+				task();
+			}, ms);
+		}
+		return {
+			isOpen: () => open,
+			/** 指针进入触发器（或触发器获得焦点时的 hover 语义） */
+			enter() {
+				if (modes.has("hover")) later(openDelay, () => apply(true, "leave"));
+			},
+			leave() {
+				if (modes.has("hover")) later(closeDelay, () => apply(false, "leave"));
+			},
+			/**
+			* 指针进入面板：只取消待关闭，不动 open。
+			* 这是 closeDelay 存在的全部理由——从触发器到面板之间必然有一段空白。
+			*/
+			panelEnter() {
+				cancel();
+			},
+			panelLeave() {
+				if (modes.has("hover")) later(closeDelay, () => apply(false, "panel-leave"));
+			},
+			press() {
+				if (modes.has("click")) apply(!open, "press");
+			},
+			focusIn() {
+				if (modes.has("focus")) apply(true, "leave");
+			},
+			focusOut() {
+				if (modes.has("focus")) later(closeDelay, () => apply(false, "blur"));
+			},
+			escape() {
+				apply(false, "escape");
+			},
+			close(reason = "manual") {
+				apply(false, reason);
+			},
+			/**
+			* 跟上外部真值（`v-model:open`）。
+			*
+			* 不跟的话，外部把面板关掉之后机器内部还记着 `open === true`，
+			* 下一次 `press()` 会算成"关闭"，用户点两下才打开。
+			*/
+			sync(value) {
+				cancel();
+				open = value;
+			},
+			dispose() {
+				cancel();
+			}
+		};
+	}
+	//#endregion
+	//#region src/hotkey.ts
+	var MODIFIERS = /* @__PURE__ */ new Set([
+		"mod",
+		"ctrl",
+		"control",
+		"cmd",
+		"command",
+		"meta",
+		"alt",
+		"option",
+		"shift"
+	]);
+	var KEY_ALIASES = {
+		" ": "space",
+		spacebar: "space",
+		esc: "escape",
+		del: "delete",
+		ins: "insert",
+		up: "arrowup",
+		down: "arrowdown",
+		left: "arrowleft",
+		right: "arrowright",
+		plus: "+",
+		add: "+"
+	};
+	/** 显示用的主键名：字母照抄、特殊键给人看得懂的写法 */
+	var KEY_LABELS = {
+		space: "Space",
+		escape: "Esc",
+		enter: "Enter",
+		tab: "Tab",
+		backspace: "Backspace",
+		delete: "Del",
+		insert: "Ins",
+		arrowup: "↑",
+		arrowdown: "↓",
+		arrowleft: "←",
+		arrowright: "→",
+		"+": "+",
+		"-": "-"
+	};
+	function normalizeKey(raw) {
+		var _KEY_ALIASES$lower;
+		if (raw === " ") return "space";
+		const lower = raw.trim().toLowerCase();
+		return (_KEY_ALIASES$lower = KEY_ALIASES[lower]) !== null && _KEY_ALIASES$lower !== void 0 ? _KEY_ALIASES$lower : lower;
+	}
+	/** 平台推断只看字符串，方便测试。空串按 linux 处理（最保守的一档）。 */
+	function platformFrom(source) {
+		if (/mac|iphone|ipad|ipod/i.test(source)) return "mac";
+		if (/win/i.test(source)) return "win";
+		return "linux";
+	}
+	/** 运行时平台。拿不到 `navigator` 时按 linux——宁可显示 Ctrl，也不要显示一个假 ⌘。 */
+	function detectPlatform() {
+		var _nav$platform, _nav$userAgent;
+		const nav = globalThis.navigator;
+		return platformFrom(`${(_nav$platform = nav === null || nav === void 0 ? void 0 : nav.platform) !== null && _nav$platform !== void 0 ? _nav$platform : ""} ${(_nav$userAgent = nav === null || nav === void 0 ? void 0 : nav.userAgent) !== null && _nav$userAgent !== void 0 ? _nav$userAgent : ""}`);
+	}
+	function emptySpec() {
+		return {
+			key: "",
+			ctrl: false,
+			alt: false,
+			shift: false,
+			meta: false
+		};
+	}
+	/**
+	* 解析 `'mod+shift+z'`。坏绑定一律返回 `undefined`，不抛异常：
+	* 命令表是数据，一条写错不应该把整个应用带崩。
+	*/
+	function parseHotkey(binding, platform) {
+		const trimmed = binding.trim();
+		const parts = (trimmed.endsWith("++") ? `${trimmed.slice(0, -2)}+plus` : trimmed).split("+").map((part) => part.trim());
+		const spec = emptySpec();
+		const keys = [];
+		for (const part of parts) {
+			if (part.length === 0) return void 0;
+			const lower = part.toLowerCase();
+			if (MODIFIERS.has(lower)) {
+				if (lower === "mod") {
+					if (platform === "mac") spec.meta = true;
+					else spec.ctrl = true;
+				} else if (lower === "ctrl" || lower === "control") spec.ctrl = true;
+				else if (lower === "cmd" || lower === "command" || lower === "meta") spec.meta = true;
+				else if (lower === "alt" || lower === "option") spec.alt = true;
+				else spec.shift = true;
+				continue;
+			}
+			keys.push(normalizeKey(part));
+		}
+		if (keys.length !== 1) return void 0;
+		spec.key = keys[0];
+		return spec;
+	}
+	/** 严格匹配：修饰键多一个、少一个都不算命中。 */
+	function matchHotkey(spec, event) {
+		return normalizeKey(event.key) === spec.key && event.ctrlKey === spec.ctrl && event.altKey === spec.alt && event.shiftKey === spec.shift && event.metaKey === spec.meta;
+	}
+	/** 显示用文案：mac 用符号且不加 `+`，Windows/Linux 用 `Ctrl+Shift+Z` 这种写法。 */
+	function formatHotkey(binding, platform) {
+		var _KEY_LABELS$spec$key;
+		const spec = parseHotkey(binding, platform);
+		if (spec === void 0) return binding;
+		const key = (_KEY_LABELS$spec$key = KEY_LABELS[spec.key]) !== null && _KEY_LABELS$spec$key !== void 0 ? _KEY_LABELS$spec$key : spec.key.length === 1 ? spec.key.toUpperCase() : spec.key;
+		if (platform === "mac") return `${spec.ctrl ? "⌃" : ""}${spec.alt ? "⌥" : ""}${spec.shift ? "⇧" : ""}${spec.meta ? "⌘" : ""}${key}`;
+		const parts = [];
+		if (spec.ctrl) parts.push("Ctrl");
+		if (spec.alt) parts.push("Alt");
+		if (spec.shift) parts.push("Shift");
+		if (spec.meta) parts.push("Win");
+		parts.push(key);
+		return parts.join("+");
+	}
+	function canonical(spec) {
+		return `${spec.ctrl ? "C" : ""}${spec.alt ? "A" : ""}${spec.shift ? "S" : ""}${spec.meta ? "M" : ""}:${spec.key}`;
+	}
+	function keysOf(binding) {
+		const keys = binding.keys;
+		if (keys === void 0) return [];
+		return typeof keys === "string" ? [keys] : [...keys];
+	}
+	/**
+	* 冲突检测。同一个命令把同一条快捷键写两遍不算冲突——冲突是**两个命令抢一个键**，
+	* 报出来的第一条就是"后注册的把先注册的盖掉了"。
+	*/
+	function hotkeyConflicts(bindings, platform) {
+		const seen = /* @__PURE__ */ new Map();
+		for (const binding of bindings) for (const key of keysOf(binding)) {
+			const spec = parseHotkey(key, platform);
+			if (spec === void 0) continue;
+			const id = canonical(spec);
+			const entry = seen.get(id);
+			if (entry === void 0) {
+				seen.set(id, {
+					label: formatHotkey(key, platform),
+					ids: [binding.id]
+				});
+				continue;
+			}
+			if (!entry.ids.includes(binding.id)) entry.ids.push(binding.id);
+		}
+		return [...seen.values()].filter((entry) => entry.ids.length > 1).map((entry) => ({
+			label: entry.label,
+			ids: entry.ids
+		}));
+	}
+	//#endregion
 	//#region src/tooltip.ts
 	function defaultSchedule(fn, ms) {
 		const id = setTimeout(fn, ms);
@@ -438,10 +674,237 @@
 		};
 	}
 	//#endregion
+	//#region src/ribbon.ts
+	var DEGRADE = {
+		large: "medium",
+		medium: "small",
+		small: void 0
+	};
+	var SIZE_RANK = {
+		large: 2,
+		medium: 1,
+		small: 0
+	};
+	/** 取更小的那一档。探测时用它保证只会往下压，不会把命令反向放大。 */
+	function ribbonSmallerSize(a, b) {
+		return SIZE_RANK[a] <= SIZE_RANK[b] ? a : b;
+	}
+	/**
+	* 还差哪一档的宽度没量到。
+	*
+	* 没给 `width` 的命令，第一版只能按"设计尺寸"渲染出来才量得到宽度；比它更小的档位
+	* 则要**真的按那一档渲染一次**才能量。所以组件按 `medium` → `small` 的顺序整组探一次，
+	* 量到就记进表里、立刻按真实宽度重算——不靠比例猜，也不事先克隆一份插槽内容去量。
+	*
+	* 返回 `undefined` 表示已经量全，或者所有缺失都被使用方用 `widths` 显式给出了。
+	*/
+	function ribbonProbeSize(items, measured) {
+		for (const target of ["medium", "small"]) if (items.some((item) => {
+			var _item$widths, _measured$item$id;
+			if (SIZE_RANK[item.size] < SIZE_RANK[target]) return false;
+			if (target === item.size) return false;
+			if (((_item$widths = item.widths) === null || _item$widths === void 0 ? void 0 : _item$widths[target]) !== void 0) return false;
+			return ((_measured$item$id = measured[item.id]) === null || _measured$item$id === void 0 ? void 0 : _measured$item$id[target]) === void 0;
+		})) return target;
+	}
+	function widthOf(item) {
+		var _item$widths$item$dis, _item$widths2;
+		return (_item$widths$item$dis = (_item$widths2 = item.widths) === null || _item$widths2 === void 0 ? void 0 : _item$widths2[item.display]) !== null && _item$widths$item$dis !== void 0 ? _item$widths$item$dis : item.width;
+	}
+	function span(items, gap) {
+		if (items.length === 0) return 0;
+		return items.reduce((sum, item) => sum + widthOf(item), 0) + gap * (items.length - 1);
+	}
+	/**
+	* 把命令铺进有限宽度：
+	*   1. 放得下就原样放；
+	*   2. 放不下先**降级**（large→medium→small）：先整组降一档，还不够再整组降第二档，
+	*      每降一个就复查一次——顺序不能乱，Ribbon 的肌肉记忆全靠位置；
+	*   3. 还装不下就从**末尾**往 `»` 里塞，塞到连"最后一个可见项 + `»`"都放不下为止。
+	*/
+	function packRibbon(items, availableWidth, options = {}) {
+		var _options$gap, _options$overflowWidt;
+		const gap = (_options$gap = options.gap) !== null && _options$gap !== void 0 ? _options$gap : 2;
+		const overflowWidth = (_options$overflowWidt = options.overflowWidth) !== null && _options$overflowWidt !== void 0 ? _options$overflowWidt : 20;
+		const packed = items.map((item) => ({
+			...item,
+			display: item.size
+		}));
+		if (packed.length === 0) return {
+			visible: [],
+			overflow: [],
+			used: 0
+		};
+		if (span(packed, gap) <= availableWidth) return {
+			visible: packed,
+			overflow: [],
+			used: span(packed, gap)
+		};
+		for (const target of ["medium", "small"]) for (const item of packed) {
+			if (DEGRADE[item.display] !== target) continue;
+			item.display = target;
+			if (span(packed, gap) <= availableWidth) return {
+				visible: packed,
+				overflow: [],
+				used: span(packed, gap)
+			};
+		}
+		const visible = [...packed];
+		const overflow = [];
+		while (visible.length > 0) {
+			if (span(visible, gap) + gap + overflowWidth <= availableWidth) break;
+			overflow.unshift(visible.pop());
+		}
+		return {
+			visible,
+			overflow,
+			used: span(visible, gap) + (overflow.length > 0 ? (visible.length > 0 ? gap : 0) + overflowWidth : 0)
+		};
+	}
+	function createRibbonChrome(tab, collapsed = false) {
+		return {
+			tab,
+			collapsed,
+			peek: false
+		};
+	}
+	/** 面板此刻是否可见。收起 + 没临时展开 = 不可见。 */
+	function ribbonPanelOpen(state) {
+		return !state.collapsed || state.peek;
+	}
+	/**
+	* 单击选项卡。展开态只切标签；收起态先临时展开，
+	* 再点同一个标签则收回（Word/WPS 都是这个手感）。
+	*/
+	function ribbonSelect(state, id) {
+		if (!state.collapsed) return state.tab === id ? state : {
+			...state,
+			tab: id,
+			peek: false
+		};
+		if (state.peek && state.tab === id) return {
+			...state,
+			peek: false
+		};
+		return {
+			tab: id,
+			collapsed: true,
+			peek: true
+		};
+	}
+	/** 双击选项卡（或点收起箭头）：在"固定展开"与"固定收起"之间切，顺手清掉临时展开。 */
+	function ribbonToggleCollapsed(state) {
+		return {
+			tab: state.tab,
+			collapsed: !state.collapsed,
+			peek: false
+		};
+	}
+	/** Esc / 点到面板外面：只收回临时展开，不动固定状态。 */
+	function ribbonDismiss(state) {
+		return state.peek ? {
+			...state,
+			peek: false
+		} : state;
+	}
+	/**
+	* 把一次按键映射到选项卡 id。只认单字符、大小写不敏感、先到先得。
+	* 多字符（`Enter`、`ArrowLeft`）一律不认：那些键在 Ribbon 里另有语义。
+	*/
+	function ribbonKeyTip(items, key) {
+		if (key.length !== 1) return void 0;
+		const wanted = key.toLowerCase();
+		for (const item of items) if (item.keyTip !== void 0 && item.keyTip.length > 0 && item.keyTip.toLowerCase() === wanted) return item.id;
+	}
+	/** 有没有任何标签配了 Key Tip——没配就别在按 `Alt` 时弹一排空提示。 */
+	function ribbonHasKeyTips(items) {
+		return items.some((item) => item.keyTip !== void 0 && item.keyTip.length > 0);
+	}
+	//#endregion
+	//#region src/icon-registry.ts
+	/** kebab-case，且不能落在内置命名空间里。 */
+	var NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+	var RESERVED_PREFIX = "oj-";
+	var FORBIDDEN = [
+		{
+			pattern: /<script/i,
+			reason: "含 <script>"
+		},
+		{
+			pattern: /\son[a-z]+\s*=/i,
+			reason: "含内联事件处理器（onload= 这类）"
+		},
+		{
+			pattern: /javascript:/i,
+			reason: "含 javascript: 协议"
+		},
+		{
+			pattern: /<foreignobject/i,
+			reason: "含 <foreignObject>（可嵌入任意 HTML）"
+		},
+		{
+			pattern: /<image\b/i,
+			reason: "含 <image>（外链图片，离线环境会挂住首帧）"
+		},
+		{
+			pattern: /(?:xlink:)?href\s*=\s*["']?\s*(?:https?:)?\/\//i,
+			reason: "含外链 href"
+		}
+	];
+	var registry = /* @__PURE__ */ new Map();
+	/**
+	* 校验一份图标 markup。返回 `undefined` 表示可用；否则返回给人看的问题描述。
+	* 独立导出是为了让它能在零依赖的 `node --test` 里被逐条断言（不加载 vue）。
+	*/
+	function iconMarkupProblem(name, markup) {
+		var _trimmed$match$length, _trimmed$match;
+		if (typeof name !== "string" || !NAME_PATTERN.test(name)) return `名字 "${name}" 不是 kebab-case（只允许小写字母、数字、连字符，且不以数字开头）`;
+		if (name.startsWith(RESERVED_PREFIX)) return `名字 "${name}" 占用了内置命名空间（oj-* 由 @jitoffice/icons 提供，业务图标请换个前缀）`;
+		if (typeof markup !== "string") return `"${name}" 的 markup 不是字符串`;
+		const trimmed = markup.trim();
+		if (!trimmed.toLowerCase().startsWith("<svg")) return `"${name}" 的 markup 不是以 <svg 开头`;
+		if (!trimmed.toLowerCase().endsWith("</svg>")) return `"${name}" 的 markup 不是以 </svg> 结尾`;
+		const roots = (_trimmed$match$length = (_trimmed$match = trimmed.match(/<svg[\s>]/gi)) === null || _trimmed$match === void 0 ? void 0 : _trimmed$match.length) !== null && _trimmed$match$length !== void 0 ? _trimmed$match$length : 0;
+		if (roots !== 1) return `"${name}" 的 markup 含 ${roots} 个 <svg>，必须是单个图标`;
+		if (!/\sviewBox\s*=\s*["'][^"']+["']/i.test(trimmed)) return `"${name}" 的 markup 缺 viewBox`;
+		for (const { pattern, reason } of FORBIDDEN) if (pattern.test(trimmed)) return `"${name}" 的 markup ${reason}`;
+	}
+	function assert(name, markup) {
+		const problem = iconMarkupProblem(name, markup);
+		if (problem !== void 0) throw new Error(`[OjIcon] 注册失败：${problem}`);
+	}
+	/** 注册单枚图标。同名覆盖（主题/微前端替换用）。 */
+	function registerIcon(name, markup) {
+		assert(name, markup);
+		registry.set(name, markup.trim());
+	}
+	/** 批量注册。**先整体校验再写入**：一条不合格时不留半套注册结果。 */
+	function registerIcons(table) {
+		for (const [name, markup] of Object.entries(table)) assert(name, markup);
+		for (const [name, markup] of Object.entries(table)) registry.set(name, markup.trim());
+	}
+	/** 注销。返回是否真的删掉了（重复注销不该当成错误）。 */
+	function unregisterIcon(name) {
+		return registry.delete(name);
+	}
+	/** 已注册的业务图标名（不含内置的三十枚）。 */
+	function registeredIconNames() {
+		return [...registry.keys()];
+	}
+	/** 清空。测试与"整站换一套图标"用。 */
+	function resetRegisteredIcons() {
+		registry.clear();
+	}
+	function registeredIconMarkup(name) {
+		return registry.get(name);
+	}
+	//#endregion
 	//#region src/icons.ts
 	/**
 	* 自绘图标。只发 SVG 字符串，不发图标字体（prd/00 许可红线）。
 	* 完整图标管线仍是后续的 `@jitoffice/icons`，这里先覆盖外壳会用到的三十枚。
+	* 业务侧要加图标不要改这张表——用 `registerIcon`（见 `icon-registry.ts`），
+	* 否则每次升级都会把改动冲掉。
 	*/
 	var SVG_OPEN = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"currentColor\">";
 	var icons = {
@@ -478,6 +941,8 @@
 		"oj-code": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\"><path d=\"M6 4.5 3 8l3 3.5M10 4.5 13 8l-3 3.5\"/></svg>"
 	};
 	function iconMarkup(name) {
+		const registered = registeredIconMarkup(name);
+		if (registered !== void 0) return registered;
 		if (Object.prototype.hasOwnProperty.call(icons, name)) return icons[name];
 	}
 	function iconLabelProblem(name, options = {}) {
@@ -576,6 +1041,108 @@
 	}
 	function toggleId(open, id) {
 		return open.includes(id) ? open.filter((item) => item !== id) : [...open, id];
+	}
+	//#endregion
+	//#region src/shell/gallery.ts
+	/**
+	* 网格陈列的方向键模型（03 §3 B 组 `OjRibbonGallery`）。
+	*
+	* 单独抽出来是因为"上下左右在网格里怎么走"是最容易写歪的一段：写成按 `columns`
+	* 硬算行列，碰到最后一行不满就会算出不存在的下标；写成纯 `+1/-1`，上下键又变成
+	* 左右键的别名。这里统一按**下标**算，并且永远夹在 `[0, count-1]` 里。
+	*/
+	/** 返回移动后的下标。`columns` 非法（0、负数、NaN）时按 1 列处理，不抛异常。 */
+	function galleryNeighbor(columns, count, index, key) {
+		if (count <= 0) return 0;
+		const cols = Number.isFinite(columns) && columns >= 1 ? Math.floor(columns) : 1;
+		const current = Math.min(Math.max(Number.isFinite(index) ? Math.floor(index) : 0, 0), count - 1);
+		if (key === "ArrowRight") return Math.min(current + 1, count - 1);
+		if (key === "ArrowLeft") return Math.max(current - 1, 0);
+		if (key === "ArrowDown") return Math.min(current + cols, count - 1);
+		if (key === "ArrowUp") return Math.max(current - cols, 0);
+		if (key === "Home") return 0;
+		if (key === "End") return count - 1;
+		return current;
+	}
+	//#endregion
+	//#region src/menu.ts
+	/** 这一项能不能被选中/聚焦。分隔线与禁用项都不行。 */
+	function menuSelectable(item) {
+		return item.kind !== "separator" && item.disabled !== true;
+	}
+	/** 可选项的下标表，按原顺序。组件用它做 tabindex 轮换，导航用它算邻居。 */
+	function menuSelectableIndices(items) {
+		const out = [];
+		items.forEach((item, index) => {
+			if (menuSelectable(item)) out.push(index);
+		});
+		return out;
+	}
+	/**
+	* 方向键/Home/End 之后该聚焦哪一项。返回**项下标**，没有可选项时返回 `-1`。
+	*
+	* `index` 传 `-1` 表示"当前没有任何项被聚焦"：`ArrowDown` 落到第一个可选项，
+	* `ArrowUp` 落到最后一个——这是菜单刚打开时的两种进入方向。
+	* 未知按键原样返回 `index`，调用方据此判断"这个键不归我管"。
+	*/
+	function menuNeighbor(items, index, key) {
+		const enabled = menuSelectableIndices(items);
+		if (enabled.length === 0) return -1;
+		const at = enabled.indexOf(index);
+		const first = enabled[0];
+		const last = enabled[enabled.length - 1];
+		if (key === "Home") return first;
+		if (key === "End") return last;
+		if (key === "ArrowDown") return enabled[(at + 1) % enabled.length];
+		if (key === "ArrowUp") return enabled[(at <= 0 ? enabled.length : at) - 1];
+		return index;
+	}
+	/** 回车/空格该触发哪一项。`-1`（无聚焦）或落在禁用项上时返回 `undefined`。 */
+	function menuAction(items, index) {
+		const item = items[index];
+		if (item === void 0 || !menuSelectable(item)) return void 0;
+		return item;
+	}
+	//#endregion
+	//#region src/palette.ts
+	function isSubsequence(needle, haystack) {
+		let at = 0;
+		for (const char of haystack) {
+			if (char === needle[at]) at += 1;
+			if (at === needle.length) return true;
+		}
+		return needle.length === 0;
+	}
+	/** 命中返回分数（越大越靠前），不命中返回 `undefined`。空查询一律命中且同分。 */
+	function paletteScore(item, query) {
+		const wanted = query.trim().toLowerCase();
+		if (wanted.length === 0) return 0;
+		const label = item.label.toLowerCase();
+		if (label === wanted) return 100;
+		if (label.startsWith(wanted)) return 80;
+		if (label.includes(wanted)) return 60;
+		if (item.id.toLowerCase().includes(wanted)) return 40;
+		if (item.description !== void 0 && item.description.toLowerCase().includes(wanted)) return 30;
+		if (isSubsequence(wanted, label)) return 20;
+	}
+	function filterPaletteItems(items, query) {
+		const scored = [];
+		items.forEach((item, index) => {
+			const score = paletteScore(item, query);
+			if (score !== void 0) scored.push({
+				item,
+				score,
+				index
+			});
+		});
+		scored.sort((a, b) => b.score - a.score || a.index - b.index);
+		return scored.map((entry) => entry.item);
+	}
+	/** 面板里上下移动高亮。**循环**：在最后一条按 ↓ 应该回到第一条，而不是卡住。 */
+	function paletteStep(count, current, delta) {
+		if (count <= 0) return 0;
+		const size = Math.floor(count);
+		return (((Number.isFinite(current) ? Math.floor(current) : 0) + (Number.isFinite(delta) ? Math.floor(delta) : 0)) % size + size) % size;
 	}
 	//#endregion
 	//#region src/shell/ruler.ts
@@ -1359,33 +1926,65 @@
 	exports.createDocument = createDocument;
 	exports.createGridPicker = createGridPicker;
 	exports.createMemoryEditor = createMemoryEditor;
+	exports.createRibbonChrome = createRibbonChrome;
 	exports.createTooltipMachine = createTooltipMachine;
+	exports.createTriggerMachine = createTriggerMachine;
+	exports.detectPlatform = detectPlatform;
 	exports.editorCommands = editorCommands;
 	exports.extendStroke = extendStroke;
+	exports.filterPaletteItems = filterPaletteItems;
 	exports.filterTree = filterTree;
+	exports.formatHotkey = formatHotkey;
+	exports.galleryNeighbor = galleryNeighbor;
 	exports.horizontalRuleOptions = horizontalRuleOptions;
+	exports.hotkeyConflicts = hotkeyConflicts;
 	exports.iconLabelProblem = iconLabelProblem;
 	exports.iconMarkup = iconMarkup;
+	exports.iconMarkupProblem = iconMarkupProblem;
 	exports.icons = icons;
 	exports.isDevEnv = isDevEnv;
 	exports.isHeadingLevel = isHeadingLevel;
 	exports.isHorizontalRuleInput = isHorizontalRuleInput;
 	exports.isTableSize = isTableSize;
 	exports.isTextblockType = isTextblockType;
+	exports.matchHotkey = matchHotkey;
 	exports.matchNodeInput = matchNodeInput;
+	exports.menuAction = menuAction;
+	exports.menuNeighbor = menuNeighbor;
+	exports.menuSelectable = menuSelectable;
+	exports.menuSelectableIndices = menuSelectableIndices;
 	exports.mergeAttributes = mergeAttributes;
 	exports.neighbor = neighbor;
 	exports.nodeExtension = nodeExtension;
+	exports.normalizeKey = normalizeKey;
+	exports.packRibbon = packRibbon;
 	exports.pageWidth = pageWidth;
+	exports.paletteScore = paletteScore;
+	exports.paletteStep = paletteStep;
 	exports.parseHorizontalRuleHTML = parseHorizontalRuleHTML;
 	exports.parseHorizontalRuleMarkdown = parseHorizontalRuleMarkdown;
+	exports.parseHotkey = parseHotkey;
 	exports.placePopper = placePopper;
 	exports.plainText = plainText;
+	exports.platformFrom = platformFrom;
 	exports.registerEditorCommands = registerEditorCommands;
+	exports.registerIcon = registerIcon;
+	exports.registerIcons = registerIcons;
+	exports.registeredIconMarkup = registeredIconMarkup;
+	exports.registeredIconNames = registeredIconNames;
 	exports.renderHorizontalRule = renderHorizontalRule;
 	exports.renderHorizontalRuleMarkdown = renderHorizontalRuleMarkdown;
 	exports.replaceAll = replaceAll;
 	exports.replaceOne = replaceOne;
+	exports.resetRegisteredIcons = resetRegisteredIcons;
+	exports.ribbonDismiss = ribbonDismiss;
+	exports.ribbonHasKeyTips = ribbonHasKeyTips;
+	exports.ribbonKeyTip = ribbonKeyTip;
+	exports.ribbonPanelOpen = ribbonPanelOpen;
+	exports.ribbonProbeSize = ribbonProbeSize;
+	exports.ribbonSelect = ribbonSelect;
+	exports.ribbonSmallerSize = ribbonSmallerSize;
+	exports.ribbonToggleCollapsed = ribbonToggleCollapsed;
 	exports.rulerTicks = rulerTicks;
 	exports.searchHits = searchHits;
 	exports.selectByKey = selectByKey;
@@ -1403,5 +2002,6 @@
 	exports.toggleHeading = toggleHeading;
 	exports.toggleId = toggleId;
 	exports.toggleOrderedList = toggleOrderedList;
+	exports.unregisterIcon = unregisterIcon;
 	exports.withPlain = withPlain;
 });

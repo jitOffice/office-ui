@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "Office 交互外壳。根入口框架无关；Vue 组件在 ./vue 子路径。",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitOffice/office-ui.git",
+    "directory": "packages/ui"
+  },
   "type": "module",
   "sideEffects": [
     "**/*.css"
@@ -12,16 +17,33 @@
   "types": "./dist/types/index.d.ts",
   "unpkg": "./dist/umd/office-ui.js",
   "jsdelivr": "./dist/umd/office-ui.js",
+  "typesVersions": {
+    "*": {
+      "vue": [
+        "./dist/types/vue/index.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
-      "types": "./dist/types/index.d.ts",
-      "import": "./dist/es/index.js",
-      "require": "./dist/cjs/index.cjs"
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/es/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
     },
     "./vue": {
-      "types": "./dist/types/vue/index.d.ts",
-      "import": "./dist/es/vue/index.js",
-      "require": "./dist/cjs/vue/index.cjs"
+      "import": {
+        "types": "./dist/types/vue/index.d.ts",
+        "default": "./dist/es/vue/index.js"
+      },
+      "require": {
+        "types": "./dist/types/vue/index.d.cts",
+        "default": "./dist/cjs/vue/index.cjs"
+      }
     },
     "./style.css": "./dist/styles/office-ui.css",
     "./layered.css": "./dist/styles/office-ui.layered.css",
@@ -37,6 +59,7 @@
   "scripts": {
     "build": "node ../../internal/build/src/build.ts ui",
     "test": "node --test \"test/**/*.test.ts\"",
+    "test:unit": "vitest run --config vitest.config.ts --coverage",
     "test:visual": "playwright test --config playwright.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "vite --config vite.config.ts"
@@ -51,7 +74,11 @@
   },
   "devDependencies": {
     "@playwright/test": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@vue/test-utils": "catalog:",
+    "happy-dom": "catalog:",
     "vite": "catalog:",
+    "vitest": "catalog:",
     "vue": "catalog:"
   }
 }

@@ -30,6 +30,7 @@ const zhCN: OjLocale = {
         no: '否',
         inputPlaceholder: '请输入',
         selectPlaceholder: '请选择',
+        language: '语言',
       },
       tableGridPicker: {
         label: '表格',

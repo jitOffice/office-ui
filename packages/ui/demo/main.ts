@@ -1,7 +1,10 @@
 import { createApp, defineComponent, h, ref } from 'vue'
 
 import { createI18n } from '../../i18n/src/index.ts'
+import enUS from '../../i18n/src/locales/en-US.ts'
+import jaJP from '../../i18n/src/locales/ja-JP.ts'
 import zhCN from '../../i18n/src/locales/zh-CN.ts'
+import zhTW from '../../i18n/src/locales/zh-TW.ts'
 import { createCommandRegistry } from '../../shared/src/commands/index.ts'
 import '../../tokens/dist/index.css'
 import {
@@ -19,6 +22,7 @@ import {
   blockPlain,
   createDocument,
   createMemoryEditor,
+  editorCommands,
   filterTree,
   isTableSize,
   isTextblockType,
@@ -43,23 +47,29 @@ import {
   OjAiPanel,
   OjCodeBlock,
   OjCommandButton,
+  OjContextMenu,
   OjDialog,
   OjDropdown,
   OjFileTree,
+  OjHotkey,
+  OjLocaleProvider,
+  OjLocaleSwitcher,
+  OjRibbon,
+  OjRibbonGroup,
   OjRuler,
   OjSearchReplaceBar,
   OjSignaturePad,
   OjStamp,
   OjTableGridPicker,
-  OjTabs,
   OjTooltip,
   OjWatermark,
   OjZoomControl,
+  useLocale,
 } from '../src/vue/index.ts'
 import type { OjAiMessage } from '../src/vue/index.ts'
 import '../src/style.css'
 
-const i18n = createI18n({ locale: zhCN })
+const i18n = createI18n({ locale: zhCN, locales: [zhCN, zhTW, jaJP, enUS], dev: true })
 const editor = createMemoryEditor()
 const registry = createCommandRegistry<OjEditorHost>({
   context: () => editor.host,
@@ -90,6 +100,11 @@ const FILES: readonly FileNode[] = [
 ]
 
 const CODE = 'const page = "office shell"\npage.includes("内核") // false'
+
+/** 命令表里写了 `keys` 的那几条直接变成真实快捷键——`mod` 的展开交给 OjHotkey */
+const HOTKEYS = editorCommands().flatMap((command) =>
+  command.keys === undefined ? [] : [{ id: command.id, keys: command.keys }],
+)
 
 const SAMPLE = '这一页是办公外壳，不是文档内核。查找会标出「外壳」。'
 
@@ -176,6 +191,9 @@ const Demo = defineComponent({
     const messages = ref<OjAiMessage[]>([])
     const status = ref(i18n.t('oj.shell.status.kernel'))
     const log = ref<string[]>([])
+    const locale = useLocale()
+    const menuOpen = ref(false)
+    const menuPoint = ref({ x: 0, y: 0 })
 
     const source = {
       get: (id: string) => registry.get(id),
@@ -213,13 +231,36 @@ const Demo = defineComponent({
       void run(COMMAND_TABLE, size)
     }
 
-    function command(id: string) {
+    function ribbonTabs() {
+      return [
+        { id: 'start', label: i18n.t('oj.shell.tabs.start'), keyTip: 'H' },
+        { id: 'insert', label: i18n.t('oj.shell.tabs.insert'), keyTip: 'N' },
+        { id: 'view', label: i18n.t('oj.shell.tabs.view'), keyTip: 'W' },
+      ]
+    }
+
+    /** 一条命令按钮：尺寸由 `OjRibbonGroup` 降级后喂回来（`item.display`） */
+    function ribbonCommand(id: string, display: string) {
       return h(OjTooltip, { label: i18n.t(`oj.command.${id.split('.')[1]}` as 'oj.command.bold') }, () =>
-        h(OjCommandButton, { source, id, size: 'mini' }),
+        h(OjCommandButton, { source, id, size: display === 'large' ? 'medium' : 'mini' }),
+      )
+    }
+
+    /** 不给宽度：`OjRibbonGroup` 自己逐档量，量完再决定降级还是溢出 */
+    function ribbonGroup(ids: string[], size: 'large' | 'medium' = 'large') {
+      return h(
+        OjRibbonGroup,
+        { items: ids.map((id) => ({ id, size })) },
+        {
+          item: ({ item }: { item: { id: string; display: string } }) => ribbonCommand(item.id, item.display),
+        },
       )
     }
 
     return () => {
+      // demo 的文案都直接读 `i18n.t()`（不是发布面，没必要逐个改成 `useLocale().t()`），
+      // 所以在渲染时读一次 `lang` 建立依赖：否则切语言只换了 `html[lang]`，整页文字停在旧语言。
+      void locale.lang.value
       const query = { find: find.value, replace: replace.value, matchCase: matchCase.value }
       const text = plainText(doc.value)
       const hits = searchHits(text, query)
@@ -233,30 +274,20 @@ const Demo = defineComponent({
       return h('div', { class: 'oj-shell' }, [
         h('header', { class: 'oj-shell__bar' }, [
           h('h1', { class: 'oj-shell__title', id: 'doc-title' }, selected?.name ?? i18n.t('oj.shell.paper.untitled')),
-          h(OjTabs, {
-            items: [
-              { id: 'start', label: i18n.t('oj.shell.tabs.start') },
-              { id: 'insert', label: i18n.t('oj.shell.tabs.insert') },
-              { id: 'view', label: i18n.t('oj.shell.tabs.view') },
-            ],
-            modelValue: tab.value,
-            'onUpdate:modelValue': (next: string) => {
-              tab.value = next
-            },
-          }),
         ]),
-        h('div', { class: 'oj-shell__toolbar', id: 'toolbar' }, [
+        h(OjRibbon, {
+          items: ribbonTabs(),
+          modelValue: tab.value,
+          'onUpdate:modelValue': (next: string) => {
+            tab.value = next
+          },
+        }, {
+          default: () => h('div', { class: 'oj-shell__toolbar', id: 'toolbar' }, [
           tab.value === 'start'
             ? [
-                command(COMMAND_BOLD),
-                command(COMMAND_ITALIC),
-                command(COMMAND_UNDERLINE),
-                command(COMMAND_ALIGN_LEFT),
-                command(COMMAND_HEADING),
-                command(COMMAND_BLOCKQUOTE),
-                command(COMMAND_BULLET_LIST),
-                command(COMMAND_ORDERED_LIST),
-                command(COMMAND_CODE_BLOCK),
+                ribbonGroup([COMMAND_BOLD, COMMAND_ITALIC, COMMAND_UNDERLINE]),
+                ribbonGroup([COMMAND_ALIGN_LEFT, COMMAND_HEADING, COMMAND_BLOCKQUOTE], 'medium'),
+                ribbonGroup([COMMAND_BULLET_LIST, COMMAND_ORDERED_LIST, COMMAND_CODE_BLOCK], 'medium'),
                 h(OjSearchReplaceBar, {
                   find: find.value,
                   replace: replace.value,
@@ -398,7 +429,8 @@ const Demo = defineComponent({
                 ),
               ]
             : null,
-        ]),
+          ]),
+        }),
         h('div', { class: 'oj-shell__body' }, [
           h('aside', { class: 'oj-files-pane', 'aria-label': i18n.t('oj.shell.files.title') }, [
             h('input', {
@@ -430,7 +462,17 @@ const Demo = defineComponent({
               h(OjRuler, { length: paperHeight, zoom: zoom.value, orientation: 'vertical' }),
               h(
                 'article',
-                { class: 'oj-paper', id: 'paper', style: { width: `${width}px`, minHeight: `${paperHeight}px` } },
+                {
+                  class: 'oj-paper',
+                  id: 'paper',
+                  style: { width: `${width}px`, minHeight: `${paperHeight}px` },
+                  // canvas 式用法：锚点只有坐标，没有元素（`OjContextMenu` 的 `x/y` 就是 clientX/clientY）
+                  onContextmenu: (event: MouseEvent) => {
+                    event.preventDefault()
+                    menuPoint.value = { x: event.clientX, y: event.clientY }
+                    menuOpen.value = true
+                  },
+                },
                 [
                   h(OjWatermark, { text: i18n.t('oj.shell.watermark.sample'), visible: watermark.value }, () => [
                     ...renderBlocks(doc.value, hits, current),
@@ -463,6 +505,7 @@ const Demo = defineComponent({
               zoom.value = next
             },
           }),
+          h(OjLocaleSwitcher),
         ]),
         h(OjDialog, {
           open: tableOpen.value,
@@ -507,6 +550,31 @@ const Demo = defineComponent({
             signatureOpen.value = false
           },
         }, () => [h(OjSignaturePad, { clearLabel: i18n.t('oj.shell.signature.clear') })]),
+        h(OjContextMenu, {
+          open: menuOpen.value,
+          x: menuPoint.value.x,
+          y: menuPoint.value.y,
+          items: [
+            { id: COMMAND_BOLD, label: i18n.t('oj.command.bold'), shortcut: 'Ctrl+B' },
+            { id: COMMAND_ITALIC, label: i18n.t('oj.command.italic'), shortcut: 'Ctrl+I' },
+            { id: COMMAND_UNDERLINE, label: i18n.t('oj.command.underline'), shortcut: 'Ctrl+U' },
+            { kind: 'separator' },
+            { id: COMMAND_HORIZONTAL_RULE, label: i18n.t('oj.command.horizontalRule') },
+            { id: COMMAND_TABLE, label: i18n.t('oj.command.insertTable'), separatorBefore: true },
+          ],
+          'onUpdate:open': (next: boolean) => {
+            menuOpen.value = next
+          },
+          onSelect: (id: string) => {
+            void run(id)
+          },
+        }),
+        h(OjHotkey, {
+          bindings: HOTKEYS,
+          onRun: (id: string) => {
+            void run(id)
+          },
+        }),
         h('pre', { id: 'log', hidden: true }, log.value.join('\n')),
       ])
     }
@@ -532,4 +600,7 @@ function findFile(nodes: readonly FileNode[], id: string): FileNode | undefined 
   return undefined
 }
 
-createApp(Demo).mount('#app')
+// i18n 通过 Provider 注入：它负责把 `html[lang]` 跟语言包同步（tokens 的语言覆写层靠这个选择器）。
+createApp({
+  setup: () => () => h(OjLocaleProvider, { i18n }, () => h(Demo)),
+}).mount('#app')

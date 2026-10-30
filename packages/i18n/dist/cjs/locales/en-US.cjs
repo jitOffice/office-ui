@@ -28,7 +28,8 @@ var enUS = {
 			yes: "Yes",
 			no: "No",
 			inputPlaceholder: "Enter a value",
-			selectPlaceholder: "Select…"
+			selectPlaceholder: "Select…",
+			language: "Language"
 		},
 		tableGridPicker: {
 			label: "Table",

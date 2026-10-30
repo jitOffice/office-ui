@@ -1,0 +1,58 @@
+name: docs
+
+# 文档站预览（05 A3 的 preview.yml 项）。
+#
+# 刻意**不做在线部署**：本项目的文档站定位是"内网可自托管"（docs/package.json 里写着
+# 不引 CDN、不引 Google Fonts、不引第三方搜索），而自托管的托管目标（Pages / 内网静态服务 /
+# 对象存储）还没定，写一条部署到 Pages 的流水线等于替使用方做了决定，而且那条路径在
+# 内网环境里根本跑不通。所以这里只做两件确定有用的事：**构建**与**产物**——
+# 构建失败当场红，产物以 artifact 形式给出，PR 里下载即可自托管验收。
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'packages/**' # 组件文档由 packages/ui 的 props 抽取生成，源码变了文档可能过期
+      - 'internal/**'
+      - '.github/workflows/docs.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建文档站（含离线校验）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # 组件文档是**生成物**：改了 props 却忘记跑 `pnpm docs:gen` 时，本机的 `pnpm dev`
+      # 看着还是对的（它读的是刚生成的临时页面），而别人拉下来看到的是旧表格。
+      # `--check` 让这件事当场红。
+      - run: pnpm lint:docs
+
+      - run: pnpm --filter @jitoffice/docs build
+
+      # 这是文档站存在意义的一半：**离线可用**。构建产物里只要出现一个 CDN / 字体外链，
+      # 内网打开就是白屏或长时间等超时，而本地开发永远看不见——所以扫的是构建产物，不是源码。
+      - run: pnpm lint:docs-offline
+
+      - name: 上传产物（下载后可内网自托管）
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: docs/.vitepress/dist
+          retention-days: 14

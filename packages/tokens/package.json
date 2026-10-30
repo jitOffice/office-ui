@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "description": "Seed/alias/component 三层设计变量，CSS + JS 双产物",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jitOffice/office-ui.git",
+    "directory": "packages/tokens"
+  },
   "type": "module",
   "sideEffects": [
     "*.css"
@@ -12,9 +17,14 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./css": "./dist/index.css",
     "./themes/dark.css": "./dist/themes/dark.css",

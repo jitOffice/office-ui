@@ -41,10 +41,24 @@ Windows 开发机不需要为 git 做任何配置：`.gitattributes` 把全仓�
 
 单独跑：
 
-- `pnpm test:node` —— 全部单元测试（当前 81 例 = tokens 32 + i18n 30 + shared 19，其中 10 例是
-  `test/artifacts.test.ts`：它们加载的是 `dist` 而不是 `src`；
+- `pnpm test:node` —— 零依赖单测（`node --test`，当前 211 例，分布在 tokens / i18n / shared / ui /
+  docs 各自的 `test/` 下；其中一部分加载的是 `dist` 而不是 `src`。
   这个数字会随 PR 漂，以运行输出的 `ℹ tests` 行为准）。
+- `pnpm test:unit` —— Vue 层单测（Vitest + happy-dom），**自带 `--coverage`**：
+  `src/vue/**` 行 ≥85%、`registry.ts` 与 `popper.ts` 行 ≥95%，差一个点就红。
+  这三条阈值不是"追数字"：补的是弹层/树/框选/签名板这类真有分支的组件。
 - `pnpm lint` —— `internal/scripts/check-contracts.ts` 的结构性契约。
+- `pnpm lint:package` —— 真打五个发布包的 tarball，查协议解析、`files` 漏入口、源码/测试泄漏。
+- `pnpm lint:types` —— 用 `attw` 按 node10 / node16-CJS / node16-ESM / bundler 四种解析模式
+  检查类型出口。`tsc --noEmit` 只在自己的树上做一次解析，看不见"`.d.ts` 混进 `require` 分支"这类
+  双模式错位（现象是 `Masquerading as ESM`，node16 + commonjs 的消费者装上即报错）。
+- `pnpm lint:license` —— 生产依赖树的许可白名单（零依赖，只读 `node_modules` 里真实的包）。
+- `pnpm lint:css-magic` —— 字号与时延不许写字面量（`font-size: 12px` / `transition: 150ms ease`），
+  必须走 `var(--oj-fs-*)` / `var(--oj-motion-*)`。例外逐条登记在选择器上，且例外失效会被报出来。
+  间距与圆角暂不查：token 标度覆盖不了 2px / 7px / 28px / 56px，先定标度再收紧。
+- `pnpm lint:artifact-offline` —— 扫五个发布包的 `dist`，只拦**会发起请求**的外链（CSS `url()`/
+  `@import`、HTML/SVG 的 `src`/`href`/`srcset`）。内网/离线环境下这类请求不报错，只是让首屏挂着
+  等超时；`svg xmlns` 与报错文案里的 URL 不算。
 - `pnpm tokens:gen` / `pnpm i18n:gen` —— 重新生成产物与类型表。
 - `pnpm build` —— turbo 跑三包构建；`pnpm build:check` —— 把源码重建进临时目录与入库 `dist`
   逐字节比对，再用 `es-check es2018` 扫兼容线产物。**这两条要 `node_modules`**，所以不在 `pnpm verify` 里。
@@ -64,8 +78,11 @@ CDN 上那个 UMD 白构建一场。此外还查：tokens 与 i18n 的产物必�
 在 `existsSync` 下会通过，到 Linux CI 才炸，所以脚本逐级用 `readdirSync` 比对真实目录项。
 
 > `pnpm verify` 刻意不含 `typecheck` 与 `build:check`：前一条链零依赖就能跑（装不上包也能验证产物与契约），
-> 而 `tsc` 与 vite 构建需要 `node_modules`。推 PR 前请三条都跑：`pnpm verify && pnpm typecheck && pnpm build:check`。
-> 尚未落地、因此**本地跑不了**的：ESLint / Stylelint、size-limit、许可扫描、CI、`packages/ui` 的 SFC 与样式链。
+> 而 `tsc` 与 vite 构建需要 `node_modules`。推 PR 前请都跑一遍：
+> `pnpm verify && pnpm typecheck && pnpm test:unit && pnpm build:check && pnpm lint:css-magic && pnpm lint:package && pnpm lint:types && pnpm lint:license && pnpm lint:artifact-offline`。
+> 这几条都要 `node_modules`（要打包、要读真实依赖、要跑 Vitest），所以也不进 `verify`。
+> 尚未落地、因此**本地跑不了**的：ESLint / Stylelint 的间距与字号魔法数（颜色已由契约 13 拦下），
+> `packages/ui` 的 SFC 链（当前组件一律渲染函数，仓库里 `.vue` 文件数为 0）。
 > 它们属于 A2/A3，验收状态见 [`prd/05-m0-delivery-plan.md`](./prd/05-m0-delivery-plan.md)；
 > 别在 PR 里写"lint 已过"来指代它们。
 >
@@ -113,6 +130,11 @@ CDN 上那个 UMD 白构建一场。此外还查：tokens 与 i18n 的产物必�
   在聚合入口写 `const install = ...` 会让整棵 tree-shaking 失效。
 - 语言相关选择器一律 `|=`（`html[lang|="ja"]`），不许用 `=`。理由与被修过的真实缺陷见
   [`prd/01-design-tokens.md` §7](./prd/01-design-tokens.md)。`not()` 里同理，产物里出现 `[lang=` 会被门禁直接拒。
+- **业务图标不许改 `packages/ui/src/icons.ts`**：那是内置三十枚的常量表，改了下一次生成/升级会被冲掉。
+  用根入口的 `registerIcon(name, markup)`（或 `registerIcons({...})`）在应用启动时注册，
+  `OjIcon` 的查表会优先命中；名字必须是 kebab-case 且不能占 `oj-*`（内置命名空间）。
+  校验在注册期完成：缺 `viewBox`、多个根 `<svg>`、内联事件、`<script>`、`javascript:`、外链一律抛错——
+  组件用 `innerHTML` 渲染，放过一条就是注入面。
 
 ## 5. 改 token
 
@@ -169,7 +191,18 @@ CDN 上那个 UMD 白构建一场。此外还查：tokens 与 i18n 的产物必�
 
 - 影响任一发布包**公共行为**的 PR 必须附 changeset，内容写"使用方能感知的变化"，不要写改了哪个文件。
   纯内部重构与文档可以在 PR 描述里说明理由后跳过。
-  > changesets 与 `release.yml` 属 A3，**当前尚未接入**；先按此约定撰写，由审查人人工确认。
+
+  ```bash
+  pnpm changeset   # 选包 → 选 patch/minor/major → 写一段使用方能读到的话
+  ```
+
+  门禁已经接上了：`internal/scripts/check-changeset.ts` 在 CI 里检查
+  "改了 `packages/{ui,icons,tokens,i18n,shared}/src/**` 或包清单，却没新增 `.changeset/*.md`"，
+  缺了直接红（测试、dist、文档站的改动不强制）。本地可以 `pnpm lint:changeset` 自查，
+  没有 `origin/main` 时脚本会说明原因并跳过，不会假红。
+- 发布是两段式：合并进 `main` 后由 `release.yml` 开一个 **Version Packages PR**（版本号 + CHANGELOG 的 diff），
+  合并它才真正 `npm publish`。所以 changeset 里那段话最终会原样出现在 CHANGELOG 与 Version PR 里——
+  写的时候就想清楚"三个月后别人在 changelog 里读到这句，知不知道要不要升级"。
 - 提交信息用 Conventional Commits（`feat:` / `fix:` / `perf:` / `refactor:` / `docs:`）。
 - 一个 PR 只动一条契约。同时改 token 生成器、消息文法和构建配置的 PR 无法 review，也无法回滚。
 - 涉及视觉的改动必须附**三语对照截图**（简中 / 繁中 / 日文）与键盘操作说明；只有英文截图的视觉 PR 会被要求补。

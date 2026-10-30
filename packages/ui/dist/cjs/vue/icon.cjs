@@ -28,6 +28,15 @@ var OjIcon = (0, vue.defineComponent)({
 		decorative: {
 			type: Boolean,
 			default: false
+		},
+		/**
+		* 加载态旋转。只挂一个类名，动画写在样式表里：
+		* 内联 `animation` 会绕开 `prefers-reduced-motion` 的媒体查询，
+		* 而持续旋转的图标对前庭功能障碍用户是实打实的不适。
+		*/
+		spin: {
+			type: Boolean,
+			default: false
 		}
 	},
 	setup(props) {
@@ -50,7 +59,7 @@ var OjIcon = (0, vue.defineComponent)({
 			const markup = require_icons.iconMarkup(props.name);
 			const labelled = typeof props.label === "string" && props.label.length > 0;
 			return (0, vue.h)("span", {
-				class: "oj-icon",
+				class: props.spin ? "oj-icon oj-icon--spin" : "oj-icon",
 				role: labelled ? "img" : void 0,
 				"aria-label": labelled ? props.label : void 0,
 				"aria-hidden": labelled ? void 0 : "true",

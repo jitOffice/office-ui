@@ -32,9 +32,10 @@ jobs:
       # CI 必须走默认项目，否则测的是 runner 上碰巧装了什么浏览器。
       - run: pnpm exec playwright install --with-deps chromium
 
-      # 两个包各有自己的用例集，turbo 会把 `build` 作为前置跑掉（turbo.json 里
+      # 三个包各有自己的用例集，turbo 会把 `build` 作为前置跑掉（turbo.json 里
       # `test:visual` 声明了 `dependsOn: ["build"]`）：
       #   tokens —— 排版（01 §7 那批数字，被测对象是 dist/index.css）
       #   ui     —— 无构建器页面（05 §2 DoD #1，被测对象是 examples/ 下的静态页 + dist/umd）
-      # 两者都刻意不起 dev server：直连产物才是用户真实的打开方式。
+      #   icons  —— sprite 的 <use> 可渲染（05 C1 验收，被测对象是 dist/sprite.svg）
+      # 三者都刻意不起 dev server：直连产物才是用户真实的打开方式。
       - run: pnpm exec turbo run test:visual

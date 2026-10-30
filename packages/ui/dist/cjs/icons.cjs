@@ -1,7 +1,10 @@
+const require_icon_registry = require("./icon-registry.cjs");
 //#region src/icons.ts
 /**
 * 自绘图标。只发 SVG 字符串，不发图标字体（prd/00 许可红线）。
 * 完整图标管线仍是后续的 `@jitoffice/icons`，这里先覆盖外壳会用到的三十枚。
+* 业务侧要加图标不要改这张表——用 `registerIcon`（见 `icon-registry.ts`），
+* 否则每次升级都会把改动冲掉。
 */
 var SVG_OPEN = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"currentColor\">";
 var icons = {
@@ -38,6 +41,8 @@ var icons = {
 	"oj-code": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.4\"><path d=\"M6 4.5 3 8l3 3.5M10 4.5 13 8l-3 3.5\"/></svg>"
 };
 function iconMarkup(name) {
+	const registered = require_icon_registry.registeredIconMarkup(name);
+	if (registered !== void 0) return registered;
 	if (Object.prototype.hasOwnProperty.call(icons, name)) return icons[name];
 }
 function iconLabelProblem(name, options = {}) {

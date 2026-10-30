@@ -20,6 +20,12 @@ export const OjIcon = defineComponent({
     label: { type: String, default: undefined },
     /** 装饰性图标：显式声明「这枚图标没有语义」，渲染 `aria-hidden`（03 §2）。 */
     decorative: { type: Boolean, default: false },
+    /**
+     * 加载态旋转。只挂一个类名，动画写在样式表里：
+     * 内联 `animation` 会绕开 `prefers-reduced-motion` 的媒体查询，
+     * 而持续旋转的图标对前庭功能障碍用户是实打实的不适。
+     */
+    spin: { type: Boolean, default: false },
   },
   setup(props) {
     const env = (import.meta as unknown as { env?: { DEV?: boolean } }).env
@@ -33,7 +39,7 @@ export const OjIcon = defineComponent({
       const markup = iconMarkup(props.name)
       const labelled = typeof props.label === 'string' && props.label.length > 0
       return h('span', {
-        class: 'oj-icon',
+        class: props.spin ? 'oj-icon oj-icon--spin' : 'oj-icon',
         role: labelled ? 'img' : undefined,
         'aria-label': labelled ? props.label : undefined,
         // 有 label 就进无障碍树；装饰性的（或什么都没声明的）一律 aria-hidden。

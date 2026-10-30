@@ -12,7 +12,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -48,6 +48,55 @@ function writeStyles(spec: PackageSpec, pkgDir: string, outRoot: string): boolea
   return true
 }
 
+/**
+ * dual package 的 CJS 类型镜像（attw 的 `false-esm`，2026-10-30 实测发现）。
+ *
+ * 只发一份 `.d.ts` 时，`package.json` 的 `"type": "module"` 会把它判定为 **ESM 声明**，
+ * 而 `exports` 的 `require` 分支指向 `.cjs`。于是 `moduleResolution: node16` + `module: commonjs`
+ * 的消费者 `require('@jitoffice/ui')` 会被 TS 拒绝：
+ * "the referenced file is an ECMAScript module"。attw 把这叫 Masquerading as ESM。
+ *
+ * 镜像**不是简单复制**：`.d.cts` 里的相对说明符必须改成 `.cjs`（对应 `.d.cts`）。
+ * 原样抄过去的话 CJS 声明树会跨回 ESM 那一侧，TS 照样报同一个错——问题只是从入口挪到了内部。
+ */
+function cjsMirrorContent(source: string): string {
+  // 说明符要同时认 `.ts` 与 `.js`：tsc 7.0.2 **不**把 d.ts 里的 `./x.ts` 改写成 `./x.js`
+  // （契约 11 的注释记过这件事，现在靠 TS 的声明文件后缀回退才没断）。
+  // 只认 `.js` 的话镜像里会原样保留 `./icon.ts`，CJS 类型树照样跨界。
+  const rewritten = source.replace(
+    /(['"])(\.{1,2}\/[^'"]+)\.(?:js|ts)\1/g,
+    (_match, quote: string, spec: string) => `${quote}${spec}.cjs${quote}`,
+  )
+  // CJS 产物是 `module.exports = X`，对应的声明是 `export = X`。
+  // 照抄 `export default X` 会让 CJS 消费者以为拿到的是 `{ default: X }` ——
+  // attw 报的 `Incorrect default export` 就是这个（真发生过，i18n 的四个语言包）。
+  // 只在"唯一导出就是 default"时转换：`export =` 不能与具名导出共存。
+  const hasNamedExport = /^\s*export (?!default\b)/m.test(rewritten)
+  if (!hasNamedExport) {
+    return rewritten.replace(/^\s*export default\s+(\w+)\s*;?/m, 'export = $1;')
+  }
+  return rewritten
+}
+
+function writeCjsDeclarations(outDir: string): number {
+  let count = 0
+  const visit = (dir: string): void => {
+    if (!existsSync(dir)) return
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        visit(path)
+        continue
+      }
+      if (!entry.name.endsWith('.d.ts')) continue
+      writeFileSync(path.replace(/\.d\.ts$/, '.d.cts'), cjsMirrorContent(readFileSync(path, 'utf8')))
+      count += 1
+    }
+  }
+  visit(outDir)
+  return count
+}
+
 function runJob(job: Job): Promise<void> {
   if (job.kind === 'tsc') {
     const options = job.tsc!
@@ -58,6 +107,7 @@ function runJob(job: Job): Promise<void> {
     if (result.status !== 0) {
       return Promise.reject(new Error(`tsc 产出类型失败（exit ${String(result.status)}）：${options.project}`))
     }
+    writeCjsDeclarations(options.outDir)
     return Promise.resolve()
   }
   // vite 的 build() 返回 Promise，串行 await：并行会两趟抢同一个 outDir。
@@ -87,6 +137,15 @@ async function main(): Promise<void> {
       // ADR-0003：组件样式是一份文件，不进 JS 包。vite 的 lib 趟不会看见没人 import 的 CSS，
       // 所以在趟次结束后由源码生成。`--check` 的 outRoot 是临时目录，比对能盖到它。
       writeStyles(spec, pkgDir, outRoot)
+
+      // 生成器产出的静态资产（icons 的 sprite.svg / manifest.json）。
+      // 走这里而不是让生成器直接写 dist：否则重建时没人产出这两份文件，
+      // `--check` 会报「已入库但构建不再产出」——门禁自己制造的假警报。
+      for (const asset of spec.assets ?? []) {
+        const target = join(outRoot, asset.to)
+        mkdirSync(dirname(target), { recursive: true })
+        copyFileSync(join(pkgDir, asset.from), target)
+      }
       if (check) {
         const problems = compareTrees(join(pkgDir, 'dist'), outRoot)
         if (problems.length > 0) {

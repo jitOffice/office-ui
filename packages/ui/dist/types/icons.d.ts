@@ -1,6 +1,8 @@
 /**
  * 自绘图标。只发 SVG 字符串，不发图标字体（prd/00 许可红线）。
  * 完整图标管线仍是后续的 `@jitoffice/icons`，这里先覆盖外壳会用到的三十枚。
+ * 业务侧要加图标不要改这张表——用 `registerIcon`（见 `icon-registry.ts`），
+ * 否则每次升级都会把改动冲掉。
  */
 export declare const icons: {
     readonly 'oj-format-bold': string;

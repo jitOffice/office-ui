@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [".vitepress/**/*.ts", "test/**/*.ts"],
+  // `theme/` 不在这里检查：`.vue` 单文件组件要靠 `vue-tsc` 才看得懂，而本轮不想为
+  // 文档站再引一个编译器依赖（新增依赖需要 ADR，见 docs/adr/README.md）。
+  // `.vitepress/theme/index.ts` 里全是 CSS / `.vue` 的副作用导入，用 `tsc` 检查只会得到
+  // 一堆 "找不到模块"——那不是真错误。装 `vue-tsc` 后把这条 exclude 删掉即可。
+  "exclude": ["node_modules", "**/dist", ".vitepress/theme/**"]
+}

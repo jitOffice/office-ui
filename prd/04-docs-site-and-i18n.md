@@ -89,23 +89,35 @@ CSS 变量表由构建期从组件源码扫描 `var(--oj-*)` 自动生成——*
 ```
 playground/
   worker/         无（不用 WebContainer）
-  frame/          index.html —— 沙箱页面，含 Vue 3 runtime + @jitoffice/ui
+  frame/          index.html —— 沙箱页面，经典脚本：vue.global.js + office-ui.js(UMD) + 两份 CSS
   host/           与 VitePress 同页的编辑器 UI（Monaco 或 CodeMirror 6）
-  compiler/       SFC 编译：@vue/compiler-sfc 在浏览器端运行
+  build/          构建前由 prepare-playground.ts 从各包 dist 复制运行时，产物不入库
 ```
+`docs/public/playground/` 由脚本独占生成，不提交源码级副本。
 
 流程：
-1. 宿主把 `{文件名 → 源码}` 对象 `postMessage` 给 iframe。
-2. iframe 用 `@vue/compiler-sfc`（浏览器版，MIT）把 SFC 编译为 JS 模块，写入 `Blob` URL 或内存模块表。
-3. 通过 **import map** 把 `vue`、`@jitoffice/ui`、`@jitoffice/icons` 解析到预打包的 ESM 文件（构建期从我们自己的 dist 生成，随文档站静态托管）。
-4. `import()` 动态装载并挂载。
-5. 报错捕获：编译错误、运行时错误、`console.error` 全部回传宿主，显示在预览区下方而非白屏。
+1. 宿主把源码字符串 `postMessage` 给 iframe：`{ type: 'oj-playground:run', code }`。
+2. iframe 用 `new Function` 包一层 `Vue.createApp({ template: code })`，挂到内部容器。
+3. 运行时全部本地：`vue.global.js`（含模板编译器）+ `office-ui.js`（UMD 全局 `OfficeUI`）+ tokens/ui CSS。
+4. 挂载后沙箱回 `ok`；`ResizeObserver` 持续上报 `height`，宿主跟随调整 iframe 高度。
+5. 报错捕获：语法错误、运行时错误、挂载错误三类分别回传 `error`，显示在预览区下方而非白屏。
+6. 消息校验只认 `event.source === iframe.contentWindow`——origin 是 `null`，不可作为判据。
+
+> **2026-10-30 实测修正（沙箱 × 模块）**：`sandbox="allow-scripts"` 的 iframe origin 是 `null`，
+> 原设计的 import map + ESM 会被 CORS 拦掉——模块脚本请求带 `Origin: null`，静态服务器不回
+> `Access-Control-Allow-Origin`，`vendor/vue.js` 与 `ui/vue/index.js` 全部 `net::ERR_FAILED`，白屏。
+> **沙箱隔离与 ESM 只能二选一**：加 `allow-same-origin` 等于放弃隔离（用户代码能读宿主 DOM/localStorage/cookie），
+> 不可接受。因此 Playground 改用**经典脚本**（`vue.global.js` + `office-ui.js` UMD），
+> 与 02 §4.1「无构建器必须用含编译器的全局构建」同形。代价是沙箱内**不能**现场跑 `compiler-sfc`：
+> 多文件 SFC 只能走宿主侧预编译，单文件 demo 由 `vue.global.js` 自带的模板编译器处理。
 
 关键取舍：
-- **不用 `@vue/compiler-dom` + 运行时模板编译的简化路径**，因为要支持多文件 SFC demo（组件互相引用）。`compiler-sfc` 体积约 100 KB gzip，但只在 Playground 页加载，不污染文档正文。
+- **不在沙箱内跑 `@vue/compiler-sfc`**（原计划用它支持多文件 SFC demo）。沙箱 origin 为 `null`，ESM 被 CORS 拒，
+  只能退回 UMD 经典脚本；`compiler-sfc` 的多文件能力要配 ESM 才有意义。多文件 SFC 改为**宿主侧预编译**成单文件源码再注入，
+  单文件 demo 直接交给 `vue.global.js` 的运行时模板编译器（同 02 §4.1 的全局构建路径）。
 - **编辑器选 CodeMirror 6（MIT）而非 Monaco**。Monaco 需 worker 文件、体积大、内网部署配置繁琐；CM6 模块化、按需加载、Vue 语言支持有现成包。这是"内网可用"约束下的必然选择。
 - 沙箱属性 `sandbox="allow-scripts"`，**不给** `allow-same-origin`（否则用户代码能读宿主 DOM 与 localStorage）。因此 iframe 内不能直接用 `localStorage`——通过 `postMessage` 代理一层存储请求给宿主。
-- 预览区高度自适应：iframe 内挂载完成后上报 `scrollHeight`，宿主同步。禁止用固定高度（长组件如 `OjRibbon` 会被截断）。
+- 预览区高度自适应：iframe 内用 `ResizeObserver` 持续上报 `height`，宿主同步。禁止用固定高度（长组件如 `OjRibbon` 会被截断），也不能只在挂载后上报一次——组件内部异步展开（如 Ribbon 折叠态切换）会再改高度。
 
 ### 自托管不是我们的怪癖，是主流做法
 
@@ -148,6 +160,30 @@ const index = new MiniSearch({
 
 `tokenizeCJK`：对 CJK 字符区间做 **bigram 切分**（"表格选择器" → `表格 格选 选择 择器`），非 CJK 按空格/标点切分并小写化。
 
+> **2026-10-29 实测修正**：上面这种把 `tokenize` 塞进 `themeConfig` 的写法在 VitePress 1.6 **不生效**——`themeConfig` 会被序列化成 JSON 注入客户端，函数在序列化时丢掉，构建照过但词法仍是默认分词（对产物 grep `NFKC` / `tokenize:` 一处都没有，是这么确认的）。接 bigram 只能自建搜索组件（自己 `new MiniSearch({ tokenize })` 吃 `hashmap.json`）。分词器本身已实现并被 9 条零依赖用例钉死：`docs/.vitepress/search/tokenize.ts`。
+
+> **2026-10-30 第十三轮：已接线，不再是"待办"**。三段拼起来，构建与运行时共用同一份分词与算分规则：
+> - **构建期** `scripts/build-search-index.ts` 扫 `docs/**/*.md`（排除 `srcExclude` 的 `adr/`），
+>   抽 `title / headings / text`，用 `tokenizeCJK` 建 `MiniSearch` 并 `toJSON()` 到
+>   `docs/public/search/index.json`（41 页 / 97 KB，入库 + `pnpm lint:docs` 字节级守新鲜度）。
+> - **运行时** `theme/components/OjSearch.vue` 懒加载 `minisearch` 与索引，`MiniSearch.loadJSON` 复原；
+>   `Ctrl+K` / `/` 唤起，↑↓ + `Enter` 导航，分组聚合，命中高亮。
+> - **共享** `search/options.ts` 导出 `SEARCH_FIELDS / STORE_FIELDS / SEARCH_OPTIONS`，
+>   构建、客户端、测试三处逐字段同一份。`loadJSON` **不会**带出 `searchOptions`，
+>   三处各写一份的后果是"构建期算分一套、浏览器另一套"——这类缺陷极难归因。
+>
+> 覆盖内置搜索的方式值得记一笔：`app.component('VPNavBarSearch', …)` **无效**，因为
+> `VPNavBar.vue` 是直接 `import VPNavBarSearch from './VPNavBarSearch.vue'`，不走全局注册。
+> 可行做法是 `theme/Layout.vue` 包一层 `DefaultTheme.Layout`，把组件塞进 `nav-bar-content-before`
+> 插槽（`content-body` 是 `justify-content: flex-end`，位置正好是内置搜索原本的地方），
+> 同时撤掉 `themeConfig.search`（不配 provider 时内置只渲染一个空容器，`styles/search.css` 隐藏它），
+> 顺带省掉内置索引与 `VPLocalSearchBox` 两个 chunk。
+>
+> **已知降级**：① 索引只有一份（`search/index.json`），不是 PRD 写的三语独立索引——站点目前
+> 只有中文（`lang: 'zh-CN'`，无 i18n 目录），等真有 `en/` `ja/` 再按语言拆，`tokenizeCJK` 本身
+> 已覆盖日文长音折叠与全半角；② 结果不给正文片段（`storeFields` 不存 `text`，否则索引翻倍），
+> 只显示标题与**含查询词**的小节名。
+
 这是中文文档搜索最常见的错误：直接用按空格分词的默认 tokenizer，导致搜"表格"命中不了"表格选择器"。bigram 方案不需要词典、不需要 wasm 分词器，索引体积约增 40%，可接受。
 
 日文额外需要：
@@ -156,6 +192,11 @@ const index = new MiniSearch({
 - 假名与汉字混合词的 bigram 同样适用
 
 三语各自建独立索引（`search-index.zh.json` / `.en.json` / `.ja.json`），按当前语言加载，避免跨语言噪声。索引懒加载：首屏不阻塞，`requestIdleCallback` 时拉取。
+
+> **落地状态（2026-10-30）**：先是**单份** `search/index.json`——站点只有 `zh-CN` 一个语言，拆三份等于三份重复内容。
+> 拆分点已经留好（构建脚本里的 `toRoute` / `toGroup` 与索引产物名分离），等 `docs/en/` `docs/ja/` 出现时按目录前缀
+> 生成三份即可，客户端按 `useData().lang` 选 URL。懒加载当前是"首次打开搜索才 fetch"，比 `requestIdleCallback`
+> 预取更省——文档站搜索的使用频率不值得占首屏带宽。
 
 搜索体验要求：结果按分组（组件 / 指南 / Preset / Token）聚合、支持 `按钮` `button` `OjButton` 三种写法命中、高亮命中片段、方向键 + `Enter` 键盘导航、`/` 或 `Ctrl+K` 唤起。
 

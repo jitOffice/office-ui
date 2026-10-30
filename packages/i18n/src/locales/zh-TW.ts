@@ -31,6 +31,7 @@ const zhTW: OjLocale = {
         no: '否',
         inputPlaceholder: '請輸入',
         selectPlaceholder: '請選擇',
+        language: '語言',
       },
       tableGridPicker: {
         label: '表格',

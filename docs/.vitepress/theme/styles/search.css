@@ -1,0 +1,19 @@
+/**
+ * 内置搜索容器让位（04 §4）。
+ *
+ * `config.ts` 已经撤掉 `themeConfig.search`，`VPNavBarSearch` 因此渲染成一个**空的**
+ * `<div class="VPNavBarSearch">`——但它仍带着 `flex-grow: 1` 与左右 padding，
+ * 会在导航栏里留一块看不见的占位。自建搜索走 `Layout.vue` 的
+ * `nav-bar-content-before` 插槽，位置与它重叠，所以这里直接隐藏。
+ *
+ * 之所以只是 `display: none` 而不是删掉组件：那个 div 由默认主题渲染，
+ * 我们没有它的写权限；隐藏是唯一不动上游代码的做法。
+ */
+.VPNavBarSearch {
+  display: none;
+}
+
+/* 自建搜索按钮与右侧菜单之间留一点呼吸，和其它导航项一致 */
+.oj-search-trigger {
+  margin-left: 8px;
+}

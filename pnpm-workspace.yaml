@@ -12,7 +12,9 @@ catalog:
   vue: ~3.5.43
   vite: ^8.3.4
   vitest: ^5.0.3
+  '@vitest/coverage-v8': ^5.0.3
   '@vue/test-utils': ^2.5.1
+  happy-dom: ^21.0.4
   '@vitejs/plugin-vue': ^6.0.9
   sass: ^1.105.1
   turbo: ^2.11.7
@@ -22,6 +24,10 @@ catalog:
   minisearch: ^7.2.0
   '@changesets/cli': ^3.0.3
   es-check: 9.8.1
+  size-limit: ^14.3.0
+  '@size-limit/esbuild': ^14.3.0
+  '@size-limit/file': ^14.3.0
+  '@arethetypeswrong/cli': ^0.18.5
 
 catalogMode: prefer
 
@@ -32,5 +38,7 @@ minimumReleaseAge: 1440
 onlyBuiltDependencies:
   - esbuild
   - sass-embedded
+# `@size-limit/esbuild` 依赖的 esbuild 要跑 postinstall 装平台二进制（不跑就没法打包测量）。
 allowBuilds:
+  esbuild: true
   nx: true

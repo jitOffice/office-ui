@@ -28,6 +28,21 @@ export interface PackageSpec {
    * 无构建器用户只会 `<script src>`，不会 import。
    */
   umd?: UmdTarget[]
+  /**
+   * 由生成器产出的静态资产（相对包目录 → 相对 `dist`）。
+   *
+   * 存在的理由：`build:check` 会逐字节比对入库 `dist` 与重建结果，
+   * 生成器直接往 `dist` 里写的文件在重建时"没人产出"，门禁会报「已入库但构建不再产出」。
+   * 所以生成物先落在包内的 `generated/`，由这里声明复制，两条路径都走同一份内容。
+   */
+  assets?: AssetTarget[]
+}
+
+export interface AssetTarget {
+  /** 相对包目录的源文件 */
+  from: string
+  /** `dist` 内的目标路径 */
+  to: string
 }
 
 export interface UmdTarget {
@@ -74,6 +89,16 @@ export const specs: PackageSpec[] = [
         file: code,
         global: `OfficeUILocale${globalSuffix(code)}`,
       })),
+    ],
+  },
+  {
+    dir: 'icons',
+    name: '@jitoffice/icons',
+    entries: ['src/index.ts', 'src/vue/index.ts'],
+    // sprite 与 manifest 是生成物不是构建物，见 PackageSpec.assets 的注释。
+    assets: [
+      { from: 'generated/sprite.svg', to: 'sprite.svg' },
+      { from: 'generated/manifest.json', to: 'manifest.json' },
     ],
   },
   {

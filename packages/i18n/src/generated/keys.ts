@@ -1,6 +1,6 @@
 /**
  * @jitoffice/i18n — 由 packages/i18n/scripts/gen-keys.ts 生成，请勿手改。
- * 源：packages/i18n/src/locales/*.ts（86 个 key · 4 种语言）。
+ * 源：packages/i18n/src/locales/*.ts（87 个 key · 4 种语言）。
  */
 
 import type { OjMessageValue } from '../types.ts'
@@ -17,6 +17,7 @@ export type IntlKey =
   | 'oj.common.no'
   | 'oj.common.inputPlaceholder'
   | 'oj.common.selectPlaceholder'
+  | 'oj.common.language'
   | 'oj.tableGridPicker.label'
   | 'oj.tableGridPicker.size'
   | 'oj.tableGridPicker.insertDialog'
