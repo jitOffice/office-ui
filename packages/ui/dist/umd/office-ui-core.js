@@ -5,7 +5,14 @@
 	//#region src/editor-host.ts
 	var ENABLED = Object.freeze({ enabled: true });
 	/**
-	* 测试与 demo 用的内存宿主。`format.*` 被执行时翻转 `active`，用来证明按钮能跟上选区。
+	* 测试与 demo 用的内存宿主。
+	*
+	* 两条 `format.*` 规则按实参分流，因为这两类命令在 UI 上是两种控件：
+	*   - 实参是字符串/数字 → **值型命令**（字号、颜色、边框…），记进 `value`，不动 `active`；
+	*   - 其它（含无实参）→ **布尔命令**，翻转 `active`。
+	*
+	* 早先一版对所有 `format.*` 一律翻转 `active`，于是"把字号设成 16"会让字号控件显示成"已选中"，
+	* 而真正该变的是 `value`。这类错误只在有了值型命令之后才现形。
 	*/
 	function createMemoryEditor(initial = {}) {
 		const states = new Map(Object.entries(initial));
@@ -29,7 +36,11 @@
 				if (!host.can(id)) return false;
 				if (id.startsWith("format.")) {
 					const current = read(id);
-					states.set(id, {
+					if (typeof arg === "string" || typeof arg === "number") states.set(id, {
+						...current,
+						value: arg
+					});
+					else states.set(id, {
 						...current,
 						active: current.active !== true
 					});
@@ -78,6 +89,38 @@
 			active: { textAlign: "left" },
 			arg: "left"
 		},
+		"format.fontFamily": {
+			can: "setFontFamily",
+			run: "setFontFamily",
+			value: true
+		},
+		"format.fontSize": {
+			can: "setFontSize",
+			run: "setFontSize",
+			value: true
+		},
+		"format.textColor": {
+			can: "setColor",
+			run: "setColor",
+			value: true
+		},
+		"format.border": {
+			can: "setBorder",
+			run: "setBorder",
+			value: true
+		},
+		"format.lineSpacing": {
+			can: "setLineHeight",
+			run: "setLineHeight",
+			value: true,
+			toArg: (arg) => String(arg)
+		},
+		"format.align": {
+			can: "setTextAlign",
+			run: "setTextAlign",
+			value: true,
+			toArg: (arg) => String(arg).trim().split(/\s+/)[0]
+		},
 		"format.heading": {
 			can: "toggleHeading",
 			run: "toggleHeading",
@@ -125,17 +168,27 @@
 	function bridgedCommandIds() {
 		return Object.keys(BRIDGE);
 	}
+	/**
+	* 值型命令"能不能执行"的判据：方法在不在。
+	*
+	* 不用 `editor.can().setFontFamily()`：缺参调用时 Tiptap 返回 false，
+	* 于是"装了字体扩展但当前选区分不出值"会被读成"这个宿主没有这条命令"。
+	*/
+	function hasCommand(editor, name) {
+		return typeof editor.commands[name] === "function";
+	}
 	function tiptapEditorHost(editor) {
 		return {
 			can(id) {
 				const entry = BRIDGE[id];
 				if (!entry) return false;
+				if (entry.value === true) return hasCommand(editor, entry.can);
 				return call(editor.can(), entry.can, entry.arg);
 			},
 			state(id) {
 				const entry = BRIDGE[id];
 				if (!entry) return { enabled: false };
-				const enabled = call(editor.can(), entry.can, entry.arg);
+				const enabled = entry.value === true ? hasCommand(editor, entry.can) : call(editor.can(), entry.can, entry.arg);
 				if (!entry.active) return { enabled };
 				return {
 					enabled,
@@ -145,7 +198,8 @@
 			exec(id, arg) {
 				const entry = BRIDGE[id];
 				if (!entry) return false;
-				return call(editor.commands, entry.run, arg === void 0 ? entry.arg : arg);
+				const actual = arg === void 0 ? entry.arg : entry.toArg === void 0 ? arg : entry.toArg(arg);
+				return call(editor.commands, entry.run, actual);
 			},
 			subscribe(listener) {
 				editor.on("transaction", listener);
@@ -158,6 +212,358 @@
 		};
 	}
 	//#endregion
+	//#region src/shell/alignment.ts
+	var HORIZONTAL_ALIGNS = [
+		"left",
+		"center",
+		"right",
+		"justify"
+	];
+	var VERTICAL_ALIGNS = [
+		"top",
+		"middle",
+		"bottom"
+	];
+	/** 默认值：左对齐 + 顶端对齐，与 Office 新建文档一致。 */
+	var DEFAULT_ALIGNMENT = {
+		horizontal: "left",
+		vertical: "top"
+	};
+	function isHorizontal(value) {
+		return typeof value === "string" && HORIZONTAL_ALIGNS.includes(value);
+	}
+	function isVertical(value) {
+		return typeof value === "string" && VERTICAL_ALIGNS.includes(value);
+	}
+	function isAlignmentValue(value) {
+		if (typeof value !== "object" || value === null) return false;
+		const candidate = value;
+		return isHorizontal(candidate.horizontal) && isVertical(candidate.vertical);
+	}
+	/**
+	* 归一化：任一方向不合法就回退到默认值，而不是保留半边。
+	* 半边合法会让界面出现"水平高亮在右、垂直一个都没高亮"的状态。
+	*/
+	function normalizeAlignment(value) {
+		if (value === void 0) return DEFAULT_ALIGNMENT;
+		return {
+			horizontal: isHorizontal(value.horizontal) ? value.horizontal : DEFAULT_ALIGNMENT.horizontal,
+			vertical: isVertical(value.vertical) ? value.vertical : DEFAULT_ALIGNMENT.vertical
+		};
+	}
+	/** 在水平方向循环（方向键左右用）。两端不环绕：环绕会让"按到底"变成"回到另一头"。 */
+	function stepHorizontal(value, direction) {
+		const next = HORIZONTAL_ALIGNS[HORIZONTAL_ALIGNS.indexOf(value) + direction];
+		return next !== null && next !== void 0 ? next : value;
+	}
+	function stepVertical(value, direction) {
+		const next = VERTICAL_ALIGNS[VERTICAL_ALIGNS.indexOf(value) + direction];
+		return next !== null && next !== void 0 ? next : value;
+	}
+	/** 预览用的 CSS `text-align`。`justify` 原样透出，浏览器认它。 */
+	function textAlignCss(horizontal) {
+		return horizontal === "justify" ? "justify" : horizontal;
+	}
+	/** 预览用的 CSS `vertical-align`：`middle` 在表格单元格里要写成 `middle`，不是 `center`。 */
+	function verticalAlignCss(vertical) {
+		return vertical === "middle" ? "middle" : vertical;
+	}
+	//#endregion
+	//#region src/shell/color.ts
+	/**
+	* 默认色板：品牌十阶 + 一组中性色。
+	*
+	* 只取 3~9 阶：1/2 阶在白底上几乎看不见，10 阶是深色文字色，
+	* 做"填充色"都会让用户以为没生效。
+	*/
+	var COLOR_SWATCH_GROUPS = [{
+		id: "brand",
+		values: [
+			"var(--oj-brand-3)",
+			"var(--oj-brand-4)",
+			"var(--oj-brand-5)",
+			"var(--oj-brand-6)",
+			"var(--oj-brand-7)",
+			"var(--oj-brand-8)",
+			"var(--oj-brand-9)"
+		]
+	}, {
+		id: "neutral",
+		values: [
+			"#000000",
+			"#404040",
+			"#808080",
+			"#bfbfbf",
+			"#e5e6eb",
+			"#ffffff",
+			"transparent"
+		]
+	}];
+	var HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+	/**
+	* 归一化十六进制颜色。返回 `#rrggbb`（小写）或 `undefined`。
+	* 带 alpha 的 8 位写法（`#rrggbbaa`）刻意不收：文档格式里 alpha 是独立属性，
+	* 混进颜色值会让"透明度"出现两种来源。
+	*/
+	function normalizeHex(input) {
+		const match = HEX.exec(input.trim());
+		if (match === null) return void 0;
+		const body = match[1].toLowerCase();
+		if (body.length === 3) return `#${body[0]}${body[0]}${body[1]}${body[1]}${body[2]}${body[2]}`;
+		return `#${body}`;
+	}
+	/** 是否是一个组件能渲染的颜色值：token 引用、十六进制、`transparent`、`rgb()/hsl()`。 */
+	function isCssColor(value) {
+		const trimmed = value.trim();
+		if (trimmed.length === 0) return false;
+		if (trimmed === "transparent" || trimmed === "currentColor") return true;
+		if (normalizeHex(trimmed) !== void 0) return true;
+		if (/^var\(--oj-[a-z0-9-]+\)$/.test(trimmed)) return true;
+		return /^(?:rgb|hsl)a?\([^()]*\)$/.test(trimmed);
+	}
+	/**
+	* 色板里"最近的颜色"——给键盘左右移动用（不是给取色用）。
+	* 只在 `values` 里找，找不到返回 `undefined`（调用方保留当前值）。
+	*/
+	function neighborSwatch(values, current, direction) {
+		if (values.length === 0) return void 0;
+		const index = values.indexOf(current);
+		if (index === -1) return values[0];
+		const next = index + direction;
+		if (next < 0 || next >= values.length) return void 0;
+		return values[next];
+	}
+	//#endregion
+	//#region src/shell/border.ts
+	/**
+	* 边框模型（03 §3 / M2 `OjBorderPicker`）。
+	*
+	* 三个维度（线型 / 线宽 / 颜色）必须一起归一，否则会出现"选了无边框，但颜色还高亮着"的界面：
+	* `none` 时宽度与颜色在语义上不存在，归一化后要显式表达这一点（`width: 0`）。
+	*
+	* 线宽是 **px 数值**而不是枚举字符串：文档格式存的是数值，组件只是提供几个常用档位。
+	*/
+	var BORDER_STYLES = [
+		"none",
+		"solid",
+		"dashed",
+		"dotted",
+		"double"
+	];
+	/** Word 的常用线宽档（pt 换算后的近似值），含 0.5 这种细线。 */
+	var BORDER_WIDTHS = [
+		.5,
+		.75,
+		1,
+		1.5,
+		2,
+		3
+	];
+	var BORDER_COLORS = [
+		"var(--oj-text-1)",
+		"var(--oj-text-3)",
+		"var(--oj-border-3)",
+		"var(--oj-brand-6)",
+		"var(--oj-text-danger)"
+	];
+	var DEFAULT_BORDER = {
+		style: "solid",
+		width: 1,
+		color: "var(--oj-text-1)"
+	};
+	var BORDER_WIDTH_RANGE = {
+		min: 0,
+		max: 12
+	};
+	function isStyle(value) {
+		return typeof value === "string" && BORDER_STYLES.includes(value);
+	}
+	/**
+	* 归一化三个维度。
+	*
+	* 规则：
+	*   - `style: 'none'` 时宽度归 0（语义上"没有线"，留着 1px 会让下游导出工具画出细线）；
+	*   - 宽度夹进 `[0, 12]` 并保留两位小数（0.75 这类值是合法档位）；
+	*   - 颜色不合法就回退默认色，而不是保留一个渲染不出来的字符串。
+	*/
+	function normalizeBorder(value) {
+		const style = isStyle(value === null || value === void 0 ? void 0 : value.style) ? value.style : DEFAULT_BORDER.style;
+		const rawWidth = typeof (value === null || value === void 0 ? void 0 : value.width) === "number" && Number.isFinite(value.width) ? value.width : DEFAULT_BORDER.width;
+		const clamped = Math.min(Math.max(rawWidth, BORDER_WIDTH_RANGE.min), BORDER_WIDTH_RANGE.max);
+		const color = typeof (value === null || value === void 0 ? void 0 : value.color) === "string" && isCssColor(value.color) ? value.color : DEFAULT_BORDER.color;
+		if (style === "none") return {
+			style,
+			width: 0,
+			color
+		};
+		return {
+			style,
+			width: Number(clamped.toFixed(2)),
+			color
+		};
+	}
+	/**
+	* 生成 CSS 值，供预览块与"应用到选区"两条路共用（两套字符串迟早会不一致）。
+	* 入参收 `Partial`：预览时经常只想换一个维度（`{ ...current, style: 'none' }`），
+	* 内部统一走 `normalizeBorder`，调用方不必先自己补齐三个字段。
+	*/
+	function borderCss(value) {
+		const normalized = normalizeBorder(value);
+		if (normalized.style === "none") return "none";
+		return `${normalized.width}px ${normalized.style} ${normalized.color}`;
+	}
+	/** 线宽档位文案：`1` 而不是 `1.00`。 */
+	function formatBorderWidth(width) {
+		return String(Number(width.toFixed(2)));
+	}
+	//#endregion
+	//#region src/shell/presets.ts
+	/**
+	* 档位表与"最近档位"（03 §3 `OjFontSizeField` / `OjLineSpacingPicker`）。
+	*
+	* 字号档位**必须与 token 一致**：`--oj-fs-12`~`--oj-fs-32` 那八档就是设计给的可用值，
+	* 组件里再自造一套（比如加上 15px）会让"用户选的 15px"在 `ja` 档位下没有对应 token，
+	* 于是又变成一次写死。这里把档位写成常量，并由用例与 token 表对账。
+	*
+	* 行距用**倍数**而不是 px：Word/WPS 的行距单位是"多倍行距"，存 px 会随字号变化而失真。
+	*/
+	/** 与 `packages/tokens` 的 `fs.*` 一一对应（顺序即下拉里的顺序）。 */
+	var FONT_SIZE_PRESETS = [
+		12,
+		13,
+		14,
+		16,
+		18,
+		20,
+		24,
+		32
+	];
+	/** Word 的常用档位：单倍、1.15、1.5、双倍。 */
+	var LINE_SPACING_PRESETS = [
+		1,
+		1.15,
+		1.5,
+		2
+	];
+	/** 字号上下限：低于 1px 或高于 999px 的输入是误操作，不是需求。 */
+	var FONT_SIZE_RANGE = {
+		min: 1,
+		max: 999
+	};
+	/** 行距上下限：0 会让行叠在一起，10 倍以上没有排版意义。 */
+	var LINE_SPACING_RANGE = {
+		min: .5,
+		max: 10
+	};
+	/** 离 `value` 最近的档位。空表返回 `value` 本身（调用方没给档位就不该被改值）。 */
+	function nearestPreset(presets, value) {
+		if (presets.length === 0 || !Number.isFinite(value)) return value;
+		let best = presets[0];
+		let bestGap = Math.abs(best - value);
+		for (const preset of presets) {
+			const gap = Math.abs(preset - value);
+			if (gap < bestGap) {
+				best = preset;
+				bestGap = gap;
+			}
+		}
+		return best;
+	}
+	/**
+	* 在档位表里前进/后退一档。
+	*
+	* 当前值不在表里时（用户手输过 17px），先落到**最近的档位**再走一步：
+	* 直接 `indexOf` 得到 -1 会让"下箭头"跳到第一档，用户会觉得方向反了。
+	*/
+	function stepPreset(presets, value, direction) {
+		var _sorted$index;
+		if (presets.length === 0) return value;
+		const sorted = [...presets].sort((a, b) => a - b);
+		const exact = sorted.indexOf(value);
+		if (exact !== -1) {
+			const next = sorted[exact + direction];
+			return next !== null && next !== void 0 ? next : value;
+		}
+		const nearest = nearestPreset(sorted, value);
+		if (nearest === value) return value;
+		const nearestIndex = sorted.indexOf(nearest);
+		return (_sorted$index = sorted[(direction === 1 ? nearest < value : nearest > value) ? nearestIndex + direction : nearestIndex]) !== null && _sorted$index !== void 0 ? _sorted$index : nearest;
+	}
+	/** 行距显示成 `1.5` / `1` / `1.15`：去掉无意义的尾零，但不把 1.50 显示成 1.5 以外的东西。 */
+	function formatLineSpacing(value) {
+		if (!Number.isFinite(value)) return "1";
+		const rounded = Number(value.toFixed(2));
+		return String(rounded);
+	}
+	/** 字号显示成 `14`（单位由使用方在其后补，语言不同单位写法也不同）。 */
+	function formatFontSize(value) {
+		if (!Number.isFinite(value)) return "";
+		return String(Number(value.toFixed(1)));
+	}
+	//#endregion
+	//#region src/format.ts
+	/** 字体 id（如 `sans` / `doc`）。只校验"非空字符串"：自定义字体名也是合法值。 */
+	function fontFamilyArg(arg) {
+		if (typeof arg !== "string") throw new Error("format.fontFamily 需要字体 id 字符串");
+		const id = arg.trim();
+		if (id.length === 0) throw new Error("format.fontFamily 需要非空的字体 id");
+		return id;
+	}
+	/** 字号：与 `OjFontSizeField` 同一区间（1–999），保留一位小数。 */
+	function fontSizeArg(arg) {
+		if (typeof arg !== "number" || !Number.isFinite(arg)) throw new Error("format.fontSize 需要数字");
+		if (arg < FONT_SIZE_RANGE.min || arg > FONT_SIZE_RANGE.max) throw new Error(`format.fontSize 超出 ${FONT_SIZE_RANGE.min}–${FONT_SIZE_RANGE.max}`);
+		return Number(formatFontSize(arg));
+	}
+	/**
+	* 文字颜色：`isCssColor` 认的四种写法（token 引用 / 十六进制 / `transparent` / `rgb()`）。
+	* 存 token 引用而不是解析成十六进制，是 `shell/color.ts` 的既有决策：主题切换要跟着变。
+	*/
+	function textColorArg(arg) {
+		if (typeof arg !== "string") throw new Error("format.textColor 需要颜色字符串");
+		const value = arg.trim();
+		if (!isCssColor(value)) throw new Error(`format.textColor 不认识这个颜色：${value}`);
+		return value;
+	}
+	/**
+	* 边框：收 `BorderValue`（可部分给出）或字符串 `'none'`，**输出 CSS 简写**。
+	*
+	* 输出与预览块共用 `borderCss()`，所以"预览里看到的线"与"应用到选区上的线"永远是同一串字符。
+	* `'none'` 单独收，是因为 `OjBorderPicker` 的"无边框"按钮在语义上不是"宽 0 的实线"。
+	*/
+	function borderArg(arg) {
+		if (arg === "none") return "none";
+		if (typeof arg !== "object" || arg === null) throw new Error("format.border 需要 BorderValue 或 \"none\"");
+		return borderCss(arg);
+	}
+	/** 行距：倍数（`1` / `1.15` / `1.5` / `2`），区间与 `OjLineSpacingPicker` 一致。 */
+	function lineSpacingArg(arg) {
+		if (typeof arg !== "number" || !Number.isFinite(arg)) throw new Error("format.lineSpacing 需要数字");
+		if (arg < LINE_SPACING_RANGE.min || arg > LINE_SPACING_RANGE.max) throw new Error(`format.lineSpacing 超出 ${LINE_SPACING_RANGE.min}–${LINE_SPACING_RANGE.max}`);
+		return Number(formatLineSpacing(arg));
+	}
+	/**
+	* 对齐：收 `AlignmentValue`，编码成 `"center middle"`。
+	*
+	* 两个方向**一起**传，而不是拆成两条命令：Office 的"两端对齐 + 垂直居中"是一次操作，
+	* 拆开会让一次点击产生两条撤销记录，而用户按一次 Ctrl+Z 只期望退回一步。
+	*/
+	function alignArg(arg) {
+		if (!isAlignmentValue(arg)) throw new Error("format.align 需要 { horizontal, vertical }");
+		return `${textAlignCss(arg.horizontal)} ${verticalAlignCss(arg.vertical)}`;
+	}
+	/** `alignArg` 的逆运算。不认识的值返回 `undefined`（调用方保留当前对齐，不要猜）。 */
+	function parseAlignValue(value) {
+		if (typeof value !== "string") return void 0;
+		const [horizontal, vertical] = value.trim().split(/\s+/);
+		if (vertical === void 0) return void 0;
+		const candidate = {
+			horizontal,
+			vertical
+		};
+		return isAlignmentValue(candidate) ? candidate : void 0;
+	}
+	//#endregion
 	//#region src/commands.ts
 	var COMMAND_BOLD = "format.bold";
 	var COMMAND_ITALIC = "format.italic";
@@ -168,6 +574,19 @@
 	var COMMAND_BULLET_LIST = "format.bulletList";
 	var COMMAND_ORDERED_LIST = "format.orderedList";
 	var COMMAND_CODE_BLOCK = "format.codeBlock";
+	/**
+	* 值型格式命令（M2 选择器集群的出口）。
+	*
+	* 与上面几条**布尔**命令的区别不是"有没有参数"，而是 `state()` 里报什么：
+	* 布尔命令报 `active`，值型命令报 `value`。控件（字号框、色板、边框面板）读 `value` 决定高亮，
+	* 读 `active` 会把"字号 16"读成"被选中"，于是控件自己也不知道该显示什么。
+	*/
+	var COMMAND_FONT_FAMILY = "format.fontFamily";
+	var COMMAND_FONT_SIZE = "format.fontSize";
+	var COMMAND_TEXT_COLOR = "format.textColor";
+	var COMMAND_BORDER = "format.border";
+	var COMMAND_LINE_SPACING = "format.lineSpacing";
+	var COMMAND_ALIGN = "format.align";
 	var COMMAND_HARD_BREAK = "insert.hardBreak";
 	var COMMAND_HORIZONTAL_RULE = "insert.horizontalRule";
 	var COMMAND_TABLE = "insert.table";
@@ -197,11 +616,36 @@
 		if (keys) command.keys = keys;
 		return command;
 	}
+	/**
+	* 值型命令：`run` 先把实参归一化，再把**归一化后的原始值**交给宿主。
+	*
+	* 传原始值而不是结构体，是为了让 `state().value` 能原样读回来（见 `format.ts` 的不变式）。
+	* 归一化放在 `run` 里而不是 `state` 里：只有真正执行时才知道实参合不合法，
+	* 而 `state()` 每帧都可能被调，不该带抛错的可能。
+	*/
+	function valueCommand(id, labelKey, normalize) {
+		return {
+			id,
+			label: { key: labelKey },
+			group: "开始",
+			history: "undoable",
+			state: (host) => host.state(id),
+			run: (host, arg) => {
+				host.exec(id, normalize(arg));
+			}
+		};
+	}
 	function editorCommands() {
 		return [
 			toggleCommand(COMMAND_BOLD, "oj.command.bold", "oj-format-bold", "mod+b"),
 			toggleCommand(COMMAND_ITALIC, "oj.command.italic", "oj-format-italic", "mod+i"),
 			toggleCommand(COMMAND_UNDERLINE, "oj.command.underline", "oj-format-underline", "mod+u"),
+			valueCommand(COMMAND_FONT_FAMILY, "oj.command.fontFamily", fontFamilyArg),
+			valueCommand(COMMAND_FONT_SIZE, "oj.command.fontSize", fontSizeArg),
+			valueCommand(COMMAND_TEXT_COLOR, "oj.command.textColor", textColorArg),
+			valueCommand(COMMAND_BORDER, "oj.command.border", borderArg),
+			valueCommand(COMMAND_LINE_SPACING, "oj.command.lineSpacing", lineSpacingArg),
+			valueCommand(COMMAND_ALIGN, "oj.command.align", alignArg),
 			toggleCommand(COMMAND_ALIGN_LEFT, "oj.command.alignLeft", "oj-align-left"),
 			{
 				id: COMMAND_HEADING,
@@ -957,6 +1401,368 @@
 		return (env === null || env === void 0 ? void 0 : env.DEV) === true;
 	}
 	//#endregion
+	//#region src/shell/style-gallery.ts
+	var STYLE_PRESETS = [
+		{
+			id: "title-1",
+			fontSize: 32,
+			bold: true
+		},
+		{
+			id: "title-2",
+			fontSize: 24,
+			bold: true
+		},
+		{
+			id: "title-3",
+			fontSize: 20,
+			bold: true
+		},
+		{
+			id: "body",
+			fontSize: 14
+		},
+		{
+			id: "quote",
+			fontSize: 14,
+			italic: true,
+			family: "doc"
+		},
+		{
+			id: "code",
+			fontSize: 14,
+			family: "mono"
+		}
+	];
+	/** 预览与"应用样式"共用的一份内联样式，避免两处各写一套。 */
+	function stylePresetCss(preset) {
+		var _preset$family;
+		const css = { fontSize: `${preset.fontSize}px` };
+		if (preset.bold === true) css.fontWeight = "600";
+		if (preset.italic === true) css.fontStyle = "italic";
+		css.fontFamily = `var(--oj-font-${(_preset$family = preset.family) !== null && _preset$family !== void 0 ? _preset$family : "sans"})`;
+		return css;
+	}
+	/**
+	* 显示名缺省时回退到 id。
+	* 不在这里编中文名：`title-1` 在日文界面应该是"見出し1"，写死中文就永远翻不掉。
+	*/
+	function styleLabel(labels, id) {
+		var _labels$id;
+		return (_labels$id = labels === null || labels === void 0 ? void 0 : labels[id]) !== null && _labels$id !== void 0 ? _labels$id : id;
+	}
+	//#endregion
+	//#region src/shell/fonts.ts
+	var FONT_OPTIONS = [
+		{
+			id: "sans",
+			label: "Sans",
+			stack: "var(--oj-font-sans)"
+		},
+		{
+			id: "mono",
+			label: "Mono",
+			stack: "var(--oj-font-mono)"
+		},
+		{
+			id: "mono-cjk",
+			label: "Mono CJK",
+			stack: "var(--oj-font-mono-cjk)"
+		},
+		{
+			id: "doc",
+			label: "Serif",
+			stack: "var(--oj-font-doc)"
+		}
+	];
+	/** 按 id 或显示名做子串过滤（忽略大小写与首尾空白）。空查询返回全部。 */
+	function filterFonts(fonts, query) {
+		const needle = query.trim().toLowerCase();
+		if (needle.length === 0) return [...fonts];
+		return fonts.filter((font) => font.id.toLowerCase().includes(needle) || font.label.toLowerCase().includes(needle));
+	}
+	/** 从字体表里找一项；找不到返回 `undefined`（调用方据此决定要不要回退）。 */
+	function findFont(fonts, id) {
+		return fonts.find((font) => font.id === id);
+	}
+	/** 键盘上下移动：到两端就停住，不环绕（环绕会让用户在列表底部误以为是顶部）。 */
+	function stepFont(fonts, id, direction) {
+		var _next$id;
+		if (fonts.length === 0) return id;
+		const index = fonts.findIndex((font) => font.id === id);
+		if (index === -1) return fonts[0].id;
+		const next = fonts[index + direction];
+		return (_next$id = next === null || next === void 0 ? void 0 : next.id) !== null && _next$id !== void 0 ? _next$id : id;
+	}
+	//#endregion
+	//#region src/shell/symbols.ts
+	var SYMBOL_GROUPS = [
+		{
+			id: "common",
+			symbols: [
+				{
+					char: "©",
+					name: "copyright"
+				},
+				{
+					char: "®",
+					name: "registered"
+				},
+				{
+					char: "™",
+					name: "trademark"
+				},
+				{
+					char: "§",
+					name: "section"
+				},
+				{
+					char: "¶",
+					name: "paragraph"
+				},
+				{
+					char: "°",
+					name: "degree"
+				},
+				{
+					char: "‰",
+					name: "per mille"
+				},
+				{
+					char: "№",
+					name: "numero"
+				}
+			]
+		},
+		{
+			id: "math",
+			symbols: [
+				{
+					char: "±",
+					name: "plus minus"
+				},
+				{
+					char: "×",
+					name: "multiply"
+				},
+				{
+					char: "÷",
+					name: "divide"
+				},
+				{
+					char: "≠",
+					name: "not equal"
+				},
+				{
+					char: "≤",
+					name: "less or equal"
+				},
+				{
+					char: "≥",
+					name: "greater or equal"
+				},
+				{
+					char: "∞",
+					name: "infinity"
+				},
+				{
+					char: "∑",
+					name: "sum"
+				},
+				{
+					char: "√",
+					name: "square root"
+				},
+				{
+					char: "π",
+					name: "pi"
+				},
+				{
+					char: "≈",
+					name: "almost equal"
+				},
+				{
+					char: "µ",
+					name: "micro"
+				}
+			]
+		},
+		{
+			id: "arrow",
+			symbols: [
+				{
+					char: "←",
+					name: "left arrow"
+				},
+				{
+					char: "→",
+					name: "right arrow"
+				},
+				{
+					char: "↑",
+					name: "up arrow"
+				},
+				{
+					char: "↓",
+					name: "down arrow"
+				},
+				{
+					char: "↔",
+					name: "left right arrow"
+				},
+				{
+					char: "⇄",
+					name: "swap arrows"
+				},
+				{
+					char: "⇧",
+					name: "shift arrow"
+				},
+				{
+					char: "⇒",
+					name: "double right arrow"
+				}
+			]
+		},
+		{
+			id: "currency",
+			symbols: [
+				{
+					char: "$",
+					name: "dollar"
+				},
+				{
+					char: "€",
+					name: "euro"
+				},
+				{
+					char: "£",
+					name: "pound"
+				},
+				{
+					char: "¥",
+					name: "yen"
+				},
+				{
+					char: "₩",
+					name: "won"
+				},
+				{
+					char: "₹",
+					name: "rupee"
+				},
+				{
+					char: "¢",
+					name: "cent"
+				}
+			]
+		},
+		{
+			id: "punctuation",
+			symbols: [
+				{
+					char: "—",
+					name: "em dash"
+				},
+				{
+					char: "–",
+					name: "en dash"
+				},
+				{
+					char: "…",
+					name: "ellipsis"
+				},
+				{
+					char: "·",
+					name: "middle dot"
+				},
+				{
+					char: "“",
+					name: "left double quote"
+				},
+				{
+					char: "”",
+					name: "right double quote"
+				},
+				{
+					char: "‘",
+					name: "left single quote"
+				},
+				{
+					char: "’",
+					name: "right single quote"
+				}
+			]
+		}
+	];
+	/**
+	* 按名字过滤。空查询返回原表（保持分组结构，调用方据此渲染标题）。
+	* 同时接受直接输入字符：用户已经知道要插哪个符号时，比记名字快。
+	*/
+	function filterSymbols(groups, query) {
+		const needle = query.trim().toLowerCase();
+		if (needle.length === 0) return [...groups];
+		return groups.map((group) => ({
+			id: group.id,
+			symbols: group.symbols.filter((symbol) => symbol.char === needle || symbol.name.toLowerCase().includes(needle))
+		})).filter((group) => group.symbols.length > 0);
+	}
+	/** 摊平成一维（键盘导航按下标走，分组只是视觉）。 */
+	function flattenSymbols(groups) {
+		return groups.flatMap((group) => [...group.symbols]);
+	}
+	//#endregion
+	//#region src/shell/number-field.ts
+	function normalizeStep(step) {
+		if (step === void 0 || !Number.isFinite(step) || step <= 0) return 1;
+		return step;
+	}
+	function normalizePrecision(precision) {
+		if (precision === void 0 || !Number.isFinite(precision) || precision <= 0) return 0;
+		return Math.min(Math.floor(precision), 6);
+	}
+	/** 按精度取整。用 `Number(x.toFixed(n))` 而不是 `Math.round(x * 10^n) / 10^n`，后者有浮点尾数。 */
+	function roundTo(value, precision) {
+		const digits = normalizePrecision(precision);
+		if (!Number.isFinite(value)) return 0;
+		return Number(value.toFixed(digits));
+	}
+	/**
+	* 夹进 `[min, max]`。`min > max`（配置写反）时**以 min 为准**：
+	* 宁可显示下限，也不要把 `NaN` 或越界值写回使用方的状态。
+	*/
+	function clampNumber(value, bounds = {}) {
+		const rounded = roundTo(value, bounds.precision);
+		const { min, max } = bounds;
+		if (min !== void 0 && Number.isFinite(min) && rounded < min) return roundTo(min, bounds.precision);
+		if (max !== void 0 && Number.isFinite(max) && rounded > max) return roundTo(max, bounds.precision);
+		return rounded;
+	}
+	/**
+	* 步进一次并夹取。
+	*
+	* 从上限往下减时先减到上限再减 step：值本来就在界外（使用方传了脏数据）时，
+	* 用户点一下减号应该**立刻回到合法区间**，而不是在界外一格一格挪。
+	*/
+	function stepNumber(value, direction, bounds = {}) {
+		return clampNumber(roundTo(clampNumber(value, bounds) + direction * normalizeStep(bounds.step), bounds.precision), bounds);
+	}
+	/**
+	* 解析用户输入。返回 `undefined` 表示"不提交，回退到当前值"。
+	*
+	* 认这些：`12`、` 12 `、`12px`（单位由调用方决定，这里只取数字）、`-3`、`+3`、`1.5`、`1,5`（欧洲键盘）。
+	* 不认：空串、`-`、`12abc`、`1e3`（指数写法在字号/行距里没有意义，放进来只会让人误以为支持）。
+	*/
+	function parseNumberDraft(text) {
+		const trimmed = text.trim().replace(",", ".");
+		if (trimmed.length === 0) return void 0;
+		const match = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:px|pt|%|em|rem|cm|mm|in)?$/i.exec(trimmed);
+		if (match === null) return void 0;
+		const numeric = match[0].replace(/[a-z%]+$/i, "");
+		const value = Number(numeric);
+		return Number.isFinite(value) ? value : void 0;
+	}
+	//#endregion
 	//#region src/shell/tabs.ts
 	/** 选项卡键盘模型。方向键在一组 id 里循环，Home / End 跳到两端。 */
 	function selectByKey(ids, current, key) {
@@ -1044,13 +1850,6 @@
 	}
 	//#endregion
 	//#region src/shell/gallery.ts
-	/**
-	* 网格陈列的方向键模型（03 §3 B 组 `OjRibbonGallery`）。
-	*
-	* 单独抽出来是因为"上下左右在网格里怎么走"是最容易写歪的一段：写成按 `columns`
-	* 硬算行列，碰到最后一行不满就会算出不存在的下标；写成纯 `+1/-1`，上下键又变成
-	* 左右键的别名。这里统一按**下标**算，并且永远夹在 `[0, count-1]` 里。
-	*/
 	/** 返回移动后的下标。`columns` 非法（0、负数、NaN）时按 1 列处理，不抛异常。 */
 	function galleryNeighbor(columns, count, index, key) {
 		if (count <= 0) return 0;
@@ -1897,31 +2696,57 @@
 	}
 	//#endregion
 	exports.A4_WIDTH_PX = A4_WIDTH_PX;
+	exports.BORDER_COLORS = BORDER_COLORS;
+	exports.BORDER_STYLES = BORDER_STYLES;
+	exports.BORDER_WIDTHS = BORDER_WIDTHS;
+	exports.BORDER_WIDTH_RANGE = BORDER_WIDTH_RANGE;
+	exports.COLOR_SWATCH_GROUPS = COLOR_SWATCH_GROUPS;
+	exports.COMMAND_ALIGN = COMMAND_ALIGN;
 	exports.COMMAND_ALIGN_LEFT = COMMAND_ALIGN_LEFT;
 	exports.COMMAND_BLOCKQUOTE = COMMAND_BLOCKQUOTE;
 	exports.COMMAND_BOLD = COMMAND_BOLD;
+	exports.COMMAND_BORDER = COMMAND_BORDER;
 	exports.COMMAND_BULLET_LIST = COMMAND_BULLET_LIST;
 	exports.COMMAND_CODE_BLOCK = COMMAND_CODE_BLOCK;
+	exports.COMMAND_FONT_FAMILY = COMMAND_FONT_FAMILY;
+	exports.COMMAND_FONT_SIZE = COMMAND_FONT_SIZE;
 	exports.COMMAND_HARD_BREAK = COMMAND_HARD_BREAK;
 	exports.COMMAND_HEADING = COMMAND_HEADING;
 	exports.COMMAND_HORIZONTAL_RULE = COMMAND_HORIZONTAL_RULE;
 	exports.COMMAND_ITALIC = COMMAND_ITALIC;
+	exports.COMMAND_LINE_SPACING = COMMAND_LINE_SPACING;
 	exports.COMMAND_ORDERED_LIST = COMMAND_ORDERED_LIST;
 	exports.COMMAND_TABLE = COMMAND_TABLE;
+	exports.COMMAND_TEXT_COLOR = COMMAND_TEXT_COLOR;
 	exports.COMMAND_UNDERLINE = COMMAND_UNDERLINE;
+	exports.DEFAULT_ALIGNMENT = DEFAULT_ALIGNMENT;
+	exports.DEFAULT_BORDER = DEFAULT_BORDER;
 	exports.DEFAULT_GRID_LIMITS = DEFAULT_GRID_LIMITS;
+	exports.FONT_OPTIONS = FONT_OPTIONS;
+	exports.FONT_SIZE_PRESETS = FONT_SIZE_PRESETS;
+	exports.FONT_SIZE_RANGE = FONT_SIZE_RANGE;
+	exports.HORIZONTAL_ALIGNS = HORIZONTAL_ALIGNS;
 	exports.HORIZONTAL_RULE_GROUP = HORIZONTAL_RULE_GROUP;
 	exports.HORIZONTAL_RULE_INPUT = HORIZONTAL_RULE_INPUT;
 	exports.HORIZONTAL_RULE_MARKDOWN = HORIZONTAL_RULE_MARKDOWN;
 	exports.HORIZONTAL_RULE_MARKDOWN_TOKEN = HORIZONTAL_RULE_MARKDOWN_TOKEN;
 	exports.HORIZONTAL_RULE_NAME = HORIZONTAL_RULE_NAME;
+	exports.LINE_SPACING_PRESETS = LINE_SPACING_PRESETS;
+	exports.LINE_SPACING_RANGE = LINE_SPACING_RANGE;
+	exports.STYLE_PRESETS = STYLE_PRESETS;
+	exports.SYMBOL_GROUPS = SYMBOL_GROUPS;
+	exports.VERTICAL_ALIGNS = VERTICAL_ALIGNS;
 	exports.ZOOM_MAX = ZOOM_MAX;
 	exports.ZOOM_MIN = ZOOM_MIN;
 	exports.ZOOM_STEP = ZOOM_STEP;
+	exports.alignArg = alignArg;
 	exports.applyHorizontalRuleInput = applyHorizontalRuleInput;
 	exports.applyNodeInput = applyNodeInput;
 	exports.blockPlain = blockPlain;
+	exports.borderArg = borderArg;
+	exports.borderCss = borderCss;
 	exports.bridgedCommandIds = bridgedCommandIds;
+	exports.clampNumber = clampNumber;
 	exports.clampZoom = clampZoom;
 	exports.createDocument = createDocument;
 	exports.createGridPicker = createGridPicker;
@@ -1932,9 +2757,18 @@
 	exports.detectPlatform = detectPlatform;
 	exports.editorCommands = editorCommands;
 	exports.extendStroke = extendStroke;
+	exports.filterFonts = filterFonts;
 	exports.filterPaletteItems = filterPaletteItems;
+	exports.filterSymbols = filterSymbols;
 	exports.filterTree = filterTree;
+	exports.findFont = findFont;
+	exports.flattenSymbols = flattenSymbols;
+	exports.fontFamilyArg = fontFamilyArg;
+	exports.fontSizeArg = fontSizeArg;
+	exports.formatBorderWidth = formatBorderWidth;
+	exports.formatFontSize = formatFontSize;
 	exports.formatHotkey = formatHotkey;
+	exports.formatLineSpacing = formatLineSpacing;
 	exports.galleryNeighbor = galleryNeighbor;
 	exports.horizontalRuleOptions = horizontalRuleOptions;
 	exports.hotkeyConflicts = hotkeyConflicts;
@@ -1942,11 +2776,14 @@
 	exports.iconMarkup = iconMarkup;
 	exports.iconMarkupProblem = iconMarkupProblem;
 	exports.icons = icons;
+	exports.isAlignmentValue = isAlignmentValue;
+	exports.isCssColor = isCssColor;
 	exports.isDevEnv = isDevEnv;
 	exports.isHeadingLevel = isHeadingLevel;
 	exports.isHorizontalRuleInput = isHorizontalRuleInput;
 	exports.isTableSize = isTableSize;
 	exports.isTextblockType = isTextblockType;
+	exports.lineSpacingArg = lineSpacingArg;
 	exports.matchHotkey = matchHotkey;
 	exports.matchNodeInput = matchNodeInput;
 	exports.menuAction = menuAction;
@@ -1954,16 +2791,23 @@
 	exports.menuSelectable = menuSelectable;
 	exports.menuSelectableIndices = menuSelectableIndices;
 	exports.mergeAttributes = mergeAttributes;
+	exports.nearestPreset = nearestPreset;
 	exports.neighbor = neighbor;
+	exports.neighborSwatch = neighborSwatch;
 	exports.nodeExtension = nodeExtension;
+	exports.normalizeAlignment = normalizeAlignment;
+	exports.normalizeBorder = normalizeBorder;
+	exports.normalizeHex = normalizeHex;
 	exports.normalizeKey = normalizeKey;
 	exports.packRibbon = packRibbon;
 	exports.pageWidth = pageWidth;
 	exports.paletteScore = paletteScore;
 	exports.paletteStep = paletteStep;
+	exports.parseAlignValue = parseAlignValue;
 	exports.parseHorizontalRuleHTML = parseHorizontalRuleHTML;
 	exports.parseHorizontalRuleMarkdown = parseHorizontalRuleMarkdown;
 	exports.parseHotkey = parseHotkey;
+	exports.parseNumberDraft = parseNumberDraft;
 	exports.placePopper = placePopper;
 	exports.plainText = plainText;
 	exports.platformFrom = platformFrom;
@@ -1985,6 +2829,7 @@
 	exports.ribbonSelect = ribbonSelect;
 	exports.ribbonSmallerSize = ribbonSmallerSize;
 	exports.ribbonToggleCollapsed = ribbonToggleCollapsed;
+	exports.roundTo = roundTo;
 	exports.rulerTicks = rulerTicks;
 	exports.searchHits = searchHits;
 	exports.selectByKey = selectByKey;
@@ -1992,8 +2837,17 @@
 	exports.setHorizontalRule = setHorizontalRule;
 	exports.startStroke = startStroke;
 	exports.starterNodes = starterNodes;
+	exports.stepFont = stepFont;
+	exports.stepHorizontal = stepHorizontal;
+	exports.stepNumber = stepNumber;
+	exports.stepPreset = stepPreset;
+	exports.stepVertical = stepVertical;
 	exports.stepZoom = stepZoom;
 	exports.strokePath = strokePath;
+	exports.styleLabel = styleLabel;
+	exports.stylePresetCss = stylePresetCss;
+	exports.textAlignCss = textAlignCss;
+	exports.textColorArg = textColorArg;
 	exports.textblock = textblock;
 	exports.tiptapEditorHost = tiptapEditorHost;
 	exports.toggleBlockquote = toggleBlockquote;
@@ -2003,5 +2857,6 @@
 	exports.toggleId = toggleId;
 	exports.toggleOrderedList = toggleOrderedList;
 	exports.unregisterIcon = unregisterIcon;
+	exports.verticalAlignCss = verticalAlignCss;
 	exports.withPlain = withPlain;
 });

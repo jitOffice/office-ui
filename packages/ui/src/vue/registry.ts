@@ -1,7 +1,18 @@
 import type { Component } from 'vue'
 
 import { OjAiPanel } from './ai-panel.ts'
+import { OjAlignmentPicker } from './alignment-picker.ts'
+import { OjBorderPicker } from './border-picker.ts'
+import { OjGallery } from './gallery.ts'
+import { OjStyleGallery } from './style-gallery.ts'
 import { OjCodeBlock } from './code-block.ts'
+import { OjCommentThread } from './comment-thread.ts'
+import { OjFileNameHeader } from './file-name-header.ts'
+import { OjPresenceAvatars } from './presence-avatars.ts'
+import { OjReviewPanel } from './review-panel.ts'
+import { OjColorPicker } from './color-picker.ts'
+import { OjFontPicker } from './font-picker.ts'
+import { OjSymbolPicker } from './symbol-picker.ts'
 import { OjCommandButton } from './command-button.ts'
 import { OjCommandLauncher } from './command-launcher.ts'
 import { OjCommandPalette } from './command-palette.ts'
@@ -10,6 +21,9 @@ import { OjDialog } from './dialog.ts'
 import { OjDropdown } from './dropdown.ts'
 import { OjDropdownButton } from './dropdown-button.ts'
 import { OjFileTree } from './file-tree.ts'
+import { OjFontSizeField } from './font-size-field.ts'
+import { OjLineSpacingPicker } from './line-spacing-picker.ts'
+import { OjNumberField } from './number-field.ts'
 import { OjHotkey } from './hotkey.ts'
 import { OjIcon } from './icon.ts'
 import { OjLocaleProvider } from './locale.ts'
@@ -48,7 +62,16 @@ import { OjZoomControl } from './zoom-control.ts'
  */
 export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-ai-panel': OjAiPanel,
+  'oj-alignment-picker': OjAlignmentPicker,
+  'oj-border-picker': OjBorderPicker,
+  'oj-gallery': OjGallery,
+  'oj-style-gallery': OjStyleGallery,
   'oj-code-block': OjCodeBlock,
+  'oj-comment-thread': OjCommentThread,
+  'oj-file-name-header': OjFileNameHeader,
+  'oj-presence-avatars': OjPresenceAvatars,
+  'oj-review-panel': OjReviewPanel,
+  'oj-color-picker': OjColorPicker,
   'oj-command-button': OjCommandButton,
   'oj-command-launcher': OjCommandLauncher,
   'oj-command-palette': OjCommandPalette,
@@ -57,6 +80,10 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-dropdown': OjDropdown,
   'oj-dropdown-button': OjDropdownButton,
   'oj-file-tree': OjFileTree,
+  'oj-font-picker': OjFontPicker,
+  'oj-font-size-field': OjFontSizeField,
+  'oj-line-spacing-picker': OjLineSpacingPicker,
+  'oj-number-field': OjNumberField,
   'oj-hotkey': OjHotkey,
   'oj-icon': OjIcon,
   'oj-locale-provider': OjLocaleProvider,
@@ -72,6 +99,7 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-signature-pad': OjSignaturePad,
   'oj-split-button': OjSplitButton,
   'oj-stamp': OjStamp,
+  'oj-symbol-picker': OjSymbolPicker,
   'oj-status-bar': OjStatusBar,
   'oj-table-grid-picker': OjTableGridPicker,
   'oj-tabs': OjTabs,

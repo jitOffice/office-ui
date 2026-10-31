@@ -41,6 +41,9 @@ export interface OjMessages {
             selectPlaceholder: string;
             /** 语言切换器的可访问名（`OjLocaleSwitcher`）。 */
             language: string;
+            /** 数值控件的步进按钮（字号、行距这类"一次一档"的输入）。 */
+            decrease: string;
+            increase: string;
         };
         tableGridPicker: {
             label: string;
@@ -95,6 +98,35 @@ export interface OjMessages {
             hardBreak: string;
             horizontalRule: string;
             insertTable: string;
+            /** M2 值型格式命令（`format.fontFamily` 等）的可访问名。 */
+            fontFamily: string;
+            fontSize: string;
+            textColor: string;
+            border: string;
+            lineSpacing: string;
+            align: string;
+        };
+        /** 边框面板的字段名与线型显示名（`OjBorderPicker` 的 `styleLabels`）。 */
+        border: {
+            width: string;
+            color: string;
+            style: {
+                none: string;
+                solid: string;
+                dashed: string;
+                dotted: string;
+                double: string;
+            };
+        };
+        /** 九宫格对齐的可访问名（`OjAlignmentPicker` 的 `itemLabels`）。 */
+        align: {
+            left: string;
+            center: string;
+            right: string;
+            justify: string;
+            top: string;
+            middle: string;
+            bottom: string;
         };
         shell: {
             tabs: {

@@ -48,6 +48,9 @@ export interface OjMessages {
       selectPlaceholder: string
       /** 语言切换器的可访问名（`OjLocaleSwitcher`）。 */
       language: string
+      /** 数值控件的步进按钮（字号、行距这类"一次一档"的输入）。 */
+      decrease: string
+      increase: string
     }
     tableGridPicker: {
       label: string
@@ -102,6 +105,70 @@ export interface OjMessages {
       hardBreak: string
       horizontalRule: string
       insertTable: string
+      /** M2 值型格式命令（`format.fontFamily` 等）的可访问名。 */
+      fontFamily: string
+      fontSize: string
+      textColor: string
+      border: string
+      lineSpacing: string
+      align: string
+    }
+    /** 边框面板的字段名与线型显示名（`OjBorderPicker` 的 `styleLabels`）。 */
+    border: {
+      width: string
+      color: string
+      style: {
+        none: string
+        solid: string
+        dashed: string
+        dotted: string
+        double: string
+      }
+    }
+    /** 九宫格对齐的可访问名（`OjAlignmentPicker` 的 `itemLabels`）。 */
+    align: {
+      left: string
+      center: string
+      right: string
+      justify: string
+      top: string
+      middle: string
+      bottom: string
+    }
+    /** 批注线程（`OjCommentThread`）。 */
+    comment: {
+      reply: string
+      resolve: string
+      reopen: string
+      replyPlaceholder: string
+    }
+    /** 修订列表（`OjReviewPanel`）。 */
+    review: {
+      title: string
+      accept: string
+      reject: string
+      acceptAll: string
+      rejectAll: string
+      empty: string
+      allKinds: string
+      kind: { insert: string; delete: string; format: string }
+    }
+    /** 协同头像（`OjPresenceAvatars`）。`more` 带 `{n}` 占位符。 */
+    presence: {
+      label: string
+      more: string
+      overflowTitle: string
+    }
+    /** 标题栏文件名与保存态（`OjFileNameHeader`）。 */
+    fileName: {
+      saved: string
+      saving: string
+      unsaved: string
+      rename: string
+      favorite: string
+      empty: string
+      illegal: string
+      reserved: string
     }
     shell: {
       tabs: { start: string; insert: string; view: string }
@@ -125,6 +192,7 @@ export interface OjMessages {
       stamp: { sample: string; open: string }
       status: { kernel: string }
       insert: { image: string }
+      review: { title: string }
     }
   }
 }

@@ -1,11 +1,14 @@
 # 组件 API 索引
 
-> 由源码扫描生成（34 个组件），请勿手改。
+> 由源码扫描生成（44 个组件），请勿手改。
 
 | 组件 |
 |---|
 | [OjAiPanel](/components/api/ai-panel) |
+| [OjAlignmentPicker](/components/api/alignment-picker) |
+| [OjBorderPicker](/components/api/border-picker) |
 | [OjCodeBlock](/components/api/code-block) |
+| [OjColorPicker](/components/api/color-picker) |
 | [OjCommandButton](/components/api/command-button) |
 | [OjCommandLauncher](/components/api/command-launcher) |
 | [OjCommandPalette](/components/api/command-palette) |
@@ -14,10 +17,15 @@
 | [OjDropdownButton](/components/api/dropdown-button) |
 | [OjDropdown](/components/api/dropdown) |
 | [OjFileTree](/components/api/file-tree) |
+| [OjFontPicker](/components/api/font-picker) |
+| [OjFontSizeField](/components/api/font-size-field) |
+| [OjGallery](/components/api/gallery) |
 | [OjHotkey](/components/api/hotkey) |
 | [OjIcon](/components/api/icon) |
+| [OjLineSpacingPicker](/components/api/line-spacing-picker) |
 | [OjLocaleSwitcher](/components/api/locale-switcher) |
 | [OjLocaleProvider](/components/api/locale-provider) |
+| [OjNumberField](/components/api/number-field) |
 | [OjPopper](/components/api/popper) |
 | [OjPortal](/components/api/portal) |
 | [OjRibbonGallery](/components/api/ribbon-gallery) |
@@ -30,6 +38,8 @@
 | [OjSplitButton](/components/api/split-button) |
 | [OjStamp](/components/api/stamp) |
 | [OjStatusBar](/components/api/status-bar) |
+| [OjStyleGallery](/components/api/style-gallery) |
+| [OjSymbolPicker](/components/api/symbol-picker) |
 | [OjTableGridPicker](/components/api/table-grid-picker) |
 | [OjTabs](/components/api/tabs) |
 | [OjToggleButton](/components/api/toggle-button) |

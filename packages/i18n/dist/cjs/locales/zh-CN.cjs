@@ -28,7 +28,9 @@ var zhCN = {
 			no: "否",
 			inputPlaceholder: "请输入",
 			selectPlaceholder: "请选择",
-			language: "语言"
+			language: "语言",
+			decrease: "减小",
+			increase: "增大"
 		},
 		tableGridPicker: {
 			label: "表格",
@@ -82,7 +84,33 @@ var zhCN = {
 			codeBlock: "代码块",
 			hardBreak: "换行",
 			horizontalRule: "分隔线",
-			insertTable: "插入表格"
+			insertTable: "插入表格",
+			fontFamily: "字体",
+			fontSize: "字号",
+			textColor: "字体颜色",
+			border: "边框",
+			lineSpacing: "行距",
+			align: "对齐"
+		},
+		border: {
+			width: "粗细",
+			color: "颜色",
+			style: {
+				none: "无",
+				solid: "实线",
+				dashed: "虚线",
+				dotted: "点线",
+				double: "双线"
+			}
+		},
+		align: {
+			left: "左对齐",
+			center: "居中",
+			right: "右对齐",
+			justify: "两端对齐",
+			top: "顶端对齐",
+			middle: "垂直居中",
+			bottom: "底端对齐"
 		},
 		shell: {
 			tabs: {

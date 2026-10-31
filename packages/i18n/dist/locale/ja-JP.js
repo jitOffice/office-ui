@@ -27,7 +27,9 @@
 				no: "いいえ",
 				inputPlaceholder: "入力してください",
 				selectPlaceholder: "選択してください",
-				language: "言語"
+				language: "言語",
+				decrease: "減らす",
+				increase: "増やす"
 			},
 			tableGridPicker: {
 				label: "表",
@@ -81,7 +83,33 @@
 				codeBlock: "コードブロック",
 				hardBreak: "改行",
 				horizontalRule: "水平線",
-				insertTable: "表の挿入"
+				insertTable: "表の挿入",
+				fontFamily: "フォント",
+				fontSize: "フォントサイズ",
+				textColor: "文字の色",
+				border: "罫線",
+				lineSpacing: "行間",
+				align: "配置"
+			},
+			border: {
+				width: "線の太さ",
+				color: "色",
+				style: {
+					none: "なし",
+					solid: "実線",
+					dashed: "破線",
+					dotted: "点線",
+					double: "二重線"
+				}
+			},
+			align: {
+				left: "左揃え",
+				center: "中央揃え",
+				right: "右揃え",
+				justify: "両端揃え",
+				top: "上揃え",
+				middle: "上下中央",
+				bottom: "下揃え"
 			},
 			shell: {
 				tabs: {

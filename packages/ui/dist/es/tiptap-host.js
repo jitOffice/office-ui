@@ -21,6 +21,38 @@ var BRIDGE = {
 		active: { textAlign: "left" },
 		arg: "left"
 	},
+	"format.fontFamily": {
+		can: "setFontFamily",
+		run: "setFontFamily",
+		value: true
+	},
+	"format.fontSize": {
+		can: "setFontSize",
+		run: "setFontSize",
+		value: true
+	},
+	"format.textColor": {
+		can: "setColor",
+		run: "setColor",
+		value: true
+	},
+	"format.border": {
+		can: "setBorder",
+		run: "setBorder",
+		value: true
+	},
+	"format.lineSpacing": {
+		can: "setLineHeight",
+		run: "setLineHeight",
+		value: true,
+		toArg: (arg) => String(arg)
+	},
+	"format.align": {
+		can: "setTextAlign",
+		run: "setTextAlign",
+		value: true,
+		toArg: (arg) => String(arg).trim().split(/\s+/)[0]
+	},
 	"format.heading": {
 		can: "toggleHeading",
 		run: "toggleHeading",
@@ -68,17 +100,27 @@ function call(table, name, arg) {
 function bridgedCommandIds() {
 	return Object.keys(BRIDGE);
 }
+/**
+* 值型命令"能不能执行"的判据：方法在不在。
+*
+* 不用 `editor.can().setFontFamily()`：缺参调用时 Tiptap 返回 false，
+* 于是"装了字体扩展但当前选区分不出值"会被读成"这个宿主没有这条命令"。
+*/
+function hasCommand(editor, name) {
+	return typeof editor.commands[name] === "function";
+}
 function tiptapEditorHost(editor) {
 	return {
 		can(id) {
 			const entry = BRIDGE[id];
 			if (!entry) return false;
+			if (entry.value === true) return hasCommand(editor, entry.can);
 			return call(editor.can(), entry.can, entry.arg);
 		},
 		state(id) {
 			const entry = BRIDGE[id];
 			if (!entry) return { enabled: false };
-			const enabled = call(editor.can(), entry.can, entry.arg);
+			const enabled = entry.value === true ? hasCommand(editor, entry.can) : call(editor.can(), entry.can, entry.arg);
 			if (!entry.active) return { enabled };
 			return {
 				enabled,
@@ -88,7 +130,8 @@ function tiptapEditorHost(editor) {
 		exec(id, arg) {
 			const entry = BRIDGE[id];
 			if (!entry) return false;
-			return call(editor.commands, entry.run, arg === void 0 ? entry.arg : arg);
+			const actual = arg === void 0 ? entry.arg : entry.toArg === void 0 ? arg : entry.toArg(arg);
+			return call(editor.commands, entry.run, actual);
 		},
 		subscribe(listener) {
 			editor.on("transaction", listener);

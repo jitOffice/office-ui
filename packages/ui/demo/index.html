@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>office-ui</title>
+    <!-- 内联 favicon：不给的话浏览器会去请求 /favicon.ico，dev server 回 404，
+         控制台里就有一条与产品无关的红字——真浏览器验收时它会被当成真错误。 -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%23165DFF'/%3E%3C/svg%3E"
+    />
     <style>
       body {
         margin: 0;
@@ -26,6 +32,39 @@
         overflow: hidden;
         clip-path: inset(50%);
         white-space: nowrap;
+      }
+
+      /* demo 专属：格式组是"一组控件"而不是一组等宽按钮，所以不进 RibbonGroup 的排版。
+         给 `flex: none`——被工具栏挤窄时字号输入框会溢出到下一个按钮上（真浏览器里量出来的）。 */
+      .oj-format {
+        display: flex;
+        flex: none;
+        align-items: center;
+        gap: var(--oj-space-1);
+        padding: 0 var(--oj-space-2);
+      }
+
+      /* demo 专属：右栏改成"助手 / 审阅"两页，审阅页里放修订列表 + 批注线程 */
+      .oj-side {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-left: 1px solid var(--oj-border-2);
+        background: var(--oj-bg-container);
+      }
+
+      .oj-shell__file {
+        color: var(--oj-text-3);
+        font-size: var(--oj-fs-12);
+      }
+
+      .oj-review-pane {
+        display: flex;
+        flex-direction: column;
+        gap: var(--oj-space-3);
+        padding: var(--oj-space-3);
+        min-height: 0;
+        overflow: auto;
       }
     </style>
   </head>

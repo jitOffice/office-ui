@@ -283,6 +283,24 @@ D 组的 `OjPopper`（新增 `anchorBox`）/ `OjPortal` / `OjTrigger` 已交付�
 **M1 仍缺**：图标 40 → 120（等 B4 的设计产能决策）、文档站骨架（毛玻璃 + 搜索 + 在线预览）。
 `OjQuickAccessBar` 不在 M1 清单内，仍属未开工的 B 组件。
 
+### 实现状态（2026-10-30 增补：M2 选择器集群）
+
+M2 的十二件组件全部落地（`OjTableGridPicker` / `OjColorPicker` / `OjFontPicker` / `OjFontSizeField` /
+`OjAlignmentPicker` / `OjLineSpacingPicker` / `OjBorderPicker` / `OjNumberField` / `OjSymbolPicker` /
+`OjZoomControl` / `OjStyleGallery` / `OjGallery`），并且**已经接到命令注册表上**：六条值型命令
+（`format.fontFamily` / `fontSize` / `textColor` / `border` / `lineSpacing` / `align`）用 `state().value`
+报当前值，`run(id, value)` 交给宿主的就是同一个值——选择器只产值，写文档的是命令。
+细节与实测见 [05 第十六轮](./05-m0-delivery-plan.md)。
+
+M2 验收三条的现状：
+
+- **格式相关命令端到端可用**：✅ demo 功能区（字体 / 字号 / 颜色 / 边框 / 行距 / 对齐）→ 命令 →
+  文档区实时生效，Chrome 151 逐条量过计算样式。
+- **三语无拼接文案**：✅ 且是四语（新增 22 个 key × 4 语）。线型名与对齐名由使用方以 `styleLabels` /
+  `itemLabels` 传入，组件里不拼字符串。
+- **视觉回归 12 组**：**未做**。`test:visual` 目前只有排版 3 例（tokens）与无构建器 2 例（ui 的
+  UMD 端到端），组件级像素基线尚未建立；它依赖 B5 那套截图比对，不是组件本身缺东西。
+
 ---
 
 ## 4. 专项：`OjTableGridPicker`（PRD 点名，作为架构样板）

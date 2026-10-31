@@ -454,6 +454,63 @@ provenance 靠它与构建来源对齐，此前一个包都没有。
 还没生成脚本；它需要从组件 props 提取，与文档 API 表共用数据源，适合和 `vue-component-meta`
 一起做，单独做一遍等于写两套提取逻辑。
 
+**2026-10-30 第十六轮：M2 验收第一条——格式命令端到端（从"组件齐了"到"链路能跑"）**
+
+这一轮开工前的事实：M2 的十二件选择器**组件全在、单测全绿**，但全仓 **一条格式命令都没有**，
+`demo/main.ts` 里 grep 不到任何一个 picker。也就是说 `03 §6` 的 M2 验收
+"选字体→字号→加粗→颜色→边框端到端可用"此前只在组件层面成立——**这正是"按清单点货"看不见的缺口**：
+清单按"件"验收，链路按"条"验收，两者差一层接线。
+
+本轮补的就是那一层：
+
+- **六条值型命令**（`format.fontFamily` / `fontSize` / `textColor` / `border` / `lineSpacing` / `align`），
+  实参归一化收在 `src/format.ts`，不变式写进注释并由用例钉死：
+  `run(id, x)` 之后 `state(id).value` 与**宿主收到的实参**是同一个值。
+  边框直接是 `borderCss()` 的 CSS 简写（与 `OjBorderPicker` 的预览共用同一个函数），
+  对齐编码成 `"center middle"` 并有 `parseAlignValue()` 读回——`OjCommandState.value` 只收
+  `string | number`，结构体必须先编码，而"编出去的"和"读回来的"必须是同一个口径。
+- **布尔与值的分离**：`createMemoryEditor()` 此前对所有 `format.*` 一律翻 `active`，
+  值型命令一进来就会让"字号 16"显示成"字号被选中"。改为按实参类型分流（字符串/数字 → 记 `value`）。
+  这条不是设计升级，是**值型命令存在的直接后果**，用例里两条命令并排断言。
+- **Tiptap 桥**新增六条映射，并补 `value: true` 语义：值型命令的可用性只看**方法在不在**。
+  缺参调 `editor.can().setFontFamily()` 会返回 false，于是"装了字体扩展但当前选区分不出值"
+  会被读成"这个宿主没有这条命令"——灰显的原因会错。`format.align` 另有 `toArg`，
+  只把水平方向透给 `setTextAlign`（垂直方向在 Tiptap 里没有对应命令）。
+- **四语 22 个新 key**（`oj.command.*` 6、`oj.border.*` 7、`oj.align.*` 7、`oj.common.decrease/increase` 2），
+  `OjMessages` 手写接口同步改（它是 `OjLocale` 的类型来源，不跟着改就编译不过——这次是编译期挡住的）。
+- **demo 的功能区新增格式组**：六个控件（字号常驻、其余五个下拉）→ 六条命令 → 文档区实时生效。
+
+**真浏览器（Chrome 151）逐条实测**，改完立刻量计算样式：
+
+| 操作 | 命令日志 | 文档区计算值 |
+|---|---|---|
+| 选 Mono | `format.fontFamily "mono" ok` | `font-family` = JetBrains Mono 栈 |
+| 点"增大" | `format.fontSize 16 ok` | `font-size: 16px` |
+| 点第 5 个色板 | `format.textColor "var(--oj-brand-7)" ok` | `color: rgb(0, 70, 230)` |
+| 选虚线 | `format.border {...} ok` | `border-top-style: dashed` |
+| 选 2 倍行距 | `format.lineSpacing 2 ok` | `line-height: 32px` |
+| 选居中 | `format.align {...} ok` | `text-align: center` |
+
+四语切换后再量边框线型文案：`なし/実線/破線/点線/二重線`、`無/實線/…`、`None/Solid/…`、`无/实线/…` 全部命中，
+**控制台零错误**。
+
+**真浏览器抓到的两个问题（单测都看不见）**：
+
+1. **格式组被工具栏挤窄，字号输入框压住了下一个按钮**。`.oj-format` 是 `inline-flex` 但没写
+   `flex: none`，宽度不足时 `.oj-font-size` 的定宽子元素**溢出父盒**，于是后面那个按钮成了
+   "看得见点不着"——Playwright 报的是 `from <div class="oj-dropdown"> subtree intercepts pointer events`，
+   而不是"元素不可见"。修法是 `flex: none`。**这类问题的特征：布局是错的，但每个组件自己的快照都对。**
+2. **首屏一条 404**（`/favicon.ico`，dev server 没有这个文件）。它出现在控制台里，验收时会被当成本轮的
+   真错误——加内联 data URI favicon 后归零。（文档站在第十三轮踩过同一条。）
+
+**新增 7 例零依赖用例**（`test/format-commands.test.ts`）：不变式、非法实参不触达宿主、
+`value` 与 `active` 的分流、各归一化函数的边界、命令表元数据、Tiptap 桥语义，
+以及一条**结构门禁**——六条值型命令必须在 `demo/main.ts` 里都有对应控件。
+最后这条正是本轮缺口的守门人：命令登记好了但没人接线，这条会红。
+
+当前基线：**248 个零依赖用例 · 167 个 Vitest 用例 · 109 个 i18n key × 4 语**；
+`build:check` 四个包同源、`es-check es2018` 7 个文件通过、四道静态门禁全绿。
+
 **M0 八条 DoD 的现状**（哪条过了、哪条只是"产物有了但没验"）：
 
 | # | DoD | 状态 |

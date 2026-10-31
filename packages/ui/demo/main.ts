@@ -8,25 +8,41 @@ import zhTW from '../../i18n/src/locales/zh-TW.ts'
 import { createCommandRegistry } from '../../shared/src/commands/index.ts'
 import '../../tokens/dist/index.css'
 import {
+  COMMAND_ALIGN,
   COMMAND_ALIGN_LEFT,
   COMMAND_BLOCKQUOTE,
   COMMAND_BOLD,
+  COMMAND_BORDER,
   COMMAND_BULLET_LIST,
   COMMAND_CODE_BLOCK,
+  COMMAND_FONT_FAMILY,
+  COMMAND_FONT_SIZE,
   COMMAND_HEADING,
   COMMAND_HORIZONTAL_RULE,
   COMMAND_ITALIC,
+  COMMAND_LINE_SPACING,
   COMMAND_ORDERED_LIST,
   COMMAND_TABLE,
+  COMMAND_TEXT_COLOR,
   COMMAND_UNDERLINE,
+  DEFAULT_ALIGNMENT,
+  DEFAULT_BORDER,
+  FONT_OPTIONS,
+  addReply,
   blockPlain,
+  borderCss,
   createDocument,
   createMemoryEditor,
+  decideAll,
+  decideChange,
   editorCommands,
   filterTree,
+  findFont,
   isTableSize,
   isTextblockType,
   neighbor,
+  normalizeAlignment,
+  normalizeBorder,
   pageWidth,
   plainText,
   registerEditorCommands,
@@ -34,6 +50,7 @@ import {
   replaceOne,
   searchHits,
   setHorizontalRule,
+  setResolved,
   toggleBlockquote,
   toggleBulletList,
   toggleCodeBlock,
@@ -42,16 +59,41 @@ import {
   toggleId,
   withPlain,
 } from '../src/index.ts'
-import type { FileNode, GridCell, OjDocument, OjEditorHost, OjNode, SearchHit } from '../src/index.ts'
+import type {
+  AlignmentValue,
+  BorderValue,
+  CommentThread,
+  FileNode,
+  GridCell,
+  OjDocument,
+  OjEditorHost,
+  OjNode,
+  OjPerson,
+  ReviewChange,
+  ReviewDecision,
+  ReviewKind,
+  SaveState,
+  SearchHit,
+} from '../src/index.ts'
 import {
   OjAiPanel,
+  OjAlignmentPicker,
+  OjBorderPicker,
   OjCodeBlock,
+  OjColorPicker,
   OjCommandButton,
+  OjCommentThread,
   OjContextMenu,
   OjDialog,
   OjDropdown,
+  OjFileNameHeader,
   OjFileTree,
+  OjFontPicker,
+  OjFontSizeField,
   OjHotkey,
+  OjLineSpacingPicker,
+  OjPresenceAvatars,
+  OjReviewPanel,
   OjLocaleProvider,
   OjLocaleSwitcher,
   OjRibbon,
@@ -61,6 +103,7 @@ import {
   OjSignaturePad,
   OjStamp,
   OjTableGridPicker,
+  OjTabs,
   OjTooltip,
   OjWatermark,
   OjZoomControl,
@@ -97,6 +140,15 @@ const FILES: readonly FileNode[] = [
     kind: 'folder',
     children: [{ id: 'budget', name: '预算', kind: 'file' }],
   },
+]
+
+/** 协同演示用的人：头像颜色与首字母都由 id/姓名派生，这里不给 `tone` 以外的任何样式 */
+const PEOPLE: readonly OjPerson[] = [
+  { id: 'u-ada', name: 'Ada Lovelace' },
+  { id: 'u-zhang', name: '张伟' },
+  { id: 'u-li', name: '李娜' },
+  { id: 'u-wang', name: '王芳' },
+  { id: 'u-sato', name: '佐藤 健' },
 ]
 
 const CODE = 'const page = "office shell"\npage.includes("内核") // false'
@@ -194,6 +246,109 @@ const Demo = defineComponent({
     const locale = useLocale()
     const menuOpen = ref(false)
     const menuPoint = ref({ x: 0, y: 0 })
+    // 格式面板同一时刻只开一个：六个下拉各自管 `open` 会出现两个面板叠着。
+    const formatOpen = ref('')
+    /**
+     * 当前选区的格式镜像。真实内核里这些值来自 `editor.getAttributes()`，
+     * demo 把它们当成"宿主侧的真值"——命令只负责写进去，界面读它们。
+     */
+    const fontFamily = ref(FONT_OPTIONS[0]?.id ?? 'sans')
+    const fontSize = ref(14)
+    const textColor = ref('var(--oj-text-1)')
+    const border = ref<BorderValue>(DEFAULT_BORDER)
+    const lineSpacing = ref(1.5)
+    const alignment = ref<AlignmentValue>(DEFAULT_ALIGNMENT)
+
+    // ---- 审阅与协同（M3 第一批）：批注线程、修订列表、协同头像、文件名保存态
+    const docName = ref('产品说明')
+    const favored = ref(false)
+    const saveState = ref<SaveState>('saved')
+    const sidePane = ref<'ai' | 'review'>('ai')
+    const now = Date.now()
+    const threads = ref<CommentThread[]>([
+      {
+        id: 'c1',
+        anchor: 'p0',
+        author: PEOPLE[0]!,
+        at: now - 42 * 60 * 1000,
+        text: '这一段的「外壳」建议改成「界面」，和产品术语表对齐。',
+        replies: [],
+        resolved: false,
+      },
+      {
+        id: 'c2',
+        anchor: 'p1',
+        author: PEOPLE[1]!,
+        at: now - 12 * 60 * 1000,
+        text: '表格里的数字需要补单位。',
+        replies: [{ id: 'c2-r1', author: PEOPLE[2]!, at: now - 8 * 60 * 1000, text: '已补上「万元」。' }],
+        resolved: true,
+      },
+    ])
+    const changes = ref<ReviewChange[]>([
+      { id: 'ch1', kind: 'insert', author: PEOPLE[1]!, at: now - 30 * 60 * 1000, summary: '插入「以实际交付为准。」', anchor: 'p0' },
+      { id: 'ch2', kind: 'delete', author: PEOPLE[0]!, at: now - 20 * 60 * 1000, summary: '删除「本页仅供参考」', anchor: 'p1' },
+      { id: 'ch3', kind: 'format', author: PEOPLE[3]!, at: now - 5 * 60 * 1000, summary: '「产品说明」改为加粗', anchor: 'p2' },
+    ])
+
+    let saveTimer: ReturnType<typeof setTimeout> | undefined
+    /** 任何一次成功的编辑都走这条：未保存 → 保存中 → 已保存。三档不可跳过（见 shell/file-name.ts）。 */
+    function markDirty(): void {
+      saveState.value = 'unsaved'
+      if (saveTimer !== undefined) clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => {
+        saveState.value = 'saving'
+        saveTimer = setTimeout(() => {
+          saveState.value = 'saved'
+          saveTimer = undefined
+        }, 600)
+      }, 400)
+    }
+
+    const saveLabels = (): Record<SaveState, string> => ({
+      saved: i18n.t('oj.fileName.saved'),
+      saving: i18n.t('oj.fileName.saving'),
+      unsaved: i18n.t('oj.fileName.unsaved'),
+    })
+
+    const kindLabels = (): Record<ReviewKind, string> => ({
+      insert: i18n.t('oj.review.kind.insert'),
+      delete: i18n.t('oj.review.kind.delete'),
+      format: i18n.t('oj.review.kind.format'),
+    })
+
+    const formatTime = (at: number): string => i18n.date.time(at)
+
+    function replyTo(id: string, text: string): void {
+      threads.value = threads.value.map((thread) =>
+        thread.id === id
+          ? addReply(thread, {
+              id: `${id}-r${thread.replies.length + 1}`,
+              author: PEOPLE[0]!,
+              at: Date.now(),
+              text,
+            })
+          : thread,
+      )
+    }
+
+    function toggleThreadResolved(id: string, resolved: boolean): void {
+      threads.value = threads.value.map((thread) => (thread.id === id ? setResolved(thread, resolved) : thread))
+    }
+
+    function decideOne(id: string, decision: ReviewDecision): void {
+      changes.value = [...decideChange(changes.value, id)]
+      status.value = `${i18n.t('oj.review.title')} · ${
+        decision === 'accept' ? i18n.t('oj.review.accept') : i18n.t('oj.review.reject')
+      }`
+      markDirty()
+    }
+
+    /** 批量决策只作用于面板当前的筛选结果：`kind` 由面板带出来，宿主用同一个条件复算。 */
+    function decideVisible(decision: ReviewDecision, kind: ReviewKind | 'all'): void {
+      changes.value = [...decideAll(changes.value, { kind })]
+      markDirty()
+    }
 
     const source = {
       get: (id: string) => registry.get(id),
@@ -219,6 +374,18 @@ const Demo = defineComponent({
       if (result.ok && id === COMMAND_ORDERED_LIST) doc.value = toggleOrderedList(doc.value)
       if (result.ok && id === COMMAND_CODE_BLOCK) doc.value = toggleCodeBlock(doc.value)
       if (result.ok && (id === COMMAND_TABLE || id === COMMAND_HORIZONTAL_RULE)) gridOpen.value = false
+      // 值型命令：宿主执行成功后把归一化过的值写回镜像。
+      // 读回归一化结果（而不是直接读 arg）才能证明命令层真的校验过——非法值在这里是 `error`，不写回。
+      if (result.ok && id === COMMAND_FONT_FAMILY) fontFamily.value = String(arg)
+      if (result.ok && id === COMMAND_FONT_SIZE) fontSize.value = Number(arg)
+      if (result.ok && id === COMMAND_TEXT_COLOR) textColor.value = String(arg)
+      if (result.ok && id === COMMAND_BORDER) {
+        border.value = normalizeBorder(arg === 'none' ? { style: 'none' } : (arg as Partial<BorderValue>))
+      }
+      if (result.ok && id === COMMAND_LINE_SPACING) lineSpacing.value = Number(arg)
+      if (result.ok && id === COMMAND_ALIGN) alignment.value = normalizeAlignment(arg as Partial<AlignmentValue>)
+      // 任何一条命令成功都算一次编辑：标题栏的保存态跟着走，用户能看见"改完会落盘"
+      if (result.ok) markDirty()
     }
 
     function confirmTable(): void {
@@ -247,6 +414,126 @@ const Demo = defineComponent({
     }
 
     /** 不给宽度：`OjRibbonGroup` 自己逐档量，量完再决定降级还是溢出 */
+    /**
+     * 一个格式下拉：触发器显示当前值，面板里是选择器。
+     *
+     * 六个面板共用 `formatOpen`，因为"同一时刻只开一个"必须由同一个真值表达：
+     * 各自管 `open` 的话，点第二个面板时第一个不会关，两个浮层会叠在一起。
+     */
+    function formatMenu(id: string, triggerId: string, trigger: string, panel: () => ReturnType<typeof h>) {
+      return h(
+        OjDropdown,
+        {
+          open: formatOpen.value === id,
+          'onUpdate:open': (next: boolean) => {
+            formatOpen.value = next ? id : ''
+          },
+        },
+        {
+          trigger: () =>
+            h('button', { type: 'button', class: 'oj-button', 'data-size': 'mini', id: triggerId }, trigger),
+          default: panel,
+        },
+      )
+    }
+
+    /**
+     * 格式组：六个选择器 → 六条值型命令（M2「格式相关命令端到端」的那条链）。
+     *
+     * 选择器只负责产出**值**，写成文档的是命令；`run()` 成功后才把值写回镜像。
+     * 这条顺序不能反——先写界面再跑命令，命令失败时界面会撒谎。
+     */
+    function formatGroup() {
+      const close = (): void => {
+        formatOpen.value = ''
+      }
+      const font = findFont(FONT_OPTIONS, fontFamily.value)
+      const borderStyleLabels = {
+        none: i18n.t('oj.border.style.none'),
+        solid: i18n.t('oj.border.style.solid'),
+        dashed: i18n.t('oj.border.style.dashed'),
+        dotted: i18n.t('oj.border.style.dotted'),
+        double: i18n.t('oj.border.style.double'),
+      }
+      const alignLabels = {
+        left: i18n.t('oj.align.left'),
+        center: i18n.t('oj.align.center'),
+        right: i18n.t('oj.align.right'),
+        justify: i18n.t('oj.align.justify'),
+        top: i18n.t('oj.align.top'),
+        middle: i18n.t('oj.align.middle'),
+        bottom: i18n.t('oj.align.bottom'),
+      }
+
+      return h('div', { class: 'oj-format', role: 'group', 'aria-label': i18n.t('oj.command.fontFamily') }, [
+        formatMenu(COMMAND_FONT_FAMILY, 'format-font', font?.label ?? fontFamily.value, () =>
+          h(OjFontPicker, {
+            modelValue: fontFamily.value,
+            label: i18n.t('oj.command.fontFamily'),
+            placeholder: i18n.t('oj.common.inputPlaceholder'),
+            'onUpdate:modelValue': (next: string) => {
+              close()
+              void run(COMMAND_FONT_FAMILY, next)
+            },
+          }),
+        ),
+        // 字号常驻在功能区上直接可编辑（Office 的行为），不进下拉
+        h(OjFontSizeField, {
+          modelValue: fontSize.value,
+          label: i18n.t('oj.command.fontSize'),
+          decreaseLabel: i18n.t('oj.common.decrease'),
+          increaseLabel: i18n.t('oj.common.increase'),
+          'onUpdate:modelValue': (next: number) => {
+            void run(COMMAND_FONT_SIZE, next)
+          },
+        }),
+        formatMenu(COMMAND_TEXT_COLOR, 'format-color', i18n.t('oj.command.textColor'), () =>
+          h(OjColorPicker, {
+            modelValue: textColor.value,
+            label: i18n.t('oj.command.textColor'),
+            customLabel: i18n.t('oj.colorPicker.custom'),
+            'onUpdate:modelValue': (next: string) => {
+              close()
+              void run(COMMAND_TEXT_COLOR, next)
+            },
+          }),
+        ),
+        formatMenu(COMMAND_BORDER, 'format-border', i18n.t('oj.command.border'), () =>
+          h(OjBorderPicker, {
+            modelValue: border.value,
+            label: i18n.t('oj.command.border'),
+            widthLabel: i18n.t('oj.border.width'),
+            colorLabel: i18n.t('oj.border.color'),
+            styleLabels: borderStyleLabels,
+            'onUpdate:modelValue': (next: Partial<BorderValue>) => {
+              void run(COMMAND_BORDER, next)
+            },
+          }),
+        ),
+        formatMenu(COMMAND_LINE_SPACING, 'format-spacing', i18n.t('oj.command.lineSpacing'), () =>
+          h(OjLineSpacingPicker, {
+            modelValue: lineSpacing.value,
+            label: i18n.t('oj.command.lineSpacing'),
+            'onUpdate:modelValue': (next: number) => {
+              close()
+              void run(COMMAND_LINE_SPACING, next)
+            },
+          }),
+        ),
+        formatMenu(COMMAND_ALIGN, 'format-align', i18n.t('oj.command.align'), () =>
+          h(OjAlignmentPicker, {
+            modelValue: alignment.value,
+            label: i18n.t('oj.command.align'),
+            itemLabels: alignLabels,
+            'onUpdate:modelValue': (next: Partial<AlignmentValue>) => {
+              close()
+              void run(COMMAND_ALIGN, next)
+            },
+          }),
+        ),
+      ])
+    }
+
     function ribbonGroup(ids: string[], size: 'large' | 'medium' = 'large') {
       return h(
         OjRibbonGroup,
@@ -273,7 +560,45 @@ const Demo = defineComponent({
 
       return h('div', { class: 'oj-shell' }, [
         h('header', { class: 'oj-shell__bar' }, [
-          h('h1', { class: 'oj-shell__title', id: 'doc-title' }, selected?.name ?? i18n.t('oj.shell.paper.untitled')),
+          h(
+            'h1',
+            { class: 'oj-shell__title', id: 'doc-title' },
+            h(OjFileNameHeader, {
+              name: docName.value,
+              state: saveState.value,
+              stateLabel: saveLabels()[saveState.value],
+              renameLabel: i18n.t('oj.fileName.rename'),
+              favoriteLabel: i18n.t('oj.fileName.favorite'),
+              favored: favored.value,
+              problemLabels: {
+                empty: i18n.t('oj.fileName.empty'),
+                illegal: i18n.t('oj.fileName.illegal'),
+                reserved: i18n.t('oj.fileName.reserved'),
+              },
+              onRename: (next: string) => {
+                docName.value = next
+                markDirty()
+              },
+              'onUpdate:favored': (next: boolean) => {
+                favored.value = next
+              },
+            }),
+          ),
+          h('span', { class: 'oj-shell__file' }, selected?.name ?? i18n.t('oj.shell.paper.untitled')),
+          h(OjPresenceAvatars, {
+            people: PEOPLE,
+            // 5 人、4 格：留一格给"还有 2 人"，点它能展开完整名单（这里用状态栏回显占位）
+            max: 4,
+            label: i18n.t('oj.presence.label'),
+            overflowLabel: i18n.t('oj.presence.more', { n: PEOPLE.length - 3 }),
+            overflowTitle: i18n.t('oj.presence.overflowTitle'),
+            onSelect: (id: string) => {
+              status.value = id
+            },
+            onOverflow: () => {
+              status.value = i18n.t('oj.presence.overflowTitle')
+            },
+          }),
         ]),
         h(OjRibbon, {
           items: ribbonTabs(),
@@ -285,6 +610,7 @@ const Demo = defineComponent({
           default: () => h('div', { class: 'oj-shell__toolbar', id: 'toolbar' }, [
           tab.value === 'start'
             ? [
+                formatGroup(),
                 ribbonGroup([COMMAND_BOLD, COMMAND_ITALIC, COMMAND_UNDERLINE]),
                 ribbonGroup([COMMAND_ALIGN_LEFT, COMMAND_HEADING, COMMAND_BLOCKQUOTE], 'medium'),
                 ribbonGroup([COMMAND_BULLET_LIST, COMMAND_ORDERED_LIST, COMMAND_CODE_BLOCK], 'medium'),
@@ -465,7 +791,20 @@ const Demo = defineComponent({
                 {
                   class: 'oj-paper',
                   id: 'paper',
-                  style: { width: `${width}px`, minHeight: `${paperHeight}px` },
+                  /**
+                   * 文档区把六条格式命令的结果**画出来**，否则"命令跑成功了"只有一行日志可看。
+                   * 边框走 `borderCss()`，与 `OjBorderPicker` 的预览同一个函数——两套字符串迟早不一致。
+                   */
+                  style: {
+                    width: `${width}px`,
+                    minHeight: `${paperHeight}px`,
+                    fontFamily: findFont(FONT_OPTIONS, fontFamily.value)?.stack,
+                    fontSize: `${fontSize.value}px`,
+                    color: textColor.value,
+                    lineHeight: String(lineSpacing.value),
+                    border: borderCss(border.value),
+                    textAlign: alignment.value.horizontal,
+                  },
                   // canvas 式用法：锚点只有坐标，没有元素（`OjContextMenu` 的 `x/y` 就是 clientX/clientY）
                   onContextmenu: (event: MouseEvent) => {
                     event.preventDefault()
@@ -483,16 +822,62 @@ const Demo = defineComponent({
               ),
             ]),
           ]),
-          h(OjAiPanel, {
-            title: i18n.t('oj.shell.ai.title'),
-            placeholder: i18n.t('oj.shell.ai.placeholder'),
-            sendLabel: i18n.t('oj.shell.ai.send'),
-            notice: i18n.t('oj.shell.ai.notice'),
-            messages: messages.value,
-            onSubmit: (text: string) => {
-              messages.value = [...messages.value, { role: 'user', text }]
-            },
-          }),
+          h('aside', { class: 'oj-side' }, [
+            h(OjTabs, {
+              items: [
+                { id: 'ai', label: i18n.t('oj.shell.ai.title') },
+                { id: 'review', label: i18n.t('oj.shell.review.title') },
+              ],
+              modelValue: sidePane.value,
+              'onUpdate:modelValue': (next: string) => {
+                sidePane.value = next === 'review' ? 'review' : 'ai'
+              },
+            }),
+            sidePane.value === 'ai'
+              ? h(OjAiPanel, {
+                  title: i18n.t('oj.shell.ai.title'),
+                  placeholder: i18n.t('oj.shell.ai.placeholder'),
+                  sendLabel: i18n.t('oj.shell.ai.send'),
+                  notice: i18n.t('oj.shell.ai.notice'),
+                  messages: messages.value,
+                  onSubmit: (text: string) => {
+                    messages.value = [...messages.value, { role: 'user', text }]
+                  },
+                })
+              : h('div', { class: 'oj-review-pane' }, [
+                  h(OjReviewPanel, {
+                    changes: changes.value,
+                    label: i18n.t('oj.review.title'),
+                    acceptLabel: i18n.t('oj.review.accept'),
+                    rejectLabel: i18n.t('oj.review.reject'),
+                    acceptAllLabel: i18n.t('oj.review.acceptAll'),
+                    rejectAllLabel: i18n.t('oj.review.rejectAll'),
+                    emptyLabel: i18n.t('oj.review.empty'),
+                    allKindsLabel: i18n.t('oj.review.allKinds'),
+                    kindLabels: kindLabels(),
+                    formatTime,
+                    onDecide: decideOne,
+                    'onDecide-all': decideVisible,
+                  }),
+                  ...threads.value.map((thread) =>
+                    h(OjCommentThread, {
+                      key: thread.id,
+                      thread,
+                      formatTime,
+                      resolveLabel: i18n.t('oj.comment.resolve'),
+                      reopenLabel: i18n.t('oj.comment.reopen'),
+                      replyLabel: i18n.t('oj.comment.reply'),
+                      replyPlaceholder: i18n.t('oj.comment.replyPlaceholder'),
+                      onReply: (text: string) => {
+                        replyTo(thread.id, text)
+                      },
+                      'onToggle-resolved': (resolved: boolean) => {
+                        toggleThreadResolved(thread.id, resolved)
+                      },
+                    }),
+                  ),
+                ]),
+          ]),
         ]),
         h('footer', { class: 'oj-shell__footer' }, [
           h('span', { class: 'oj-status', id: 'status' }, status.value),

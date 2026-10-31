@@ -14,6 +14,19 @@ export declare const COMMAND_BLOCKQUOTE = "format.blockquote";
 export declare const COMMAND_BULLET_LIST = "format.bulletList";
 export declare const COMMAND_ORDERED_LIST = "format.orderedList";
 export declare const COMMAND_CODE_BLOCK = "format.codeBlock";
+/**
+ * 值型格式命令（M2 选择器集群的出口）。
+ *
+ * 与上面几条**布尔**命令的区别不是"有没有参数"，而是 `state()` 里报什么：
+ * 布尔命令报 `active`，值型命令报 `value`。控件（字号框、色板、边框面板）读 `value` 决定高亮，
+ * 读 `active` 会把"字号 16"读成"被选中"，于是控件自己也不知道该显示什么。
+ */
+export declare const COMMAND_FONT_FAMILY = "format.fontFamily";
+export declare const COMMAND_FONT_SIZE = "format.fontSize";
+export declare const COMMAND_TEXT_COLOR = "format.textColor";
+export declare const COMMAND_BORDER = "format.border";
+export declare const COMMAND_LINE_SPACING = "format.lineSpacing";
+export declare const COMMAND_ALIGN = "format.align";
 export declare const COMMAND_HARD_BREAK = "insert.hardBreak";
 export declare const COMMAND_HORIZONTAL_RULE = "insert.horizontalRule";
 export declare const COMMAND_TABLE = "insert.table";

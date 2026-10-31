@@ -27,7 +27,9 @@
 				no: "否",
 				inputPlaceholder: "請輸入",
 				selectPlaceholder: "請選擇",
-				language: "語言"
+				language: "語言",
+				decrease: "減少",
+				increase: "增加"
 			},
 			tableGridPicker: {
 				label: "表格",
@@ -81,7 +83,33 @@
 				codeBlock: "程式碼區塊",
 				hardBreak: "換行",
 				horizontalRule: "分隔線",
-				insertTable: "插入表格"
+				insertTable: "插入表格",
+				fontFamily: "字型",
+				fontSize: "字號",
+				textColor: "字型顏色",
+				border: "框線",
+				lineSpacing: "行距",
+				align: "對齊"
+			},
+			border: {
+				width: "粗細",
+				color: "顏色",
+				style: {
+					none: "無",
+					solid: "實線",
+					dashed: "虛線",
+					dotted: "點線",
+					double: "雙線"
+				}
+			},
+			align: {
+				left: "靠左對齊",
+				center: "置中",
+				right: "靠右對齊",
+				justify: "左右對齊",
+				top: "靠上對齊",
+				middle: "垂直置中",
+				bottom: "靠下對齊"
 			},
 			shell: {
 				tabs: {

@@ -21,6 +21,16 @@ const require_tooltip = require("./tooltip.cjs");
 const require_ribbon_tab = require("./ribbon-tab.cjs");
 const require_ribbon = require("./ribbon.cjs");
 const require_table_grid_picker = require("./table-grid-picker.cjs");
+const require_number_field = require("./number-field.cjs");
+const require_alignment_picker = require("./alignment-picker.cjs");
+const require_border_picker = require("./border-picker.cjs");
+const require_gallery = require("./gallery.cjs");
+const require_style_gallery = require("./style-gallery.cjs");
+const require_color_picker = require("./color-picker.cjs");
+const require_font_picker = require("./font-picker.cjs");
+const require_symbol_picker = require("./symbol-picker.cjs");
+const require_font_size_field = require("./font-size-field.cjs");
+const require_line_spacing_picker = require("./line-spacing-picker.cjs");
 const require_tabs = require("./tabs.cjs");
 const require_dialog = require("./dialog.cjs");
 const require_search_bar = require("./search-bar.cjs");
@@ -46,7 +56,12 @@ const require_code_block = require("./code-block.cjs");
 */
 var OJ_COMPONENTS = {
 	"oj-ai-panel": require_ai_panel.OjAiPanel,
+	"oj-alignment-picker": require_alignment_picker.OjAlignmentPicker,
+	"oj-border-picker": require_border_picker.OjBorderPicker,
+	"oj-gallery": require_gallery.OjGallery,
+	"oj-style-gallery": require_style_gallery.OjStyleGallery,
 	"oj-code-block": require_code_block.OjCodeBlock,
+	"oj-color-picker": require_color_picker.OjColorPicker,
 	"oj-command-button": require_command_button.OjCommandButton,
 	"oj-command-launcher": require_command_launcher.OjCommandLauncher,
 	"oj-command-palette": require_command_palette.OjCommandPalette,
@@ -55,6 +70,10 @@ var OJ_COMPONENTS = {
 	"oj-dropdown": require_dropdown.OjDropdown,
 	"oj-dropdown-button": require_dropdown_button.OjDropdownButton,
 	"oj-file-tree": require_file_tree.OjFileTree,
+	"oj-font-picker": require_font_picker.OjFontPicker,
+	"oj-font-size-field": require_font_size_field.OjFontSizeField,
+	"oj-line-spacing-picker": require_line_spacing_picker.OjLineSpacingPicker,
+	"oj-number-field": require_number_field.OjNumberField,
 	"oj-hotkey": require_hotkey.OjHotkey,
 	"oj-icon": require_icon.OjIcon,
 	"oj-locale-provider": require_locale.OjLocaleProvider,
@@ -70,6 +89,7 @@ var OJ_COMPONENTS = {
 	"oj-signature-pad": require_signature_pad.OjSignaturePad,
 	"oj-split-button": require_split_button.OjSplitButton,
 	"oj-stamp": require_stamp.OjStamp,
+	"oj-symbol-picker": require_symbol_picker.OjSymbolPicker,
 	"oj-status-bar": require_status_bar.OjStatusBar,
 	"oj-table-grid-picker": require_table_grid_picker.OjTableGridPicker,
 	"oj-tabs": require_tabs.OjTabs,

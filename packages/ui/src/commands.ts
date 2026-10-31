@@ -6,6 +6,14 @@
  */
 
 import type { OjEditorHost, OjEditorState } from './editor-host.ts'
+import {
+  alignArg,
+  borderArg,
+  fontFamilyArg,
+  fontSizeArg,
+  lineSpacingArg,
+  textColorArg,
+} from './format.ts'
 
 export const COMMAND_BOLD = 'format.bold'
 export const COMMAND_ITALIC = 'format.italic'
@@ -16,6 +24,19 @@ export const COMMAND_BLOCKQUOTE = 'format.blockquote'
 export const COMMAND_BULLET_LIST = 'format.bulletList'
 export const COMMAND_ORDERED_LIST = 'format.orderedList'
 export const COMMAND_CODE_BLOCK = 'format.codeBlock'
+/**
+ * 值型格式命令（M2 选择器集群的出口）。
+ *
+ * 与上面几条**布尔**命令的区别不是"有没有参数"，而是 `state()` 里报什么：
+ * 布尔命令报 `active`，值型命令报 `value`。控件（字号框、色板、边框面板）读 `value` 决定高亮，
+ * 读 `active` 会把"字号 16"读成"被选中"，于是控件自己也不知道该显示什么。
+ */
+export const COMMAND_FONT_FAMILY = 'format.fontFamily'
+export const COMMAND_FONT_SIZE = 'format.fontSize'
+export const COMMAND_TEXT_COLOR = 'format.textColor'
+export const COMMAND_BORDER = 'format.border'
+export const COMMAND_LINE_SPACING = 'format.lineSpacing'
+export const COMMAND_ALIGN = 'format.align'
 export const COMMAND_HARD_BREAK = 'insert.hardBreak'
 export const COMMAND_HORIZONTAL_RULE = 'insert.horizontalRule'
 export const COMMAND_TABLE = 'insert.table'
@@ -69,11 +90,41 @@ function toggleCommand(id: string, labelKey: string, icon: string, keys?: string
   return command
 }
 
+/**
+ * 值型命令：`run` 先把实参归一化，再把**归一化后的原始值**交给宿主。
+ *
+ * 传原始值而不是结构体，是为了让 `state().value` 能原样读回来（见 `format.ts` 的不变式）。
+ * 归一化放在 `run` 里而不是 `state` 里：只有真正执行时才知道实参合不合法，
+ * 而 `state()` 每帧都可能被调，不该带抛错的可能。
+ */
+function valueCommand(
+  id: string,
+  labelKey: string,
+  normalize: (arg: unknown) => string | number,
+): OjCommandLike {
+  return {
+    id,
+    label: { key: labelKey },
+    group: '开始',
+    history: 'undoable',
+    state: (host) => host.state(id),
+    run: (host, arg) => {
+      host.exec(id, normalize(arg))
+    },
+  }
+}
+
 export function editorCommands(): readonly OjCommandLike[] {
   return [
     toggleCommand(COMMAND_BOLD, 'oj.command.bold', 'oj-format-bold', 'mod+b'),
     toggleCommand(COMMAND_ITALIC, 'oj.command.italic', 'oj-format-italic', 'mod+i'),
     toggleCommand(COMMAND_UNDERLINE, 'oj.command.underline', 'oj-format-underline', 'mod+u'),
+    valueCommand(COMMAND_FONT_FAMILY, 'oj.command.fontFamily', fontFamilyArg),
+    valueCommand(COMMAND_FONT_SIZE, 'oj.command.fontSize', fontSizeArg),
+    valueCommand(COMMAND_TEXT_COLOR, 'oj.command.textColor', textColorArg),
+    valueCommand(COMMAND_BORDER, 'oj.command.border', borderArg),
+    valueCommand(COMMAND_LINE_SPACING, 'oj.command.lineSpacing', lineSpacingArg),
+    valueCommand(COMMAND_ALIGN, 'oj.command.align', alignArg),
     toggleCommand(COMMAND_ALIGN_LEFT, 'oj.command.alignLeft', 'oj-align-left'),
     {
       id: COMMAND_HEADING,

@@ -1,6 +1,6 @@
 /**
  * @jitoffice/i18n — 由 packages/i18n/scripts/gen-keys.ts 生成，请勿手改。
- * 源：packages/i18n/src/locales/*.ts（87 个 key · 4 种语言）。
+ * 源：packages/i18n/src/locales/*.ts（135 个 key · 4 种语言）。
  */
 
 import type { OjMessageValue } from '../types.ts'
@@ -18,6 +18,8 @@ export type IntlKey =
   | 'oj.common.inputPlaceholder'
   | 'oj.common.selectPlaceholder'
   | 'oj.common.language'
+  | 'oj.common.decrease'
+  | 'oj.common.increase'
   | 'oj.tableGridPicker.label'
   | 'oj.tableGridPicker.size'
   | 'oj.tableGridPicker.insertDialog'
@@ -60,6 +62,51 @@ export type IntlKey =
   | 'oj.command.hardBreak'
   | 'oj.command.horizontalRule'
   | 'oj.command.insertTable'
+  | 'oj.command.fontFamily'
+  | 'oj.command.fontSize'
+  | 'oj.command.textColor'
+  | 'oj.command.border'
+  | 'oj.command.lineSpacing'
+  | 'oj.command.align'
+  | 'oj.border.width'
+  | 'oj.border.color'
+  | 'oj.border.style.none'
+  | 'oj.border.style.solid'
+  | 'oj.border.style.dashed'
+  | 'oj.border.style.dotted'
+  | 'oj.border.style.double'
+  | 'oj.align.left'
+  | 'oj.align.center'
+  | 'oj.align.right'
+  | 'oj.align.justify'
+  | 'oj.align.top'
+  | 'oj.align.middle'
+  | 'oj.align.bottom'
+  | 'oj.comment.reply'
+  | 'oj.comment.resolve'
+  | 'oj.comment.reopen'
+  | 'oj.comment.replyPlaceholder'
+  | 'oj.review.title'
+  | 'oj.review.accept'
+  | 'oj.review.reject'
+  | 'oj.review.acceptAll'
+  | 'oj.review.rejectAll'
+  | 'oj.review.empty'
+  | 'oj.review.allKinds'
+  | 'oj.review.kind.insert'
+  | 'oj.review.kind.delete'
+  | 'oj.review.kind.format'
+  | 'oj.presence.label'
+  | 'oj.presence.more'
+  | 'oj.presence.overflowTitle'
+  | 'oj.fileName.saved'
+  | 'oj.fileName.saving'
+  | 'oj.fileName.unsaved'
+  | 'oj.fileName.rename'
+  | 'oj.fileName.favorite'
+  | 'oj.fileName.empty'
+  | 'oj.fileName.illegal'
+  | 'oj.fileName.reserved'
   | 'oj.shell.tabs.start'
   | 'oj.shell.tabs.insert'
   | 'oj.shell.tabs.view'
@@ -93,6 +140,7 @@ export type IntlKey =
   | 'oj.shell.stamp.open'
   | 'oj.shell.status.kernel'
   | 'oj.shell.insert.image'
+  | 'oj.shell.review.title'
 
 /** 有占位符的 key 才出现在这张表里；没有占位符的 key 走 `Record<string, never>`，传任何值都报错。 */
 export interface IntlValues {
@@ -115,6 +163,9 @@ export interface IntlValues {
   }
   'oj.validation.maxLength': {
     max: number
+  }
+  'oj.presence.more': {
+    n: OjMessageValue
   }
   'oj.shell.search.count': {
     current: OjMessageValue

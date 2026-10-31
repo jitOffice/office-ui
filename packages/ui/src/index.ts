@@ -10,21 +10,36 @@ export type { EditorCall, MemoryEditor, OjEditorHost, OjEditorState } from './ed
 export { bridgedCommandIds, tiptapEditorHost } from './tiptap-host.ts'
 export type { TiptapLikeEditor } from './tiptap-host.ts'
 export {
+  COMMAND_ALIGN,
   COMMAND_BLOCKQUOTE,
   COMMAND_BOLD,
+  COMMAND_BORDER,
   COMMAND_BULLET_LIST,
   COMMAND_CODE_BLOCK,
+  COMMAND_FONT_FAMILY,
+  COMMAND_FONT_SIZE,
   COMMAND_HARD_BREAK,
   COMMAND_HEADING,
   COMMAND_HORIZONTAL_RULE,
+  COMMAND_LINE_SPACING,
   COMMAND_ORDERED_LIST,
   COMMAND_TABLE,
+  COMMAND_TEXT_COLOR,
   editorCommands,
   isHeadingLevel,
   isTableSize,
   registerEditorCommands,
 } from './commands.ts'
 export type { OjCommandLike, OjCommandSink, TableSize } from './commands.ts'
+export {
+  alignArg,
+  borderArg,
+  fontFamilyArg,
+  fontSizeArg,
+  lineSpacingArg,
+  parseAlignValue,
+  textColorArg,
+} from './format.ts'
 export { createGridPicker, DEFAULT_GRID_LIMITS } from './table-grid.ts'
 export type { GridCell, GridKeyResult, GridLimits, GridPicker } from './table-grid.ts'
 export { placePopper } from './popper.ts'
@@ -84,6 +99,65 @@ export {
   unregisterIcon,
 } from './icon-registry.ts'
 export type { IconMarkup } from './icon-registry.ts'
+export {
+  DEFAULT_ALIGNMENT,
+  HORIZONTAL_ALIGNS,
+  VERTICAL_ALIGNS,
+  isAlignmentValue,
+  normalizeAlignment,
+  stepHorizontal,
+  stepVertical,
+  textAlignCss,
+  verticalAlignCss,
+} from './shell/alignment.ts'
+export type { AlignmentValue, HorizontalAlign, VerticalAlign } from './shell/alignment.ts'
+export {
+  BORDER_COLORS,
+  BORDER_STYLES,
+  BORDER_WIDTHS,
+  BORDER_WIDTH_RANGE,
+  DEFAULT_BORDER,
+  borderCss,
+  formatBorderWidth,
+  normalizeBorder,
+} from './shell/border.ts'
+export type { BorderStyle, BorderValue } from './shell/border.ts'
+export { STYLE_PRESETS, styleLabel, stylePresetCss } from './shell/style-gallery.ts'
+export type { StylePreset } from './shell/style-gallery.ts'
+export type { GalleryItem } from './shell/gallery.ts'
+export { COLOR_SWATCH_GROUPS, isCssColor, neighborSwatch, normalizeHex } from './shell/color.ts'
+export type { ColorSwatchGroup } from './shell/color.ts'
+export { FONT_OPTIONS, filterFonts, findFont, stepFont } from './shell/fonts.ts'
+export type { FontOption } from './shell/fonts.ts'
+export { SYMBOL_GROUPS, filterSymbols, flattenSymbols } from './shell/symbols.ts'
+export type { SymbolGroup, SymbolItem } from './shell/symbols.ts'
+export { clampNumber, parseNumberDraft, roundTo, stepNumber } from './shell/number-field.ts'
+export type { NumberBounds } from './shell/number-field.ts'
+export {
+  FONT_SIZE_PRESETS,
+  FONT_SIZE_RANGE,
+  LINE_SPACING_PRESETS,
+  LINE_SPACING_RANGE,
+  formatFontSize,
+  formatLineSpacing,
+  nearestPreset,
+  stepPreset,
+} from './shell/presets.ts'
+export { AVATAR_TONES, avatarTone, initialsOf, stackPeople } from './shell/people.ts'
+export type { OjPerson, StackedPeople } from './shell/people.ts'
+export { addReply, commentCounts, filterThreads, nextOpenThread, setResolved } from './shell/comments.ts'
+export type { CommentCounts, CommentFilter, CommentReply, CommentThread } from './shell/comments.ts'
+export {
+  REVIEW_KINDS,
+  changeAuthors,
+  decideAll,
+  decideChange,
+  filterChanges,
+  reviewCounts,
+} from './shell/review.ts'
+export type { ReviewChange, ReviewCounts, ReviewDecision, ReviewFilter, ReviewKind } from './shell/review.ts'
+export { fileNameProblem, isDirty, renameFile } from './shell/file-name.ts'
+export type { FileNameProblem, RenameFail, RenameOk, SaveState } from './shell/file-name.ts'
 export { selectByKey } from './shell/tabs.ts'
 export { neighbor, replaceAll, replaceOne, searchHits } from './shell/search.ts'
 export type { SearchHit, SearchQuery } from './shell/search.ts'

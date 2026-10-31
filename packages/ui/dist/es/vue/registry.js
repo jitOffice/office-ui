@@ -21,6 +21,16 @@ import { OjTooltip } from "./tooltip.js";
 import { OjRibbonTab } from "./ribbon-tab.js";
 import { OjRibbon } from "./ribbon.js";
 import { OjTableGridPicker } from "./table-grid-picker.js";
+import { OjNumberField } from "./number-field.js";
+import { OjAlignmentPicker } from "./alignment-picker.js";
+import { OjBorderPicker } from "./border-picker.js";
+import { OjGallery } from "./gallery.js";
+import { OjStyleGallery } from "./style-gallery.js";
+import { OjColorPicker } from "./color-picker.js";
+import { OjFontPicker } from "./font-picker.js";
+import { OjSymbolPicker } from "./symbol-picker.js";
+import { OjFontSizeField } from "./font-size-field.js";
+import { OjLineSpacingPicker } from "./line-spacing-picker.js";
 import { OjTabs } from "./tabs.js";
 import { OjDialog } from "./dialog.js";
 import { OjSearchReplaceBar } from "./search-bar.js";
@@ -46,7 +56,12 @@ import { OjCodeBlock } from "./code-block.js";
 */
 var OJ_COMPONENTS = {
 	"oj-ai-panel": OjAiPanel,
+	"oj-alignment-picker": OjAlignmentPicker,
+	"oj-border-picker": OjBorderPicker,
+	"oj-gallery": OjGallery,
+	"oj-style-gallery": OjStyleGallery,
 	"oj-code-block": OjCodeBlock,
+	"oj-color-picker": OjColorPicker,
 	"oj-command-button": OjCommandButton,
 	"oj-command-launcher": OjCommandLauncher,
 	"oj-command-palette": OjCommandPalette,
@@ -55,6 +70,10 @@ var OJ_COMPONENTS = {
 	"oj-dropdown": OjDropdown,
 	"oj-dropdown-button": OjDropdownButton,
 	"oj-file-tree": OjFileTree,
+	"oj-font-picker": OjFontPicker,
+	"oj-font-size-field": OjFontSizeField,
+	"oj-line-spacing-picker": OjLineSpacingPicker,
+	"oj-number-field": OjNumberField,
 	"oj-hotkey": OjHotkey,
 	"oj-icon": OjIcon,
 	"oj-locale-provider": OjLocaleProvider,
@@ -70,6 +89,7 @@ var OJ_COMPONENTS = {
 	"oj-signature-pad": OjSignaturePad,
 	"oj-split-button": OjSplitButton,
 	"oj-stamp": OjStamp,
+	"oj-symbol-picker": OjSymbolPicker,
 	"oj-status-bar": OjStatusBar,
 	"oj-table-grid-picker": OjTableGridPicker,
 	"oj-tabs": OjTabs,

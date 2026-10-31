@@ -29,7 +29,9 @@ var enUS = {
 			no: "No",
 			inputPlaceholder: "Enter a value",
 			selectPlaceholder: "Select…",
-			language: "Language"
+			language: "Language",
+			decrease: "Decrease",
+			increase: "Increase"
 		},
 		tableGridPicker: {
 			label: "Table",
@@ -83,7 +85,33 @@ var enUS = {
 			codeBlock: "Code block",
 			hardBreak: "Line break",
 			horizontalRule: "Horizontal line",
-			insertTable: "Insert table"
+			insertTable: "Insert table",
+			fontFamily: "Font",
+			fontSize: "Font size",
+			textColor: "Font color",
+			border: "Borders",
+			lineSpacing: "Line spacing",
+			align: "Alignment"
+		},
+		border: {
+			width: "Width",
+			color: "Color",
+			style: {
+				none: "None",
+				solid: "Solid",
+				dashed: "Dashed",
+				dotted: "Dotted",
+				double: "Double"
+			}
+		},
+		align: {
+			left: "Align left",
+			center: "Center",
+			right: "Align right",
+			justify: "Justify",
+			top: "Align top",
+			middle: "Align middle",
+			bottom: "Align bottom"
 		},
 		shell: {
 			tabs: {

@@ -1996,13 +1996,6 @@
 	});
 	//#endregion
 	//#region src/shell/gallery.ts
-	/**
-	* 网格陈列的方向键模型（03 §3 B 组 `OjRibbonGallery`）。
-	*
-	* 单独抽出来是因为"上下左右在网格里怎么走"是最容易写歪的一段：写成按 `columns`
-	* 硬算行列，碰到最后一行不满就会算出不存在的下标；写成纯 `+1/-1`，上下键又变成
-	* 左右键的别名。这里统一按**下标**算，并且永远夹在 `[0, count-1]` 里。
-	*/
 	/** 返回移动后的下标。`columns` 非法（0、负数、NaN）时按 1 列处理，不抛异常。 */
 	function galleryNeighbor(columns, count, index, key) {
 		if (count <= 0) return 0;
@@ -3114,6 +3107,1668 @@
 		}
 	});
 	//#endregion
+	//#region src/shell/number-field.ts
+	function normalizeStep(step) {
+		if (step === void 0 || !Number.isFinite(step) || step <= 0) return 1;
+		return step;
+	}
+	function normalizePrecision(precision) {
+		if (precision === void 0 || !Number.isFinite(precision) || precision <= 0) return 0;
+		return Math.min(Math.floor(precision), 6);
+	}
+	/** 按精度取整。用 `Number(x.toFixed(n))` 而不是 `Math.round(x * 10^n) / 10^n`，后者有浮点尾数。 */
+	function roundTo(value, precision) {
+		const digits = normalizePrecision(precision);
+		if (!Number.isFinite(value)) return 0;
+		return Number(value.toFixed(digits));
+	}
+	/**
+	* 夹进 `[min, max]`。`min > max`（配置写反）时**以 min 为准**：
+	* 宁可显示下限，也不要把 `NaN` 或越界值写回使用方的状态。
+	*/
+	function clampNumber(value, bounds = {}) {
+		const rounded = roundTo(value, bounds.precision);
+		const { min, max } = bounds;
+		if (min !== void 0 && Number.isFinite(min) && rounded < min) return roundTo(min, bounds.precision);
+		if (max !== void 0 && Number.isFinite(max) && rounded > max) return roundTo(max, bounds.precision);
+		return rounded;
+	}
+	/**
+	* 步进一次并夹取。
+	*
+	* 从上限往下减时先减到上限再减 step：值本来就在界外（使用方传了脏数据）时，
+	* 用户点一下减号应该**立刻回到合法区间**，而不是在界外一格一格挪。
+	*/
+	function stepNumber(value, direction, bounds = {}) {
+		return clampNumber(roundTo(clampNumber(value, bounds) + direction * normalizeStep(bounds.step), bounds.precision), bounds);
+	}
+	/**
+	* 解析用户输入。返回 `undefined` 表示"不提交，回退到当前值"。
+	*
+	* 认这些：`12`、` 12 `、`12px`（单位由调用方决定，这里只取数字）、`-3`、`+3`、`1.5`、`1,5`（欧洲键盘）。
+	* 不认：空串、`-`、`12abc`、`1e3`（指数写法在字号/行距里没有意义，放进来只会让人误以为支持）。
+	*/
+	function parseNumberDraft(text) {
+		const trimmed = text.trim().replace(",", ".");
+		if (trimmed.length === 0) return void 0;
+		const match = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:px|pt|%|em|rem|cm|mm|in)?$/i.exec(trimmed);
+		if (match === null) return void 0;
+		const numeric = match[0].replace(/[a-z%]+$/i, "");
+		const value = Number(numeric);
+		return Number.isFinite(value) ? value : void 0;
+	}
+	//#endregion
+	//#region src/vue/number-field.ts
+	/**
+	* `OjNumberField`（03 §3）：无单位/带单位的数值输入。
+	*
+	* 输入过程**不重渲染**：`draft` 刻意是普通变量而不是 `ref`。绑成 `ref` 后每敲一个字符就会
+	* 用 `props.modelValue` 重算 value，光标跳到末尾——这是受控输入最经典的那个坑。
+	* 提交时机只有三个：失焦、回车、步进按钮。
+	*
+	* 步进按钮与方向键都走 `stepNumber`（夹取 + 精度），所以"在 1 上按减号"不会变成 0。
+	*/
+	var OjNumberField = (0, vue.defineComponent)({
+		name: "OjNumberField",
+		props: {
+			modelValue: {
+				type: Number,
+				required: true
+			},
+			min: {
+				type: Number,
+				default: void 0
+			},
+			max: {
+				type: Number,
+				default: void 0
+			},
+			step: {
+				type: Number,
+				default: 1
+			},
+			precision: {
+				type: Number,
+				default: 0
+			},
+			/** 输入框的可访问名。按钮另有自己的标签，不共用。 */
+			label: {
+				type: String,
+				required: true
+			},
+			decreaseLabel: {
+				type: String,
+				required: true
+			},
+			increaseLabel: {
+				type: String,
+				required: true
+			},
+			suffix: {
+				type: String,
+				default: ""
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			let draft = null;
+			const bounds = () => ({
+				min: props.min,
+				max: props.max,
+				step: props.step,
+				precision: props.precision
+			});
+			const current = () => clampNumber(props.modelValue, bounds());
+			const text = () => draft === null ? `${current()}${props.suffix}` : draft;
+			function commit() {
+				if (draft === null) return;
+				const parsed = parseNumberDraft(draft);
+				draft = null;
+				if (parsed === void 0) return;
+				emit("update:modelValue", clampNumber(parsed, bounds()));
+			}
+			function bump(direction) {
+				draft = null;
+				const next = stepNumber(props.modelValue, direction, bounds());
+				if (next === current()) return;
+				emit("update:modelValue", next);
+			}
+			return () => (0, vue.h)("div", {
+				class: "oj-number-field",
+				"data-disabled": props.disabled ? "" : void 0
+			}, [
+				(0, vue.h)("button", {
+					type: "button",
+					class: "oj-button",
+					"data-size": "mini",
+					"aria-label": props.decreaseLabel,
+					disabled: props.disabled,
+					onClick: () => bump(-1)
+				}, "−"),
+				(0, vue.h)("input", {
+					class: "oj-number-field__input",
+					type: "text",
+					role: "spinbutton",
+					inputmode: "decimal",
+					"aria-label": props.label,
+					"aria-valuenow": current(),
+					"aria-valuemin": props.min,
+					"aria-valuemax": props.max,
+					"aria-disabled": props.disabled ? "true" : void 0,
+					disabled: props.disabled,
+					value: text(),
+					onInput: (event) => {
+						draft = event.target.value;
+					},
+					onBlur: () => commit(),
+					onKeydown: (event) => {
+						if (event.key === "Enter") {
+							event.preventDefault();
+							commit();
+							return;
+						}
+						if (event.key === "ArrowUp") {
+							event.preventDefault();
+							bump(1);
+							return;
+						}
+						if (event.key === "ArrowDown") {
+							event.preventDefault();
+							bump(-1);
+							return;
+						}
+						if (event.key === "Escape") {
+							draft = null;
+							event.target.value = text();
+						}
+					}
+				}),
+				(0, vue.h)("button", {
+					type: "button",
+					class: "oj-button",
+					"data-size": "mini",
+					"aria-label": props.increaseLabel,
+					disabled: props.disabled,
+					onClick: () => bump(1)
+				}, "+")
+			]);
+		}
+	});
+	//#endregion
+	//#region src/shell/alignment.ts
+	var HORIZONTAL_ALIGNS = [
+		"left",
+		"center",
+		"right",
+		"justify"
+	];
+	var VERTICAL_ALIGNS = [
+		"top",
+		"middle",
+		"bottom"
+	];
+	/** 默认值：左对齐 + 顶端对齐，与 Office 新建文档一致。 */
+	var DEFAULT_ALIGNMENT = {
+		horizontal: "left",
+		vertical: "top"
+	};
+	function isHorizontal(value) {
+		return typeof value === "string" && HORIZONTAL_ALIGNS.includes(value);
+	}
+	function isVertical(value) {
+		return typeof value === "string" && VERTICAL_ALIGNS.includes(value);
+	}
+	/**
+	* 归一化：任一方向不合法就回退到默认值，而不是保留半边。
+	* 半边合法会让界面出现"水平高亮在右、垂直一个都没高亮"的状态。
+	*/
+	function normalizeAlignment(value) {
+		if (value === void 0) return DEFAULT_ALIGNMENT;
+		return {
+			horizontal: isHorizontal(value.horizontal) ? value.horizontal : DEFAULT_ALIGNMENT.horizontal,
+			vertical: isVertical(value.vertical) ? value.vertical : DEFAULT_ALIGNMENT.vertical
+		};
+	}
+	/** 在水平方向循环（方向键左右用）。两端不环绕：环绕会让"按到底"变成"回到另一头"。 */
+	function stepHorizontal(value, direction) {
+		const next = HORIZONTAL_ALIGNS[HORIZONTAL_ALIGNS.indexOf(value) + direction];
+		return next !== null && next !== void 0 ? next : value;
+	}
+	function stepVertical(value, direction) {
+		const next = VERTICAL_ALIGNS[VERTICAL_ALIGNS.indexOf(value) + direction];
+		return next !== null && next !== void 0 ? next : value;
+	}
+	/** 预览用的 CSS `text-align`。`justify` 原样透出，浏览器认它。 */
+	function textAlignCss(horizontal) {
+		return horizontal === "justify" ? "justify" : horizontal;
+	}
+	/** 预览用的 CSS `vertical-align`：`middle` 在表格单元格里要写成 `middle`，不是 `center`。 */
+	function verticalAlignCss(vertical) {
+		return vertical === "middle" ? "middle" : vertical;
+	}
+	//#endregion
+	//#region src/vue/alignment-picker.ts
+	/**
+	* `OjAlignmentPicker`（03 §3 / M2）。
+	*
+	* 两组按钮而不是一个 3×3 网格：Office 的水平与垂直对齐是两个独立命令，
+	* 合成九宫格后"两端对齐 + 垂直居中"就没有位置可点了（9 格只表示"两端对齐除外"的组合）。
+	*
+	* 图标用内联 SVG 而不是字体图标（00 §4 红线 2）：线条全部 `currentColor`，
+	* 颜色跟着按钮状态走，不需要额外维护一套图标字体。
+	*/
+	var HORIZONTAL_GLYPHS = {
+		left: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"1.5\"/><rect x=\"2\" y=\"7.25\" width=\"8\" height=\"1.5\"/><rect x=\"2\" y=\"11.5\" width=\"12\" height=\"1.5\"/></svg>",
+		center: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"1.5\"/><rect x=\"4\" y=\"7.25\" width=\"8\" height=\"1.5\"/><rect x=\"2\" y=\"11.5\" width=\"12\" height=\"1.5\"/></svg>",
+		right: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"1.5\"/><rect x=\"6\" y=\"7.25\" width=\"8\" height=\"1.5\"/><rect x=\"2\" y=\"11.5\" width=\"12\" height=\"1.5\"/></svg>",
+		justify: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"3\" width=\"12\" height=\"1.5\"/><rect x=\"2\" y=\"7.25\" width=\"12\" height=\"1.5\"/><rect x=\"2\" y=\"11.5\" width=\"12\" height=\"1.5\"/></svg>"
+	};
+	var VERTICAL_GLYPHS = {
+		top: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"2\" width=\"12\" height=\"1.5\"/><rect x=\"5\" y=\"5\" width=\"6\" height=\"9\"/></svg>",
+		middle: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"7.25\" width=\"12\" height=\"1.5\"/><rect x=\"5\" y=\"4\" width=\"6\" height=\"8\"/></svg>",
+		bottom: "<svg viewBox=\"0 0 16 16\" fill=\"currentColor\"><rect x=\"2\" y=\"12.5\" width=\"12\" height=\"1.5\"/><rect x=\"5\" y=\"2\" width=\"6\" height=\"9\"/></svg>"
+	};
+	var OjAlignmentPicker = (0, vue.defineComponent)({
+		name: "OjAlignmentPicker",
+		props: {
+			modelValue: {
+				type: Object,
+				default: () => ({})
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			/** 每个按钮的可访问名（语言相关，由使用方给）；缺省时用 id。 */
+			itemLabels: {
+				type: Object,
+				default: () => ({})
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const value = () => normalizeAlignment(props.modelValue);
+			const nameOf = (key) => {
+				var _props$itemLabels$key;
+				return (_props$itemLabels$key = props.itemLabels[key]) !== null && _props$itemLabels$key !== void 0 ? _props$itemLabels$key : key;
+			};
+			function apply(next) {
+				const current = value();
+				if (next.horizontal === current.horizontal && next.vertical === current.vertical) return;
+				emit("update:modelValue", next);
+			}
+			function button(key, glyph, pressed, onClick) {
+				return (0, vue.h)("button", {
+					key,
+					type: "button",
+					class: "oj-alignment__button",
+					"aria-label": nameOf(key),
+					"aria-pressed": pressed ? "true" : "false",
+					"data-active": pressed ? "" : void 0,
+					disabled: props.disabled,
+					onClick
+				}, (0, vue.h)("span", {
+					class: "oj-alignment__glyph",
+					"aria-hidden": "true",
+					innerHTML: glyph
+				}));
+			}
+			return () => {
+				const current = value();
+				return (0, vue.h)("div", {
+					class: "oj-alignment",
+					role: "group",
+					"aria-label": props.label,
+					onKeydown: (event) => {
+						const now = value();
+						if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+							event.preventDefault();
+							apply({
+								horizontal: stepHorizontal(now.horizontal, event.key === "ArrowRight" ? 1 : -1),
+								vertical: now.vertical
+							});
+						}
+						if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+							event.preventDefault();
+							apply({
+								horizontal: now.horizontal,
+								vertical: stepVertical(now.vertical, event.key === "ArrowDown" ? 1 : -1)
+							});
+						}
+					}
+				}, [(0, vue.h)("div", {
+					class: "oj-alignment__row",
+					role: "group",
+					"aria-label": nameOf("horizontal")
+				}, [...HORIZONTAL_ALIGNS.map((align) => button(align, HORIZONTAL_GLYPHS[align], current.horizontal === align, () => apply({
+					horizontal: align,
+					vertical: current.vertical
+				}))), (0, vue.h)("span", {
+					class: "oj-alignment__preview",
+					"aria-hidden": "true",
+					style: { textAlign: textAlignCss(current.horizontal) }
+				}, "Abc")]), (0, vue.h)("div", {
+					class: "oj-alignment__row",
+					role: "group",
+					"aria-label": nameOf("vertical")
+				}, [...VERTICAL_ALIGNS.map((align) => button(align, VERTICAL_GLYPHS[align], current.vertical === align, () => apply({
+					horizontal: current.horizontal,
+					vertical: align
+				}))), (0, vue.h)("span", {
+					class: "oj-alignment__preview oj-alignment__preview--vertical",
+					"aria-hidden": "true",
+					style: { verticalAlign: verticalAlignCss(current.vertical) }
+				}, "Abc")])]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/color.ts
+	/**
+	* 默认色板：品牌十阶 + 一组中性色。
+	*
+	* 只取 3~9 阶：1/2 阶在白底上几乎看不见，10 阶是深色文字色，
+	* 做"填充色"都会让用户以为没生效。
+	*/
+	var COLOR_SWATCH_GROUPS = [{
+		id: "brand",
+		values: [
+			"var(--oj-brand-3)",
+			"var(--oj-brand-4)",
+			"var(--oj-brand-5)",
+			"var(--oj-brand-6)",
+			"var(--oj-brand-7)",
+			"var(--oj-brand-8)",
+			"var(--oj-brand-9)"
+		]
+	}, {
+		id: "neutral",
+		values: [
+			"#000000",
+			"#404040",
+			"#808080",
+			"#bfbfbf",
+			"#e5e6eb",
+			"#ffffff",
+			"transparent"
+		]
+	}];
+	var HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i;
+	/**
+	* 归一化十六进制颜色。返回 `#rrggbb`（小写）或 `undefined`。
+	* 带 alpha 的 8 位写法（`#rrggbbaa`）刻意不收：文档格式里 alpha 是独立属性，
+	* 混进颜色值会让"透明度"出现两种来源。
+	*/
+	function normalizeHex(input) {
+		const match = HEX.exec(input.trim());
+		if (match === null) return void 0;
+		const body = match[1].toLowerCase();
+		if (body.length === 3) return `#${body[0]}${body[0]}${body[1]}${body[1]}${body[2]}${body[2]}`;
+		return `#${body}`;
+	}
+	/** 是否是一个组件能渲染的颜色值：token 引用、十六进制、`transparent`、`rgb()/hsl()`。 */
+	function isCssColor(value) {
+		const trimmed = value.trim();
+		if (trimmed.length === 0) return false;
+		if (trimmed === "transparent" || trimmed === "currentColor") return true;
+		if (normalizeHex(trimmed) !== void 0) return true;
+		if (/^var\(--oj-[a-z0-9-]+\)$/.test(trimmed)) return true;
+		return /^(?:rgb|hsl)a?\([^()]*\)$/.test(trimmed);
+	}
+	//#endregion
+	//#region src/shell/border.ts
+	/**
+	* 边框模型（03 §3 / M2 `OjBorderPicker`）。
+	*
+	* 三个维度（线型 / 线宽 / 颜色）必须一起归一，否则会出现"选了无边框，但颜色还高亮着"的界面：
+	* `none` 时宽度与颜色在语义上不存在，归一化后要显式表达这一点（`width: 0`）。
+	*
+	* 线宽是 **px 数值**而不是枚举字符串：文档格式存的是数值，组件只是提供几个常用档位。
+	*/
+	var BORDER_STYLES = [
+		"none",
+		"solid",
+		"dashed",
+		"dotted",
+		"double"
+	];
+	/** Word 的常用线宽档（pt 换算后的近似值），含 0.5 这种细线。 */
+	var BORDER_WIDTHS = [
+		.5,
+		.75,
+		1,
+		1.5,
+		2,
+		3
+	];
+	var BORDER_COLORS = [
+		"var(--oj-text-1)",
+		"var(--oj-text-3)",
+		"var(--oj-border-3)",
+		"var(--oj-brand-6)",
+		"var(--oj-text-danger)"
+	];
+	var DEFAULT_BORDER = {
+		style: "solid",
+		width: 1,
+		color: "var(--oj-text-1)"
+	};
+	var BORDER_WIDTH_RANGE = {
+		min: 0,
+		max: 12
+	};
+	function isStyle(value) {
+		return typeof value === "string" && BORDER_STYLES.includes(value);
+	}
+	/**
+	* 归一化三个维度。
+	*
+	* 规则：
+	*   - `style: 'none'` 时宽度归 0（语义上"没有线"，留着 1px 会让下游导出工具画出细线）；
+	*   - 宽度夹进 `[0, 12]` 并保留两位小数（0.75 这类值是合法档位）；
+	*   - 颜色不合法就回退默认色，而不是保留一个渲染不出来的字符串。
+	*/
+	function normalizeBorder(value) {
+		const style = isStyle(value === null || value === void 0 ? void 0 : value.style) ? value.style : DEFAULT_BORDER.style;
+		const rawWidth = typeof (value === null || value === void 0 ? void 0 : value.width) === "number" && Number.isFinite(value.width) ? value.width : DEFAULT_BORDER.width;
+		const clamped = Math.min(Math.max(rawWidth, BORDER_WIDTH_RANGE.min), BORDER_WIDTH_RANGE.max);
+		const color = typeof (value === null || value === void 0 ? void 0 : value.color) === "string" && isCssColor(value.color) ? value.color : DEFAULT_BORDER.color;
+		if (style === "none") return {
+			style,
+			width: 0,
+			color
+		};
+		return {
+			style,
+			width: Number(clamped.toFixed(2)),
+			color
+		};
+	}
+	/**
+	* 生成 CSS 值，供预览块与"应用到选区"两条路共用（两套字符串迟早会不一致）。
+	* 入参收 `Partial`：预览时经常只想换一个维度（`{ ...current, style: 'none' }`），
+	* 内部统一走 `normalizeBorder`，调用方不必先自己补齐三个字段。
+	*/
+	function borderCss(value) {
+		const normalized = normalizeBorder(value);
+		if (normalized.style === "none") return "none";
+		return `${normalized.width}px ${normalized.style} ${normalized.color}`;
+	}
+	/** 线宽档位文案：`1` 而不是 `1.00`。 */
+	function formatBorderWidth(width) {
+		return String(Number(width.toFixed(2)));
+	}
+	//#endregion
+	//#region src/vue/border-picker.ts
+	/**
+	* `OjBorderPicker`（03 §3 / M2）：线型 + 线宽 + 颜色。
+	*
+	* 三个维度写在同一张卡片里、一次 `change` 出去，而不是三次独立的 `update:*`：
+	* 选线型时宽度会从 1 变成 0（`none` 的语义），如果拆成三个事件，
+	* 使用方会收到"线型变了但宽度还是 1"的中间态，写进文档后就是一条看不见的 1px 线。
+	*
+	* 预览块直接用 `borderCss()` 生成：与"应用到选区"走同一个函数，
+	* 两套字符串拼法迟早会不一致（预览是虚线、文档里是实线）。
+	*/
+	var OjBorderPicker = (0, vue.defineComponent)({
+		name: "OjBorderPicker",
+		props: {
+			modelValue: {
+				type: Object,
+				default: () => ({})
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			widthLabel: {
+				type: String,
+				required: true
+			},
+			colorLabel: {
+				type: String,
+				required: true
+			},
+			/** 线型显示名（语言相关）。 */
+			styleLabels: {
+				type: Object,
+				default: () => ({})
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const value = () => normalizeBorder(props.modelValue);
+			const styleName = (style) => {
+				var _props$styleLabels$st;
+				return (_props$styleLabels$st = props.styleLabels[style]) !== null && _props$styleLabels$st !== void 0 ? _props$styleLabels$st : style;
+			};
+			function apply(patch) {
+				const current = value();
+				const next = normalizeBorder({
+					...current,
+					...patch
+				});
+				if (next.style === current.style && next.width === current.width && next.color === current.color) return;
+				emit("update:modelValue", next);
+			}
+			return () => {
+				const current = value();
+				return (0, vue.h)("div", {
+					class: "oj-border-picker",
+					role: "group",
+					"aria-label": props.label
+				}, [
+					(0, vue.h)("div", {
+						class: "oj-border-picker__styles",
+						role: "group",
+						"aria-label": props.label
+					}, BORDER_STYLES.map((style) => (0, vue.h)("button", {
+						key: style,
+						type: "button",
+						class: "oj-border-picker__style",
+						"aria-label": styleName(style),
+						"aria-pressed": current.style === style ? "true" : "false",
+						"data-active": current.style === style ? "" : void 0,
+						disabled: props.disabled,
+						onClick: () => apply({ style })
+					}, (0, vue.h)("span", {
+						class: "oj-border-picker__sample",
+						"aria-hidden": "true",
+						style: { borderBottom: borderCss({
+							...current,
+							style
+						}) }
+					})))),
+					(0, vue.h)("label", { class: "oj-border-picker__field" }, [(0, vue.h)("span", { class: "oj-border-picker__field-label" }, props.widthLabel), (0, vue.h)("select", {
+						class: "oj-border-picker__width",
+						"aria-label": props.widthLabel,
+						disabled: props.disabled,
+						value: String(current.width),
+						onChange: (event) => apply({ width: Number(event.target.value) })
+					}, BORDER_WIDTHS.map((width) => (0, vue.h)("option", {
+						value: String(width),
+						selected: width === current.width
+					}, formatBorderWidth(width))))]),
+					(0, vue.h)("div", {
+						class: "oj-border-picker__colors",
+						role: "group",
+						"aria-label": props.colorLabel
+					}, BORDER_COLORS.map((color) => (0, vue.h)("button", {
+						key: color,
+						type: "button",
+						class: "oj-border-picker__color",
+						"aria-label": color,
+						"aria-pressed": current.color === color ? "true" : "false",
+						"data-active": current.color === color ? "" : void 0,
+						style: { background: color },
+						disabled: props.disabled,
+						onClick: () => apply({ color })
+					}))),
+					(0, vue.h)("span", {
+						class: "oj-border-picker__preview",
+						"aria-hidden": "true",
+						style: { border: borderCss(current) }
+					})
+				]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/vue/gallery.ts
+	/**
+	* `OjGallery`（03 §3 / M2）：通用网格选择。
+	*
+	* 与 `OjRibbonGallery` 的分工：那个是 Ribbon 里的**溢出条目**（一行放不下就滚动），
+	* 这个是**独立面板里的网格**（列数固定、方向键按行列走）。两者共用 `galleryNeighbor`，
+	* 因为"上下键跳一整行"的边界算法只该有一份。
+	*
+	* 选中项用 `aria-selected`；网格外壳是 `role="listbox"`，每项 `role="option"`。
+	*/
+	var OjGallery = (0, vue.defineComponent)({
+		name: "OjGallery",
+		props: {
+			items: {
+				type: Array,
+				required: true
+			},
+			modelValue: {
+				type: String,
+				required: true
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			columns: {
+				type: Number,
+				default: 4
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const columns = () => Number.isFinite(props.columns) && props.columns >= 1 ? Math.floor(props.columns) : 1;
+			return () => (0, vue.h)("div", {
+				class: "oj-gallery",
+				role: "listbox",
+				"aria-label": props.label,
+				"data-disabled": props.disabled ? "" : void 0,
+				style: { gridTemplateColumns: `repeat(${columns()}, minmax(0, 1fr))` },
+				onKeydown: (event) => {
+					const index = props.items.findIndex((item) => item.id === props.modelValue);
+					if (index === -1) return;
+					const next = galleryNeighbor(columns(), props.items.length, index, event.key);
+					if (next === index) return;
+					event.preventDefault();
+					const item = props.items[next];
+					if (item !== void 0) emit("update:modelValue", item.id);
+				}
+			}, props.items.map((item) => (0, vue.h)("button", {
+				key: item.id,
+				type: "button",
+				class: "oj-gallery__item",
+				role: "option",
+				"aria-selected": item.id === props.modelValue ? "true" : "false",
+				"data-active": item.id === props.modelValue ? "" : void 0,
+				disabled: props.disabled,
+				onClick: () => {
+					if (item.id === props.modelValue) return;
+					emit("update:modelValue", item.id);
+				}
+			}, [(0, vue.h)("span", { class: "oj-gallery__label" }, item.label), item.description === void 0 ? null : (0, vue.h)("span", { class: "oj-gallery__description" }, item.description)])));
+		}
+	});
+	//#endregion
+	//#region src/shell/style-gallery.ts
+	var STYLE_PRESETS = [
+		{
+			id: "title-1",
+			fontSize: 32,
+			bold: true
+		},
+		{
+			id: "title-2",
+			fontSize: 24,
+			bold: true
+		},
+		{
+			id: "title-3",
+			fontSize: 20,
+			bold: true
+		},
+		{
+			id: "body",
+			fontSize: 14
+		},
+		{
+			id: "quote",
+			fontSize: 14,
+			italic: true,
+			family: "doc"
+		},
+		{
+			id: "code",
+			fontSize: 14,
+			family: "mono"
+		}
+	];
+	/** 预览与"应用样式"共用的一份内联样式，避免两处各写一套。 */
+	function stylePresetCss(preset) {
+		var _preset$family;
+		const css = { fontSize: `${preset.fontSize}px` };
+		if (preset.bold === true) css.fontWeight = "600";
+		if (preset.italic === true) css.fontStyle = "italic";
+		css.fontFamily = `var(--oj-font-${(_preset$family = preset.family) !== null && _preset$family !== void 0 ? _preset$family : "sans"})`;
+		return css;
+	}
+	/**
+	* 显示名缺省时回退到 id。
+	* 不在这里编中文名：`title-1` 在日文界面应该是"見出し1"，写死中文就永远翻不掉。
+	*/
+	function styleLabel(labels, id) {
+		var _labels$id;
+		return (_labels$id = labels === null || labels === void 0 ? void 0 : labels[id]) !== null && _labels$id !== void 0 ? _labels$id : id;
+	}
+	//#endregion
+	//#region src/vue/style-gallery.ts
+	/**
+	* `OjStyleGallery`（03 §3 / M2）：段落样式画廊。
+	*
+	* 每一项都用**预设自己的排版**渲染示例文本：只显示"标题 1/2/3"等于让用户背编号，
+	* 而样式画廊的价值恰恰是"一眼看出层级"。
+	*
+	* 示例文本由 `sample` 给（语言相关：日文界面应该看到かな，而不是 "Aa"）。
+	*/
+	var OjStyleGallery = (0, vue.defineComponent)({
+		name: "OjStyleGallery",
+		props: {
+			modelValue: {
+				type: String,
+				required: true
+			},
+			presets: {
+				type: Array,
+				default: () => STYLE_PRESETS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			labels: {
+				type: Object,
+				default: () => ({})
+			},
+			sample: {
+				type: String,
+				default: "Aa"
+			},
+			columns: {
+				type: Number,
+				default: 3
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const columns = () => Number.isFinite(props.columns) && props.columns >= 1 ? Math.floor(props.columns) : 1;
+			return () => (0, vue.h)("div", {
+				class: "oj-style-gallery",
+				role: "listbox",
+				"aria-label": props.label,
+				"data-disabled": props.disabled ? "" : void 0,
+				style: { gridTemplateColumns: `repeat(${columns()}, minmax(0, 1fr))` },
+				onKeydown: (event) => {
+					const index = props.presets.findIndex((preset) => preset.id === props.modelValue);
+					if (index === -1) return;
+					const next = galleryNeighbor(columns(), props.presets.length, index, event.key);
+					if (next === index) return;
+					event.preventDefault();
+					const preset = props.presets[next];
+					if (preset !== void 0) emit("update:modelValue", preset.id);
+				}
+			}, props.presets.map((preset) => (0, vue.h)("button", {
+				key: preset.id,
+				type: "button",
+				class: "oj-style-gallery__item",
+				role: "option",
+				"aria-selected": preset.id === props.modelValue ? "true" : "false",
+				"data-active": preset.id === props.modelValue ? "" : void 0,
+				disabled: props.disabled,
+				onClick: () => {
+					if (preset.id === props.modelValue) return;
+					emit("update:modelValue", preset.id);
+				}
+			}, [(0, vue.h)("span", {
+				class: "oj-style-gallery__sample",
+				"aria-hidden": "true",
+				style: stylePresetCss(preset)
+			}, props.sample), (0, vue.h)("span", { class: "oj-style-gallery__label" }, styleLabel(props.labels, preset.id))])));
+		}
+	});
+	//#endregion
+	//#region src/vue/color-picker.ts
+	/**
+	* `OjColorPicker`（03 §3 / M2）。
+	*
+	* 两个刻意的取舍：
+	*   1. 色板样本是 **token 引用**（`var(--oj-brand-6)`），不是十六进制——选完写进文档的是
+	*      token，暗色档位与主题切换才会跟着变；
+	*   2. 自定义色**只在提交时归一**（`#abc` → `#aabbcc`），输入过程中不重写输入框，
+	*      否则用户打到第三个字符就被"补全"掉了。
+	*
+	* a11y：整体是 `listbox`，每块色是 `option`；色块本身没有文字，所以必须有 `swatchLabel`
+	* 提供可访问名（默认回退到颜色值本身，读屏会念 `#3366FF`——不优雅但可辨认）。
+	*/
+	var OjColorPicker = (0, vue.defineComponent)({
+		name: "OjColorPicker",
+		props: {
+			modelValue: {
+				type: String,
+				required: true
+			},
+			groups: {
+				type: Array,
+				default: () => COLOR_SWATCH_GROUPS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			/** 自定义色的输入框标签；不给就不渲染自定义栏。 */
+			customLabel: {
+				type: String,
+				default: ""
+			},
+			swatchLabel: {
+				type: Function,
+				default: void 0
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			let draft = null;
+			const nameOf = (value) => {
+				var _props$swatchLabel, _props$swatchLabel2;
+				return (_props$swatchLabel = (_props$swatchLabel2 = props.swatchLabel) === null || _props$swatchLabel2 === void 0 ? void 0 : _props$swatchLabel2.call(props, value)) !== null && _props$swatchLabel !== void 0 ? _props$swatchLabel : value;
+			};
+			function commitCustom() {
+				if (draft === null) return;
+				const raw = draft;
+				draft = null;
+				const hex = normalizeHex(raw);
+				if (hex !== void 0) {
+					emit("update:modelValue", hex);
+					return;
+				}
+				if (isCssColor(raw)) emit("update:modelValue", raw.trim());
+			}
+			return () => {
+				var _draft;
+				return (0, vue.h)("div", {
+					class: "oj-color-picker",
+					role: "listbox",
+					"aria-label": props.label
+				}, [...props.groups.flatMap((group) => [(0, vue.h)("div", {
+					class: "oj-color-picker__group",
+					role: "group",
+					"aria-label": group.id
+				}, group.values.map((value) => (0, vue.h)("button", {
+					type: "button",
+					class: "oj-color-picker__swatch",
+					role: "option",
+					"aria-label": nameOf(value),
+					"aria-selected": value === props.modelValue ? "true" : "false",
+					"data-active": value === props.modelValue ? "" : void 0,
+					"data-transparent": value === "transparent" ? "" : void 0,
+					style: { background: value },
+					disabled: props.disabled,
+					onClick: () => {
+						if (value === props.modelValue) return;
+						emit("update:modelValue", value);
+					}
+				})))]), props.customLabel ? (0, vue.h)("div", { class: "oj-color-picker__custom" }, [(0, vue.h)("span", { class: "oj-color-picker__custom-label" }, props.customLabel), (0, vue.h)("input", {
+					class: "oj-color-picker__hex",
+					type: "text",
+					"aria-label": props.customLabel,
+					value: (_draft = draft) !== null && _draft !== void 0 ? _draft : props.modelValue,
+					disabled: props.disabled,
+					onInput: (event) => {
+						draft = event.target.value;
+					},
+					onBlur: () => commitCustom(),
+					onKeydown: (event) => {
+						if (event.key !== "Enter") return;
+						event.preventDefault();
+						commitCustom();
+					}
+				})]) : null]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/fonts.ts
+	var FONT_OPTIONS = [
+		{
+			id: "sans",
+			label: "Sans",
+			stack: "var(--oj-font-sans)"
+		},
+		{
+			id: "mono",
+			label: "Mono",
+			stack: "var(--oj-font-mono)"
+		},
+		{
+			id: "mono-cjk",
+			label: "Mono CJK",
+			stack: "var(--oj-font-mono-cjk)"
+		},
+		{
+			id: "doc",
+			label: "Serif",
+			stack: "var(--oj-font-doc)"
+		}
+	];
+	/** 按 id 或显示名做子串过滤（忽略大小写与首尾空白）。空查询返回全部。 */
+	function filterFonts(fonts, query) {
+		const needle = query.trim().toLowerCase();
+		if (needle.length === 0) return [...fonts];
+		return fonts.filter((font) => font.id.toLowerCase().includes(needle) || font.label.toLowerCase().includes(needle));
+	}
+	/** 键盘上下移动：到两端就停住，不环绕（环绕会让用户在列表底部误以为是顶部）。 */
+	function stepFont(fonts, id, direction) {
+		var _next$id;
+		if (fonts.length === 0) return id;
+		const index = fonts.findIndex((font) => font.id === id);
+		if (index === -1) return fonts[0].id;
+		const next = fonts[index + direction];
+		return (_next$id = next === null || next === void 0 ? void 0 : next.id) !== null && _next$id !== void 0 ? _next$id : id;
+	}
+	//#endregion
+	//#region src/vue/font-picker.ts
+	/**
+	* `OjFontPicker`（03 §3 / M2）：字体列表 + 过滤 + 键盘。
+	*
+	* 每项用**自己的字体栈**渲染预览：字体选择器只显示名字等于让用户猜，
+	* 尤其 `Serif` / `Sans` 这种词在中英混排下完全看不出差别。
+	*
+	* 过滤是纯子串匹配而不是模糊打分：字体列表通常只有几十项，
+	* 打分排序会让"输入 sans 却排在第一的是 Doc Sans Mono"这类意外排到用户脸上。
+	*/
+	var OjFontPicker = (0, vue.defineComponent)({
+		name: "OjFontPicker",
+		props: {
+			modelValue: {
+				type: String,
+				required: true
+			},
+			fonts: {
+				type: Array,
+				default: () => FONT_OPTIONS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			/** 搜索框的占位文案（语言相关，由使用方给）。 */
+			placeholder: {
+				type: String,
+				default: ""
+			},
+			previewText: {
+				type: String,
+				default: "Aa 字"
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const query = (0, vue.ref)("");
+			function move(key) {
+				const direction = key === "ArrowDown" ? 1 : key === "ArrowUp" ? -1 : 0;
+				if (direction === 0) return;
+				const next = stepFont(props.fonts, props.modelValue, direction);
+				if (next === props.modelValue) return;
+				emit("update:modelValue", next);
+			}
+			return () => {
+				const visible = filterFonts(props.fonts, query.value);
+				return (0, vue.h)("div", {
+					class: "oj-font-picker",
+					role: "listbox",
+					"aria-label": props.label,
+					"data-disabled": props.disabled ? "" : void 0,
+					onKeydown: (event) => {
+						if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+						event.preventDefault();
+						move(event.key);
+					}
+				}, [(0, vue.h)("input", {
+					class: "oj-font-picker__search",
+					type: "search",
+					"aria-label": props.label,
+					placeholder: props.placeholder,
+					disabled: props.disabled,
+					onInput: (event) => {
+						query.value = event.target.value;
+					}
+				}), (0, vue.h)("ul", {
+					class: "oj-font-picker__list",
+					role: "presentation"
+				}, visible.map((font) => (0, vue.h)("li", {
+					key: font.id,
+					role: "presentation"
+				}, (0, vue.h)("button", {
+					type: "button",
+					class: "oj-font-picker__option",
+					role: "option",
+					"aria-selected": font.id === props.modelValue ? "true" : "false",
+					"data-active": font.id === props.modelValue ? "" : void 0,
+					style: { fontFamily: font.stack },
+					disabled: props.disabled,
+					onClick: () => emit("update:modelValue", font.id)
+				}, [(0, vue.h)("span", { class: "oj-font-picker__name" }, font.label), (0, vue.h)("span", { class: "oj-font-picker__preview" }, props.previewText)]))))]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/symbols.ts
+	var SYMBOL_GROUPS = [
+		{
+			id: "common",
+			symbols: [
+				{
+					char: "©",
+					name: "copyright"
+				},
+				{
+					char: "®",
+					name: "registered"
+				},
+				{
+					char: "™",
+					name: "trademark"
+				},
+				{
+					char: "§",
+					name: "section"
+				},
+				{
+					char: "¶",
+					name: "paragraph"
+				},
+				{
+					char: "°",
+					name: "degree"
+				},
+				{
+					char: "‰",
+					name: "per mille"
+				},
+				{
+					char: "№",
+					name: "numero"
+				}
+			]
+		},
+		{
+			id: "math",
+			symbols: [
+				{
+					char: "±",
+					name: "plus minus"
+				},
+				{
+					char: "×",
+					name: "multiply"
+				},
+				{
+					char: "÷",
+					name: "divide"
+				},
+				{
+					char: "≠",
+					name: "not equal"
+				},
+				{
+					char: "≤",
+					name: "less or equal"
+				},
+				{
+					char: "≥",
+					name: "greater or equal"
+				},
+				{
+					char: "∞",
+					name: "infinity"
+				},
+				{
+					char: "∑",
+					name: "sum"
+				},
+				{
+					char: "√",
+					name: "square root"
+				},
+				{
+					char: "π",
+					name: "pi"
+				},
+				{
+					char: "≈",
+					name: "almost equal"
+				},
+				{
+					char: "µ",
+					name: "micro"
+				}
+			]
+		},
+		{
+			id: "arrow",
+			symbols: [
+				{
+					char: "←",
+					name: "left arrow"
+				},
+				{
+					char: "→",
+					name: "right arrow"
+				},
+				{
+					char: "↑",
+					name: "up arrow"
+				},
+				{
+					char: "↓",
+					name: "down arrow"
+				},
+				{
+					char: "↔",
+					name: "left right arrow"
+				},
+				{
+					char: "⇄",
+					name: "swap arrows"
+				},
+				{
+					char: "⇧",
+					name: "shift arrow"
+				},
+				{
+					char: "⇒",
+					name: "double right arrow"
+				}
+			]
+		},
+		{
+			id: "currency",
+			symbols: [
+				{
+					char: "$",
+					name: "dollar"
+				},
+				{
+					char: "€",
+					name: "euro"
+				},
+				{
+					char: "£",
+					name: "pound"
+				},
+				{
+					char: "¥",
+					name: "yen"
+				},
+				{
+					char: "₩",
+					name: "won"
+				},
+				{
+					char: "₹",
+					name: "rupee"
+				},
+				{
+					char: "¢",
+					name: "cent"
+				}
+			]
+		},
+		{
+			id: "punctuation",
+			symbols: [
+				{
+					char: "—",
+					name: "em dash"
+				},
+				{
+					char: "–",
+					name: "en dash"
+				},
+				{
+					char: "…",
+					name: "ellipsis"
+				},
+				{
+					char: "·",
+					name: "middle dot"
+				},
+				{
+					char: "“",
+					name: "left double quote"
+				},
+				{
+					char: "”",
+					name: "right double quote"
+				},
+				{
+					char: "‘",
+					name: "left single quote"
+				},
+				{
+					char: "’",
+					name: "right single quote"
+				}
+			]
+		}
+	];
+	/**
+	* 按名字过滤。空查询返回原表（保持分组结构，调用方据此渲染标题）。
+	* 同时接受直接输入字符：用户已经知道要插哪个符号时，比记名字快。
+	*/
+	function filterSymbols(groups, query) {
+		const needle = query.trim().toLowerCase();
+		if (needle.length === 0) return [...groups];
+		return groups.map((group) => ({
+			id: group.id,
+			symbols: group.symbols.filter((symbol) => symbol.char === needle || symbol.name.toLowerCase().includes(needle))
+		})).filter((group) => group.symbols.length > 0);
+	}
+	/** 摊平成一维（键盘导航按下标走，分组只是视觉）。 */
+	function flattenSymbols(groups) {
+		return groups.flatMap((group) => [...group.symbols]);
+	}
+	//#endregion
+	//#region src/vue/symbol-picker.ts
+	/**
+	* `OjSymbolPicker`（03 §3 / M2）：插入 Unicode 符号。
+	*
+	* 与其它 picker 的区别：它**没有 modelValue**。选符号是"插入动作"（`select`），
+	* 不是"选一个持久状态"——把插入做成受控值，会让连续插两个符号时第二个把第一个覆盖掉。
+	*
+	* 分组标题由使用方给（`groupLabels`）：组件库里写死中文标题，日文界面就永远翻不掉。
+	*/
+	var OjSymbolPicker = (0, vue.defineComponent)({
+		name: "OjSymbolPicker",
+		props: {
+			groups: {
+				type: Array,
+				default: () => SYMBOL_GROUPS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			/** 搜索框占位文案（语言相关）。 */
+			placeholder: {
+				type: String,
+				default: ""
+			},
+			/** 分组 id → 显示名；缺省不渲染标题。 */
+			groupLabels: {
+				type: Object,
+				default: () => ({})
+			},
+			/** 网格列数，键盘左右移动按它算。 */
+			columns: {
+				type: Number,
+				default: 8
+			}
+		},
+		emits: ["select"],
+		setup(props, { emit }) {
+			const query = (0, vue.ref)("");
+			const active = (0, vue.ref)(0);
+			const columns = () => Number.isFinite(props.columns) && props.columns >= 1 ? Math.floor(props.columns) : 1;
+			return () => {
+				const visible = filterSymbols(props.groups, query.value);
+				const flat = flattenSymbols(visible);
+				const current = Math.min(Math.max(active.value, 0), Math.max(flat.length - 1, 0));
+				return (0, vue.h)("div", {
+					class: "oj-symbol-picker",
+					role: "listbox",
+					"aria-label": props.label,
+					onKeydown: (event) => {
+						if (event.key === "Enter") {
+							const symbol = flat[current];
+							if (symbol === void 0) return;
+							event.preventDefault();
+							emit("select", symbol.char);
+							return;
+						}
+						const next = galleryNeighbor(columns(), flat.length, current, event.key);
+						if (next === current) return;
+						event.preventDefault();
+						active.value = next;
+					}
+				}, [(0, vue.h)("input", {
+					class: "oj-symbol-picker__search",
+					type: "search",
+					"aria-label": props.label,
+					placeholder: props.placeholder,
+					onInput: (event) => {
+						query.value = event.target.value;
+						active.value = 0;
+					}
+				}), ...visible.map((group) => {
+					var _props$groupLabels$gr;
+					return (0, vue.h)("div", {
+						class: "oj-symbol-picker__group",
+						role: "group",
+						"aria-label": (_props$groupLabels$gr = props.groupLabels[group.id]) !== null && _props$groupLabels$gr !== void 0 ? _props$groupLabels$gr : group.id
+					}, [props.groupLabels[group.id] !== void 0 ? (0, vue.h)("p", { class: "oj-symbol-picker__group-label" }, props.groupLabels[group.id]) : null, (0, vue.h)("div", {
+						class: "oj-symbol-picker__grid",
+						style: { gridTemplateColumns: `repeat(${columns()}, 24px)` }
+					}, group.symbols.map((symbol) => {
+						const index = flat.indexOf(symbol);
+						return (0, vue.h)("button", {
+							key: `${group.id}-${symbol.char}`,
+							type: "button",
+							class: "oj-symbol-picker__cell",
+							role: "option",
+							"aria-label": symbol.name,
+							"aria-selected": index === current ? "true" : "false",
+							"data-active": index === current ? "" : void 0,
+							onClick: () => {
+								active.value = index;
+								emit("select", symbol.char);
+							}
+						}, symbol.char);
+					}))]);
+				})]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/presets.ts
+	/**
+	* 档位表与"最近档位"（03 §3 `OjFontSizeField` / `OjLineSpacingPicker`）。
+	*
+	* 字号档位**必须与 token 一致**：`--oj-fs-12`~`--oj-fs-32` 那八档就是设计给的可用值，
+	* 组件里再自造一套（比如加上 15px）会让"用户选的 15px"在 `ja` 档位下没有对应 token，
+	* 于是又变成一次写死。这里把档位写成常量，并由用例与 token 表对账。
+	*
+	* 行距用**倍数**而不是 px：Word/WPS 的行距单位是"多倍行距"，存 px 会随字号变化而失真。
+	*/
+	/** 与 `packages/tokens` 的 `fs.*` 一一对应（顺序即下拉里的顺序）。 */
+	var FONT_SIZE_PRESETS = [
+		12,
+		13,
+		14,
+		16,
+		18,
+		20,
+		24,
+		32
+	];
+	/** Word 的常用档位：单倍、1.15、1.5、双倍。 */
+	var LINE_SPACING_PRESETS = [
+		1,
+		1.15,
+		1.5,
+		2
+	];
+	/** 字号上下限：低于 1px 或高于 999px 的输入是误操作，不是需求。 */
+	var FONT_SIZE_RANGE = {
+		min: 1,
+		max: 999
+	};
+	/** 行距上下限：0 会让行叠在一起，10 倍以上没有排版意义。 */
+	var LINE_SPACING_RANGE = {
+		min: .5,
+		max: 10
+	};
+	/** 离 `value` 最近的档位。空表返回 `value` 本身（调用方没给档位就不该被改值）。 */
+	function nearestPreset(presets, value) {
+		if (presets.length === 0 || !Number.isFinite(value)) return value;
+		let best = presets[0];
+		let bestGap = Math.abs(best - value);
+		for (const preset of presets) {
+			const gap = Math.abs(preset - value);
+			if (gap < bestGap) {
+				best = preset;
+				bestGap = gap;
+			}
+		}
+		return best;
+	}
+	/**
+	* 在档位表里前进/后退一档。
+	*
+	* 当前值不在表里时（用户手输过 17px），先落到**最近的档位**再走一步：
+	* 直接 `indexOf` 得到 -1 会让"下箭头"跳到第一档，用户会觉得方向反了。
+	*/
+	function stepPreset(presets, value, direction) {
+		var _sorted$index;
+		if (presets.length === 0) return value;
+		const sorted = [...presets].sort((a, b) => a - b);
+		const exact = sorted.indexOf(value);
+		if (exact !== -1) {
+			const next = sorted[exact + direction];
+			return next !== null && next !== void 0 ? next : value;
+		}
+		const nearest = nearestPreset(sorted, value);
+		if (nearest === value) return value;
+		const nearestIndex = sorted.indexOf(nearest);
+		return (_sorted$index = sorted[(direction === 1 ? nearest < value : nearest > value) ? nearestIndex + direction : nearestIndex]) !== null && _sorted$index !== void 0 ? _sorted$index : nearest;
+	}
+	/** 行距显示成 `1.5` / `1` / `1.15`：去掉无意义的尾零，但不把 1.50 显示成 1.5 以外的东西。 */
+	function formatLineSpacing(value) {
+		if (!Number.isFinite(value)) return "1";
+		const rounded = Number(value.toFixed(2));
+		return String(rounded);
+	}
+	/** 字号显示成 `14`（单位由使用方在其后补，语言不同单位写法也不同）。 */
+	function formatFontSize(value) {
+		if (!Number.isFinite(value)) return "";
+		return String(Number(value.toFixed(1)));
+	}
+	//#endregion
+	//#region src/vue/font-size-field.ts
+	/**
+	* `OjFontSizeField`（03 §3 / M2）：字号输入 + 档位选择。
+	*
+	* 三件事必须同时成立，否则在实际使用里会互相打架：
+	*   1. **可以手输**：Word 用户会直接打 17px（虽然 token 里没有这一档）；
+	*   2. **上下键走档位**：不是 ±1，而是 12 → 13 → 14 → 16…（Office 的行为）；
+	*   3. **档位与 token 对齐**：`FONT_SIZE_PRESETS` 就是 `--oj-fs-*` 那八档，
+	*      所以选中什么字号，`ja` / `compact` 档位降字号时它才会跟着降。
+	*/
+	var OjFontSizeField = (0, vue.defineComponent)({
+		name: "OjFontSizeField",
+		props: {
+			modelValue: {
+				type: Number,
+				required: true
+			},
+			presets: {
+				type: Array,
+				default: () => FONT_SIZE_PRESETS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			decreaseLabel: {
+				type: String,
+				required: true
+			},
+			increaseLabel: {
+				type: String,
+				required: true
+			},
+			/** 单位后缀（`px` / `pt`），只影响显示。 */
+			unit: {
+				type: String,
+				default: "px"
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			let draft = null;
+			const bounds = () => ({ ...FONT_SIZE_RANGE });
+			const current = () => clampNumber(props.modelValue, bounds());
+			const selectedPreset = () => nearestPreset(props.presets, current());
+			function commit() {
+				if (draft === null) return;
+				const parsed = parseNumberDraft(draft);
+				draft = null;
+				if (parsed === void 0) return;
+				emit("update:modelValue", clampNumber(parsed, bounds()));
+			}
+			function bump(direction) {
+				draft = null;
+				const next = clampNumber(stepPreset(props.presets, current(), direction), bounds());
+				if (next === current()) return;
+				emit("update:modelValue", next);
+			}
+			function select(value) {
+				const next = clampNumber(value, bounds());
+				if (next === current()) return;
+				emit("update:modelValue", next);
+			}
+			return () => {
+				var _draft;
+				return (0, vue.h)("div", {
+					class: "oj-font-size",
+					"data-disabled": props.disabled ? "" : void 0
+				}, [
+					(0, vue.h)("button", {
+						type: "button",
+						class: "oj-button",
+						"data-size": "mini",
+						"aria-label": props.decreaseLabel,
+						disabled: props.disabled,
+						onClick: () => bump(-1)
+					}, "−"),
+					(0, vue.h)("input", {
+						class: "oj-font-size__input",
+						type: "text",
+						role: "spinbutton",
+						inputmode: "decimal",
+						"aria-label": props.label,
+						"aria-valuenow": current(),
+						"aria-valuemin": FONT_SIZE_RANGE.min,
+						"aria-valuemax": FONT_SIZE_RANGE.max,
+						disabled: props.disabled,
+						value: (_draft = draft) !== null && _draft !== void 0 ? _draft : formatFontSize(current()),
+						onInput: (event) => {
+							draft = event.target.value;
+						},
+						onBlur: () => commit(),
+						onKeydown: (event) => {
+							if (event.key === "Enter") {
+								event.preventDefault();
+								commit();
+								return;
+							}
+							if (event.key === "ArrowUp") {
+								event.preventDefault();
+								bump(1);
+								return;
+							}
+							if (event.key === "ArrowDown") {
+								event.preventDefault();
+								bump(-1);
+							}
+						}
+					}),
+					(0, vue.h)("span", {
+						class: "oj-font-size__unit",
+						"aria-hidden": "true"
+					}, props.unit),
+					(0, vue.h)("button", {
+						type: "button",
+						class: "oj-button",
+						"data-size": "mini",
+						"aria-label": props.increaseLabel,
+						disabled: props.disabled,
+						onClick: () => bump(1)
+					}, "+"),
+					(0, vue.h)("select", {
+						class: "oj-font-size__presets",
+						"aria-label": props.label,
+						disabled: props.disabled,
+						value: String(selectedPreset()),
+						onChange: (event) => {
+							const next = Number(event.target.value);
+							if (Number.isFinite(next)) select(next);
+						}
+					}, props.presets.map((preset) => (0, vue.h)("option", {
+						value: String(preset),
+						selected: preset === selectedPreset()
+					}, String(preset))))
+				]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/vue/line-spacing-picker.ts
+	/**
+	* `OjLineSpacingPicker`（03 §3 / M2）：行距档位列表。
+	*
+	* 行距存的是**倍数**（1 / 1.15 / 1.5 / 2），不是 px：Word/WPS 的"多倍行距"就是这个语义，
+	* 存 px 会在换字号时失真（14px 文字配 21px 行高，换成 32px 就挤成一团）。
+	*
+	* 选中态用 `aria-selected` 而不是只加 class：`role="listbox"` 里读屏靠它播报"当前第几项"。
+	*/
+	var OjLineSpacingPicker = (0, vue.defineComponent)({
+		name: "OjLineSpacingPicker",
+		props: {
+			modelValue: {
+				type: Number,
+				required: true
+			},
+			presets: {
+				type: Array,
+				default: () => LINE_SPACING_PRESETS
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["update:modelValue"],
+		setup(props, { emit }) {
+			const bounds = () => ({
+				...LINE_SPACING_RANGE,
+				precision: 2
+			});
+			const current = () => clampNumber(props.modelValue, bounds());
+			function select(value) {
+				const next = clampNumber(value, bounds());
+				if (next === current()) return;
+				emit("update:modelValue", next);
+			}
+			return () => (0, vue.h)("div", {
+				class: "oj-line-spacing",
+				role: "listbox",
+				"aria-label": props.label,
+				"data-disabled": props.disabled ? "" : void 0,
+				onKeydown: (event) => {
+					if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+					event.preventDefault();
+					select(stepPreset(props.presets, current(), event.key === "ArrowUp" ? 1 : -1));
+				}
+			}, [...props.presets].sort((a, b) => a - b).map((preset) => (0, vue.h)("button", {
+				type: "button",
+				class: "oj-line-spacing__option",
+				role: "option",
+				"aria-selected": preset === nearestPreset(props.presets, current()) ? "true" : "false",
+				"data-active": preset === nearestPreset(props.presets, current()) ? "" : void 0,
+				disabled: props.disabled,
+				onClick: () => select(preset)
+			}, [(0, vue.h)("span", {
+				class: "oj-line-spacing__lines",
+				"aria-hidden": "true",
+				style: { gap: `${Math.max(2, (preset - 1) * 6 + 2)}px` }
+			}, [(0, vue.h)("i", { class: "oj-line-spacing__line" }), (0, vue.h)("i", { class: "oj-line-spacing__line" })]), (0, vue.h)("span", { class: "oj-line-spacing__value" }, formatLineSpacing(preset))])));
+		}
+	});
+	//#endregion
 	//#region src/vue/tabs.ts
 	var OjTabs = (0, vue.defineComponent)({
 		name: "OjTabs",
@@ -3744,7 +5399,12 @@
 	*/
 	var OJ_COMPONENTS = {
 		"oj-ai-panel": OjAiPanel,
+		"oj-alignment-picker": OjAlignmentPicker,
+		"oj-border-picker": OjBorderPicker,
+		"oj-gallery": OjGallery,
+		"oj-style-gallery": OjStyleGallery,
 		"oj-code-block": OjCodeBlock,
+		"oj-color-picker": OjColorPicker,
 		"oj-command-button": OjCommandButton,
 		"oj-command-launcher": OjCommandLauncher,
 		"oj-command-palette": OjCommandPalette,
@@ -3753,6 +5413,10 @@
 		"oj-dropdown": OjDropdown,
 		"oj-dropdown-button": OjDropdownButton,
 		"oj-file-tree": OjFileTree,
+		"oj-font-picker": OjFontPicker,
+		"oj-font-size-field": OjFontSizeField,
+		"oj-line-spacing-picker": OjLineSpacingPicker,
+		"oj-number-field": OjNumberField,
 		"oj-hotkey": OjHotkey,
 		"oj-icon": OjIcon,
 		"oj-locale-provider": OjLocaleProvider,
@@ -3768,6 +5432,7 @@
 		"oj-signature-pad": OjSignaturePad,
 		"oj-split-button": OjSplitButton,
 		"oj-stamp": OjStamp,
+		"oj-symbol-picker": OjSymbolPicker,
 		"oj-status-bar": OjStatusBar,
 		"oj-table-grid-picker": OjTableGridPicker,
 		"oj-tabs": OjTabs,
@@ -3972,7 +5637,10 @@
 	//#endregion
 	exports.OJ_COMPONENTS = OJ_COMPONENTS;
 	exports.OjAiPanel = OjAiPanel;
+	exports.OjAlignmentPicker = OjAlignmentPicker;
+	exports.OjBorderPicker = OjBorderPicker;
 	exports.OjCodeBlock = OjCodeBlock;
+	exports.OjColorPicker = OjColorPicker;
 	exports.OjCommandButton = OjCommandButton;
 	exports.OjCommandLauncher = OjCommandLauncher;
 	exports.OjCommandPalette = OjCommandPalette;
@@ -3981,10 +5649,15 @@
 	exports.OjDropdown = OjDropdown;
 	exports.OjDropdownButton = OjDropdownButton;
 	exports.OjFileTree = OjFileTree;
+	exports.OjFontPicker = OjFontPicker;
+	exports.OjFontSizeField = OjFontSizeField;
+	exports.OjGallery = OjGallery;
 	exports.OjHotkey = OjHotkey;
 	exports.OjIcon = OjIcon;
+	exports.OjLineSpacingPicker = OjLineSpacingPicker;
 	exports.OjLocaleProvider = OjLocaleProvider;
 	exports.OjLocaleSwitcher = OjLocaleSwitcher;
+	exports.OjNumberField = OjNumberField;
 	exports.OjPopper = OjPopper;
 	exports.OjPortal = OjPortal;
 	exports.OjRibbon = OjRibbon;
@@ -3997,6 +5670,8 @@
 	exports.OjSplitButton = OjSplitButton;
 	exports.OjStamp = OjStamp;
 	exports.OjStatusBar = OjStatusBar;
+	exports.OjStyleGallery = OjStyleGallery;
+	exports.OjSymbolPicker = OjSymbolPicker;
 	exports.OjTableGridPicker = OjTableGridPicker;
 	exports.OjTabs = OjTabs;
 	exports.OjToggleButton = OjToggleButton;
