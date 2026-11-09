@@ -1,6 +1,6 @@
 /**
  * @jitoffice/i18n — 由 packages/i18n/scripts/gen-keys.ts 生成，请勿手改。
- * 源：packages/i18n/src/locales/*.ts（135 个 key · 4 种语言）。
+ * 源：packages/i18n/src/locales/*.ts（138 个 key · 4 种语言）。
  */
 
 import type { OjMessageValue } from '../types.ts'
@@ -121,6 +121,9 @@ export type IntlKey =
   | 'oj.shell.zoom.zoomOut'
   | 'oj.shell.zoom.zoomIn'
   | 'oj.shell.zoom.reset'
+  | 'oj.shell.pane.files'
+  | 'oj.shell.pane.side'
+  | 'oj.shell.pane.resize'
   | 'oj.shell.files.title'
   | 'oj.shell.files.search'
   | 'oj.shell.files.empty'

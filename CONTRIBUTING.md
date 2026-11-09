@@ -26,6 +26,30 @@
 `internal/build/` 是这条规则**故意排除在外**的另一条链：它的职责是重建产物，本来就离不开 vite。
 它可以引第三方依赖，代价是它的任何检查都不许混进 `pnpm verify`——一旦进去，离线环境的那条链就废了。
 
+### 本地起服务（demo 与文档站）
+
+```bash
+pnpm --filter @jitoffice/ui dev     # demo：完整 Word 外壳（Ribbon / 三栏 / 审阅），5173
+pnpm --filter @jitoffice/docs dev   # 文档站 + Playground（59 份组件文档），5174
+```
+
+两个端口都是**写死的**：`packages/ui/vite.config.ts` 里有 `strictPort: true`，`docs/package.json` 里是
+`--port 5174`。端口被别的项目占用时不会自动挪，只会报 `Port 5173 is already in use`。
+换端口必须**绕过 pnpm 脚本**，直接调二进制：
+
+```bash
+cd packages/ui && ./node_modules/.bin/vite --config vite.config.ts --port 5188 --host 127.0.0.1
+cd docs && node .vitepress/scripts/prepare-playground.ts && ./node_modules/.bin/vitepress dev --port 5180
+```
+
+`pnpm run dev -- --port 5188` **不管用**：实际传下去的是 `vite --config vite.config.ts -- --port 5188`，
+`--` 被原样保留，vite 仍读配置里的 5173（2026-11-03 踩过，报错长得跟没传一样）。
+
+还有一个安静的坑：vite / vitepress 可能只监听 `[::1]`，此时 `curl 127.0.0.1:端口` 是空的，
+要用 `http://[::1]:端口/`；反过来，如果同端口上还有别的进程监听通配地址 `*:端口`，
+`http://127.0.0.1:端口/` 打开的会是**别人的站点**——看着像"页面没生效"，实际是找错了服务。
+换端口前先 `lsof -nP -iTCP:端口 -sTCP:LISTEN`，起完再 `curl` 一次确认 `<title>` 是 `office-ui`。
+
 ## 2. 提交前先跑
 
 ```bash

@@ -5384,6 +5384,2543 @@
 			return () => (0, vue.h)("pre", { class: "oj-code" }, [props.language ? (0, vue.h)("span", { class: "oj-code__lang" }, props.language) : null, props.code]);
 		}
 	});
+	/**
+	* 头像上的首字母。
+	*
+	* 拉丁名取首尾两词首字母（`Ada Lovelace` → `AL`），单字取首字符，中日韩整名取**首字**——
+	* 取末字会让"张伟 / 王伟"这类名字在头像上撞成同一个字。
+	*
+	* 中日韩名字中间带空格（`王 伟`）时仍只取一个字：这类空格是排版习惯，不是"两个词"，
+	* 取两个字符在圆形头像里会挤成一团。
+	*
+	* 用 `[...name]` 而不是 `name[0]`：emoji 与部分 CJK 扩展字是代理对，按 UTF-16 切会切出半个字符。
+	*/
+	var CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/;
+	function initialsOf(name) {
+		var _, _2;
+		const parts = name.trim().split(/\s+/).filter((part) => part.length > 0);
+		if (parts.length === 0) return "";
+		const first = (_ = [...parts[0]][0]) !== null && _ !== void 0 ? _ : "";
+		if (parts.length === 1 || CJK.test(first)) return first.toUpperCase();
+		return (first + ((_2 = [...parts[parts.length - 1]][0]) !== null && _2 !== void 0 ? _2 : "")).toUpperCase();
+	}
+	/**
+	* 色板序号：稳定哈希，同一 `id` 永远同一档。
+	*
+	* 不用 `charCodeAt(0)` 取模：`user-1`/`user-2`… 这类 id 的首字符全一样，会全部撞到同一档；
+	* djb2 变体对"前缀相同、尾号不同"的 id 分布足够散。
+	*/
+	function avatarTone(person) {
+		if (person.tone !== void 0 && Number.isInteger(person.tone)) return (person.tone % 4 + 4) % 4;
+		let hash = 5381;
+		for (let index = 0; index < person.id.length; index += 1) hash = (hash << 5) + hash + person.id.charCodeAt(index) >>> 0;
+		return hash % 4;
+	}
+	/**
+	* 头像堆叠：超过 `max` 个就折叠，**折叠数不含"更多"按钮自身**（按钮显示 `overflow` 个人）。
+	*
+	* `max` 为 0 时返回空 + 全折叠：调用方据此在窄侧栏里把整组隐藏掉，而不是渲染一个 `+5` 再也没地方展开。
+	* `max` 非整数或负数按 0 处理——`max` 常常来自"容器宽度算出来的档数"，算错时应该什么都不画，而不是画非整数个。
+	*/
+	function stackPeople(people, max) {
+		const limit = Number.isFinite(max) && max > 0 ? Math.floor(max) : 0;
+		if (limit === 0) return {
+			visible: [],
+			overflow: people.length
+		};
+		if (people.length <= limit) return {
+			visible: [...people],
+			overflow: 0
+		};
+		const shown = Math.max(limit - 1, 0);
+		return {
+			visible: people.slice(0, shown),
+			overflow: people.length - shown
+		};
+	}
+	//#endregion
+	//#region src/vue/comment-thread.ts
+	/**
+	* `OjCommentThread`（03 §3 E 组）：单条批注 + 回复 + 解决/重开。
+	*
+	* 组件**自己不改传进来的线程**：回复走 `reply` 事件、解决态走 `toggle-resolved`，
+	* 由宿主拿 `addReply()` / `setResolved()` 算完再传回来。受控是刻意的——
+	* 批注列表要落盘、要协同同步，组件内部藏一份状态就会与真实数据分叉。
+	*
+	* 时间由 `formatTime` 传入而不是组件内 `toLocaleString()`：时间格式跟着语言包走，
+	* 组件里自己格式化会让同一页面出现两种日期写法。
+	*/
+	var OjCommentThread = (0, vue.defineComponent)({
+		name: "OjCommentThread",
+		props: {
+			thread: {
+				type: Object,
+				required: true
+			},
+			/** 时间格式化（由使用方按语言给）。 */
+			formatTime: {
+				type: Function,
+				required: true
+			},
+			resolveLabel: {
+				type: String,
+				required: true
+			},
+			reopenLabel: {
+				type: String,
+				required: true
+			},
+			replyLabel: {
+				type: String,
+				required: true
+			},
+			replyPlaceholder: {
+				type: String,
+				default: ""
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: ["reply", "toggle-resolved"],
+		setup(props, { emit }) {
+			const draft = (0, vue.ref)("");
+			function submit() {
+				const text = draft.value.trim();
+				if (text.length === 0 || props.disabled) return;
+				emit("reply", text);
+				draft.value = "";
+			}
+			function onKeydown(event) {
+				if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+					event.preventDefault();
+					submit();
+				}
+			}
+			function person(person, className) {
+				return (0, vue.h)("span", {
+					class: className,
+					"data-tone": String(avatarTone(person)),
+					"aria-hidden": "true"
+				}, initialsOf(person.name));
+			}
+			return () => {
+				const thread = props.thread;
+				const canSend = draft.value.trim().length > 0 && !props.disabled;
+				return (0, vue.h)("article", {
+					class: "oj-comment",
+					"data-resolved": thread.resolved ? "" : void 0,
+					"data-thread": thread.id
+				}, [
+					(0, vue.h)("header", { class: "oj-comment__head" }, [
+						person(thread.author, "oj-comment__avatar oj-avatar"),
+						(0, vue.h)("span", { class: "oj-comment__author" }, thread.author.name),
+						(0, vue.h)("time", {
+							class: "oj-comment__time",
+							datetime: new Date(thread.at).toISOString()
+						}, props.formatTime(thread.at)),
+						(0, vue.h)("button", {
+							type: "button",
+							class: "oj-comment__resolve",
+							"data-active": thread.resolved ? "" : void 0,
+							"aria-pressed": thread.resolved ? "true" : "false",
+							onClick: () => emit("toggle-resolved", !thread.resolved)
+						}, thread.resolved ? props.reopenLabel : props.resolveLabel)
+					]),
+					(0, vue.h)("p", { class: "oj-comment__text" }, thread.text),
+					thread.replies.length === 0 ? null : (0, vue.h)("ol", { class: "oj-comment__replies" }, thread.replies.map((reply) => (0, vue.h)("li", {
+						key: reply.id,
+						class: "oj-comment__reply"
+					}, [person(reply.author, "oj-comment__avatar oj-avatar oj-avatar--small"), (0, vue.h)("div", { class: "oj-comment__reply-body" }, [(0, vue.h)("div", { class: "oj-comment__reply-meta" }, [(0, vue.h)("span", { class: "oj-comment__author" }, reply.author.name), (0, vue.h)("time", {
+						class: "oj-comment__time",
+						datetime: new Date(reply.at).toISOString()
+					}, props.formatTime(reply.at))]), (0, vue.h)("p", { class: "oj-comment__text" }, reply.text)])]))),
+					(0, vue.h)("div", { class: "oj-comment__compose" }, [(0, vue.h)("textarea", {
+						class: "oj-comment__input",
+						rows: 2,
+						value: draft.value,
+						placeholder: props.replyPlaceholder,
+						"aria-label": props.replyLabel,
+						disabled: props.disabled,
+						onInput: (event) => {
+							draft.value = event.target.value;
+						},
+						onKeydown
+					}), (0, vue.h)("button", {
+						type: "button",
+						class: "oj-button oj-comment__send",
+						"data-size": "mini",
+						disabled: canSend ? void 0 : true,
+						onClick: submit
+					}, props.replyLabel)])
+				]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/review.ts
+	var REVIEW_KINDS = [
+		"insert",
+		"delete",
+		"format"
+	];
+	function match(change, filter) {
+		var _filter$kind, _filter$authorId;
+		const kind = (_filter$kind = filter.kind) !== null && _filter$kind !== void 0 ? _filter$kind : "all";
+		const authorId = (_filter$authorId = filter.authorId) !== null && _filter$authorId !== void 0 ? _filter$authorId : "all";
+		if (kind !== "all" && change.kind !== kind) return false;
+		if (authorId !== "all" && change.author.id !== authorId) return false;
+		return true;
+	}
+	/** 按种类/作者筛选，保持原有顺序（顺序即文档位置，重排会让"下一个修订"跳着走）。 */
+	function filterChanges(changes, filter) {
+		return changes.filter((change) => match(change, filter));
+	}
+	//#endregion
+	//#region src/vue/review-panel.ts
+	/**
+	* `OjReviewPanel`（03 §3 E 组）：修订列表 + 逐条/批量接受拒绝。
+	*
+	* 三件事按 Word 的语义钉住，改之前先读 03 §8：
+	*
+	*   1. **"全部接受"只作用于当前筛选结果**（`decideAll(changes, filter)` 同一条规则）。
+	*      在"只看张三"的筛选下连李四的修订一起接受，是数据事故而不是效率提升。
+	*   2. **决策后条目从列表消失**，不留"已接受"灰条：留灰条会让人以为还能再点一次。
+	*   3. **筛选是本地 UI 状态**，不往上报。筛选器一变就通知宿主，会逼着宿主也存一份筛选状态，
+	*      于是两个面板的筛选各走各的。
+	*
+	* 文案全部由使用方给：种类名要做成 `kindLabels` 映射，是因为"插入/删除/格式"在四种语言里
+	* 都不是能靠拼接得到的。
+	*/
+	var OjReviewPanel = (0, vue.defineComponent)({
+		name: "OjReviewPanel",
+		props: {
+			changes: {
+				type: Array,
+				required: true
+			},
+			label: {
+				type: String,
+				required: true
+			},
+			acceptLabel: {
+				type: String,
+				required: true
+			},
+			rejectLabel: {
+				type: String,
+				required: true
+			},
+			acceptAllLabel: {
+				type: String,
+				required: true
+			},
+			rejectAllLabel: {
+				type: String,
+				required: true
+			},
+			/** 空态文案（"没有待处理的修订"）。 */
+			emptyLabel: {
+				type: String,
+				required: true
+			},
+			/** "全部种类"这一档的名字。 */
+			allKindsLabel: {
+				type: String,
+				required: true
+			},
+			kindLabels: {
+				type: Object,
+				default: () => ({
+					insert: "insert",
+					delete: "delete",
+					format: "format"
+				})
+			},
+			formatTime: {
+				type: Function,
+				required: true
+			}
+		},
+		emits: ["decide", "decide-all"],
+		setup(props, { emit }) {
+			const kind = (0, vue.ref)("all");
+			const visible = () => filterChanges(props.changes, { kind: kind.value });
+			function decide(id, decision) {
+				emit("decide", id, decision);
+			}
+			function decideAll(decision) {
+				emit("decide-all", decision, kind.value);
+			}
+			function chip(id, text) {
+				const active = kind.value === id;
+				return (0, vue.h)("button", {
+					key: id,
+					type: "button",
+					class: "oj-review__chip",
+					"data-active": active ? "" : void 0,
+					"aria-pressed": active ? "true" : "false",
+					onClick: () => {
+						kind.value = id;
+					}
+				}, text);
+			}
+			return () => {
+				const rows = visible();
+				return (0, vue.h)("section", {
+					class: "oj-review",
+					"aria-label": props.label
+				}, [
+					(0, vue.h)("div", {
+						class: "oj-review__filters",
+						role: "group",
+						"aria-label": props.label
+					}, [chip("all", props.allKindsLabel), ...REVIEW_KINDS.map((entry) => chip(entry, props.kindLabels[entry]))]),
+					(0, vue.h)("div", { class: "oj-review__actions" }, [(0, vue.h)("button", {
+						type: "button",
+						class: "oj-button",
+						"data-size": "mini",
+						disabled: rows.length === 0 ? true : void 0,
+						onClick: () => decideAll("accept")
+					}, props.acceptAllLabel), (0, vue.h)("button", {
+						type: "button",
+						class: "oj-button",
+						"data-size": "mini",
+						disabled: rows.length === 0 ? true : void 0,
+						onClick: () => decideAll("reject")
+					}, props.rejectAllLabel)]),
+					rows.length === 0 ? (0, vue.h)("p", { class: "oj-review__empty" }, props.emptyLabel) : (0, vue.h)("ol", { class: "oj-review__list" }, rows.map((change) => (0, vue.h)("li", {
+						key: change.id,
+						class: "oj-review__item",
+						"data-kind": change.kind
+					}, [
+						(0, vue.h)("span", {
+							class: "oj-review__avatar oj-avatar",
+							"data-tone": String(avatarTone(change.author)),
+							"aria-hidden": "true"
+						}, initialsOf(change.author.name)),
+						(0, vue.h)("div", { class: "oj-review__body" }, [(0, vue.h)("div", { class: "oj-review__meta" }, [
+							(0, vue.h)("span", { class: "oj-review__kind" }, props.kindLabels[change.kind]),
+							(0, vue.h)("span", { class: "oj-review__author" }, change.author.name),
+							(0, vue.h)("time", {
+								class: "oj-review__time",
+								datetime: new Date(change.at).toISOString()
+							}, props.formatTime(change.at))
+						]), (0, vue.h)("p", { class: "oj-review__summary" }, change.summary)]),
+						(0, vue.h)("div", { class: "oj-review__decide" }, [(0, vue.h)("button", {
+							type: "button",
+							class: "oj-button",
+							"data-size": "mini",
+							"aria-label": props.acceptLabel,
+							onClick: () => decide(change.id, "accept")
+						}, props.acceptLabel), (0, vue.h)("button", {
+							type: "button",
+							class: "oj-button",
+							"data-size": "mini",
+							"aria-label": props.rejectLabel,
+							onClick: () => decide(change.id, "reject")
+						}, props.rejectLabel)])
+					])))
+				]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/vue/presence-avatars.ts
+	/**
+	* `OjPresenceAvatars`（03 §3 E 组）：协同在场头像堆叠。
+	*
+	* 三个决定：
+	*   1. **颜色与首字母由 `id` 与姓名派生**，不接受外部传色板：同一人在批注区和标题栏必须是同一个颜色，
+	*      允许外部指定就一定有两处不一致的那天。
+	*   2. **"还有 N 人"是按钮而不是一段文字**：它是唯一能展开完整名单的入口，
+	*      做成 `<span>` 就等于这批人永远看不到（03 §5 的可达性底线）。
+	*   3. **堆叠数由 `max` 决定，不做 CSS 自动折行**：折行会让参与人数改变标题栏高度，
+	*      标题栏一抖，下面的文档就跟着跳。
+	*/
+	var OjPresenceAvatars = (0, vue.defineComponent)({
+		name: "OjPresenceAvatars",
+		props: {
+			people: {
+				type: Array,
+				required: true
+			},
+			/** 最多显示几格（含"更多"按钮）。给 0 表示这个位置放不下，整组不画。 */
+			max: {
+				type: Number,
+				default: 5
+			},
+			/** 整组的可访问名（"当前在线的协作者"）。 */
+			label: {
+				type: String,
+				required: true
+			},
+			/** 已格式化的"还有 N 人"文案；不给时按钮上只显示 `+N`。 */
+			overflowLabel: {
+				type: String,
+				default: ""
+			},
+			/** 溢出按钮的提示（"查看全部协作者"）。 */
+			overflowTitle: {
+				type: String,
+				default: ""
+			}
+		},
+		emits: ["select", "overflow"],
+		setup(props, { emit }) {
+			return () => {
+				if (!(props.max > 0)) return null;
+				const stacked = stackPeople(props.people, props.max);
+				if (stacked.visible.length === 0 && stacked.overflow === 0) return null;
+				const overflow = stacked.overflow;
+				return (0, vue.h)("div", {
+					class: "oj-presence",
+					role: "group",
+					"aria-label": props.label
+				}, [...stacked.visible.map((person) => (0, vue.h)("button", {
+					key: person.id,
+					type: "button",
+					class: "oj-presence__avatar oj-avatar",
+					"data-tone": String(avatarTone(person)),
+					title: person.name,
+					"aria-label": person.name,
+					onClick: () => emit("select", person.id)
+				}, initialsOf(person.name))), overflow > 0 ? (0, vue.h)("button", {
+					type: "button",
+					class: "oj-presence__more",
+					title: props.overflowTitle === "" ? props.overflowLabel : props.overflowTitle,
+					"aria-label": props.overflowLabel === "" ? `+${overflow}` : props.overflowLabel,
+					onClick: () => emit("overflow")
+				}, props.overflowLabel === "" ? `+${overflow}` : props.overflowLabel) : null]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/file-name.ts
+	/** Windows 保留字符（不含 `\0`，它在 JS 字符串里根本进不来）。 */
+	var ILLEGAL = /[\\/:*?"<>|]/;
+	/** Windows 保留设备名。大小写不敏感，且带扩展名也是保留的（`CON.txt` 同样建不出来）。 */
+	var RESERVED = /* @__PURE__ */ new Set([
+		"con",
+		"prn",
+		"aux",
+		"nul",
+		...Array.from({ length: 9 }, (_, index) => `com${index + 1}`),
+		...Array.from({ length: 9 }, (_, index) => `lpt${index + 1}`)
+	]);
+	/**
+	* 校验文件名。返回 `undefined` 表示可用。
+	*
+	* 首尾空白先裁掉再判空：`"  "` 是用户想清空名字的常见中间态，它必须报 `empty` 而不是"可用"。
+	* `.` 与 `..` 归到 `reserved`：它们在所有平台上都不是合法文件名，但也不是"空"。
+	*/
+	function fileNameProblem(name) {
+		var _trimmed$split$0$toLo, _trimmed$split$;
+		const trimmed = name.trim();
+		if (trimmed.length === 0) return "empty";
+		if (trimmed === "." || trimmed === "..") return "reserved";
+		if (ILLEGAL.test(trimmed)) return "illegal";
+		const stem = (_trimmed$split$0$toLo = (_trimmed$split$ = trimmed.split(".")[0]) === null || _trimmed$split$ === void 0 ? void 0 : _trimmed$split$.toLowerCase()) !== null && _trimmed$split$0$toLo !== void 0 ? _trimmed$split$0$toLo : "";
+		if (RESERVED.has(stem)) return "reserved";
+	}
+	/**
+	* 重命名结果。**与原值相同视为成功且返回原名**（不是"没变化所以失败"）：
+	* 用户回车确认一个没改的名字，界面应该退出编辑态，而不是弹错误。
+	*/
+	function renameFile(current, next) {
+		const trimmed = next.trim();
+		if (trimmed === current) return {
+			ok: true,
+			name: current
+		};
+		const problem = fileNameProblem(trimmed);
+		if (problem !== void 0) return {
+			ok: false,
+			problem
+		};
+		return {
+			ok: true,
+			name: trimmed
+		};
+	}
+	//#endregion
+	//#region src/vue/file-name-header.ts
+	/**
+	* `OjFileNameHeader`（03 §3 F 组）：标题栏文件名 + 收藏 + 保存态。
+	*
+	* 编辑态的三个细节，缺一个都会在实际使用里被吐槽：
+	*   - **回车提交、Esc 取消、失焦取消**。失焦即提交是很常见的实现，但它让"点别处"变成一次改名；
+	*   - **非法名不退出编辑态**，只在下方给一行原因。退出等于把用户打的名字吞了；
+	*   - **未改动视为成功**（`renameFile` 的约定），否则"回车确认一个没改的名字"会报错。
+	*
+	* 保存态只画三档圆点/文案，文案由使用方给（`stateLabel`）："已保存到云端"这种句子没法由组件拼。
+	*/
+	var OjFileNameHeader = (0, vue.defineComponent)({
+		name: "OjFileNameHeader",
+		props: {
+			name: {
+				type: String,
+				required: true
+			},
+			state: {
+				type: String,
+				default: "saved"
+			},
+			/** 已格式化的保存态文案。 */
+			stateLabel: {
+				type: String,
+				default: ""
+			},
+			/** 重命名入口的可访问名（"重命名文件"）。 */
+			renameLabel: {
+				type: String,
+				required: true
+			},
+			/** 收藏按钮的可访问名（"收藏"）。 */
+			favoriteLabel: {
+				type: String,
+				required: true
+			},
+			favored: {
+				type: Boolean,
+				default: false
+			},
+			editable: {
+				type: Boolean,
+				default: true
+			},
+			/** 非法名的原因文案，按种类给（组件不拼句子）。 */
+			problemLabels: {
+				type: Object,
+				default: () => ({})
+			}
+		},
+		emits: ["rename", "update:favored"],
+		setup(props, { emit }) {
+			const editing = (0, vue.ref)(false);
+			const draft = (0, vue.ref)("");
+			const problem = (0, vue.ref)(void 0);
+			function start() {
+				if (!props.editable) return;
+				draft.value = props.name;
+				problem.value = void 0;
+				editing.value = true;
+			}
+			function cancel() {
+				editing.value = false;
+				problem.value = void 0;
+			}
+			function commit() {
+				const result = renameFile(props.name, draft.value);
+				if (!result.ok) {
+					problem.value = result.problem;
+					return;
+				}
+				editing.value = false;
+				problem.value = void 0;
+				if (result.name !== props.name) emit("rename", result.name);
+			}
+			function onKeydown(event) {
+				if (event.key === "Enter") {
+					event.preventDefault();
+					commit();
+					return;
+				}
+				if (event.key === "Escape") {
+					event.preventDefault();
+					cancel();
+				}
+			}
+			function input() {
+				return (0, vue.h)("input", {
+					class: "oj-file-name__input",
+					value: draft.value,
+					"aria-label": props.renameLabel,
+					"aria-invalid": problem.value === void 0 ? void 0 : "true",
+					onInput: (event) => {
+						draft.value = event.target.value;
+						problem.value = void 0;
+					},
+					onKeydown,
+					onBlur: cancel,
+					onVnodeMounted: (vnode) => {
+						const element = vnode.el;
+						element === null || element === void 0 || element.focus();
+						element === null || element === void 0 || element.select();
+					}
+				});
+			}
+			return () => {
+				var _props$problemLabels$;
+				const message = problem.value === void 0 ? "" : (_props$problemLabels$ = props.problemLabels[problem.value]) !== null && _props$problemLabels$ !== void 0 ? _props$problemLabels$ : "";
+				return (0, vue.h)("div", {
+					class: "oj-file-name",
+					"data-state": props.state
+				}, [
+					(0, vue.h)("button", {
+						type: "button",
+						class: "oj-file-name__favorite",
+						"data-active": props.favored ? "" : void 0,
+						"aria-pressed": props.favored ? "true" : "false",
+						"aria-label": props.favoriteLabel,
+						title: props.favoriteLabel,
+						onClick: () => emit("update:favored", !props.favored)
+					}, "★"),
+					editing.value ? input() : (0, vue.h)("button", {
+						type: "button",
+						class: "oj-file-name__title",
+						title: props.renameLabel,
+						"aria-label": props.renameLabel,
+						onClick: start
+					}, props.name),
+					props.stateLabel === "" ? null : (0, vue.h)("span", {
+						class: "oj-file-name__state",
+						"data-state": props.state
+					}, [(0, vue.h)("i", {
+						class: "oj-file-name__dot",
+						"aria-hidden": "true"
+					}), props.stateLabel]),
+					message === "" ? null : (0, vue.h)("span", {
+						class: "oj-file-name__problem",
+						role: "alert"
+					}, message)
+				]);
+			};
+		}
+	});
+	function finiteOr(value, fallback) {
+		return value !== void 0 && Number.isFinite(value) ? value : fallback;
+	}
+	/**
+	* 夹进 `[min, max]`；`collapsible` 时低于 `min / 2` 归 0。
+	*
+	* 折叠阈值取 `min / 2` 而不是 0 或 min：阈值等于 min 时"想拖窄一点"会被判成折叠，
+	* 等于 0 时永远折叠不了（鼠标到 0 之前已经到 min）。一半是唯一能让两种意图都成立的界线。
+	*
+	* `max` 为 `Infinity`（或没给）表示**不设上限**，不能当成"缺省 = min"：
+	* 那样"右侧批注栏最宽不限"会被夹成最小宽度，拖一下就弹回去，看起来像拖拽坏了。
+	* `max` 小于 `min`（配置写反）时以 `min` 为准：宁可显示最小宽，也不要让栏宽变成 `NaN`。
+	*/
+	function clampPane(size, bounds) {
+		const min = Math.max(0, finiteOr(bounds.min, 0));
+		const limit = finiteOr(bounds.max, Number.POSITIVE_INFINITY);
+		const max = Number.isFinite(limit) ? Math.max(min, limit) : Number.POSITIVE_INFINITY;
+		const value = finiteOr(size, min);
+		if (bounds.collapsible === true && value < min / 2) return 0;
+		return Math.min(Math.max(value, min), max);
+	}
+	/**
+	* 拖拽中的新尺寸。`delta` 是"这一栏要变宽多少"（向右拖左侧栏变大即正）。
+	* 已经折叠（0）的栏在拖拽中不自动展开：展开走键盘或拖回 `min` 以上，避免手抖一下就弹回来。
+	*/
+	function resizePane(start, delta, bounds) {
+		const current = finiteOr(start, bounds.min);
+		if (current === 0) return 0;
+		return clampPane(current + finiteOr(delta, 0), bounds);
+	}
+	/**
+	* 键盘步进。折叠态下按"变大"直接回到 `min`（否则 `0 + 16` 会停在折叠区里出不来）。
+	*
+	* 反向的边界单独处理：已经在 `min` 上再按"变小"必须折叠到 0。走 `clampPane` 的话
+	* `min - 16` 大于 `min / 2`，会被夹回 `min`——键盘就**永远收不起侧栏**，
+	* 而拖拽能收，于是同一个组件的两条输入路径行为不一致。
+	*/
+	function stepPane(size, direction, bounds, step = 16) {
+		const min = Math.max(0, finiteOr(bounds.min, 0));
+		const current = finiteOr(size, min);
+		const amount = Math.abs(finiteOr(step, 16)) || 16;
+		if (current === 0) return direction === 1 ? clampPane(min, bounds) : 0;
+		const next = current + direction * amount;
+		if (direction === -1 && bounds.collapsible === true && next <= min) return 0;
+		return clampPane(next, bounds);
+	}
+	/** 折叠/展开切换。不可折叠时返回原尺寸——按钮仍可在，但点了没反应比"变成 0 就回不来"好。 */
+	function togglePane(size, bounds) {
+		if (bounds.collapsible !== true) return clampPane(size, bounds);
+		return finiteOr(size, bounds.min) === 0 ? clampPane(bounds.min, bounds) : 0;
+	}
+	/**
+	* 第 `index` 栏左侧那根分隔条归谁管。`index` 是"后一栏"的下标，所以从 1 开始。
+	*
+	* 规则：**总是调固定宽的那一栏**。可伸缩栏的尺寸是"剩下的空间"，没有独立数值可拖，
+	* 让它当被调对象只会出现"拖动后跳回原处"。两侧都固定时才调后一栏（与 `OjSplitter` 的默认一致）。
+	* 两侧都 `flexible` 时返回 `undefined`：它们按比例分空间，拖谁都表达不成单个尺寸。
+	*/
+	function paneSplitter(panes, index) {
+		if (index <= 0 || index >= panes.length) return void 0;
+		const before = panes[index - 1];
+		const after = panes[index];
+		if (before === void 0 || after === void 0) return void 0;
+		if (before.flexible === true && after.flexible === true) return void 0;
+		const controlledIsBefore = after.flexible === true;
+		const controlled = controlledIsBefore ? before : after;
+		if (controlled.resizable === false) return void 0;
+		return {
+			controlled: controlled.id,
+			side: controlledIsBefore ? "before" : "after"
+		};
+	}
+	//#endregion
+	//#region src/vue/splitter.ts
+	/**
+	* `OjSplitter`（03 §3 D 组）：两栏之间的可拖拽分隔条。
+	*
+	* 只画一根条子，不画两侧的栏——`size` 描述的是**被调那一栏**的宽度/高度，
+	* 由 `pane` 决定是分隔条之前还是之后那一栏（默认 `'after'`，即右侧批注栏 / 下方控制台）。
+	* 方向必须显式声明：同一根条子既能表示"左栏收起"也能表示"右栏展开"，
+	* 两种语义都不说清等于永远搞不懂往哪拖。往右拖是**把右栏压窄、把左栏放宽**。
+	*
+	* 受控：拖拽只上抛 `update:size`，本地不留尺寸副本。拖拽期间宿主可能同时在钳制
+	* （窗口缩小、另一栏被折叠），本地存一份就会出现松开后"跳一下"。
+	*
+	* 键盘走 WAI-ARIA window splitter 的语义：方向键移动的是**分隔条本身**，
+	* 不是"把数值调大"——否则右栏的右键与左栏的右键行为相反，谁都用不对。
+	*/
+	var OjSplitter = (0, vue.defineComponent)({
+		name: "OjSplitter",
+		props: {
+			/** 被调那一栏的尺寸（px）。 */
+			size: {
+				type: Number,
+				required: true
+			},
+			min: {
+				type: Number,
+				default: 0
+			},
+			max: {
+				type: Number,
+				default: Number.POSITIVE_INFINITY
+			},
+			collapsible: {
+				type: Boolean,
+				default: false
+			},
+			/** 被调的是分隔条**之前**还是**之后**那一栏。 */
+			pane: {
+				type: String,
+				default: "after"
+			},
+			orientation: {
+				type: String,
+				default: "vertical"
+			},
+			/** 分隔条的可访问名（"调整批注栏宽度"）。 */
+			label: {
+				type: String,
+				required: true
+			},
+			step: {
+				type: Number,
+				default: 16
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: [
+			"update:size",
+			"drag-start",
+			"drag-end"
+		],
+		setup(props, { emit }) {
+			const dragging = (0, vue.ref)(false);
+			let origin = 0;
+			let originSize = 0;
+			let last = props.size;
+			function bounds() {
+				return {
+					min: props.min,
+					max: props.max,
+					collapsible: props.collapsible
+				};
+			}
+			/** 只在值真的变了才上抛：拖拽一次会收到几十个 pointermove，重复值会打断宿主的渲染合帧。 */
+			function commit(next) {
+				if (next === last) return;
+				last = next;
+				emit("update:size", next);
+			}
+			/**
+			* 指针捕获让光标划出条子之外仍能继续拖。测试环境（happy-dom）不一定实现，
+			* 捕获失败只影响"拖出条子就断"，不该让拖拽本身抛错。
+			*/
+			function capture(element, pointerId) {
+				try {
+					element === null || element === void 0 || element.setPointerCapture(pointerId);
+				} catch (_unused) {}
+			}
+			function onPointerdown(event) {
+				if (props.disabled || event.button !== 0) return;
+				event.preventDefault();
+				capture(event.currentTarget, event.pointerId);
+				dragging.value = true;
+				origin = props.orientation === "vertical" ? event.clientX : event.clientY;
+				originSize = props.size;
+				last = props.size;
+				emit("drag-start");
+			}
+			function onPointermove(event) {
+				if (!dragging.value) return;
+				const pointer = props.orientation === "vertical" ? event.clientX : event.clientY;
+				const delta = props.pane === "before" ? pointer - origin : origin - pointer;
+				commit(resizePane(originSize, delta, bounds()));
+			}
+			function finish(event) {
+				if (!dragging.value) return;
+				dragging.value = false;
+				const target = event.currentTarget;
+				try {
+					if ((target === null || target === void 0 ? void 0 : target.hasPointerCapture(event.pointerId)) === true) target.releasePointerCapture(event.pointerId);
+				} catch (_unused2) {}
+				emit("drag-end", last);
+			}
+			function onKeydown(event) {
+				if (props.disabled) return;
+				const vertical = props.orientation === "vertical";
+				const backward = vertical ? "ArrowLeft" : "ArrowUp";
+				const forward = vertical ? "ArrowRight" : "ArrowDown";
+				const grow = props.pane === "before" ? forward : backward;
+				const shrink = props.pane === "before" ? backward : forward;
+				if (event.key === grow) {
+					event.preventDefault();
+					commit(stepPane(props.size, 1, bounds(), props.step));
+					return;
+				}
+				if (event.key === shrink) {
+					event.preventDefault();
+					commit(stepPane(props.size, -1, bounds(), props.step));
+					return;
+				}
+				if (event.key === "Home") {
+					event.preventDefault();
+					commit(props.collapsible ? 0 : clampPane(props.min, bounds()));
+					return;
+				}
+				if (event.key === "End") {
+					event.preventDefault();
+					if (Number.isFinite(props.max)) commit(clampPane(props.max, bounds()));
+					return;
+				}
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					commit(togglePane(props.size, bounds()));
+				}
+			}
+			return () => {
+				const collapsed = props.size === 0;
+				return (0, vue.h)("div", {
+					class: "oj-splitter",
+					role: "separator",
+					tabindex: props.disabled ? -1 : 0,
+					"aria-label": props.label,
+					"aria-orientation": props.orientation,
+					"aria-valuenow": Math.round(props.size),
+					"aria-valuemin": Math.round(props.min),
+					"aria-valuemax": Number.isFinite(props.max) ? Math.round(props.max) : void 0,
+					"aria-disabled": props.disabled ? "true" : void 0,
+					"data-orientation": props.orientation,
+					"data-pane": props.pane,
+					"data-dragging": dragging.value ? "" : void 0,
+					"data-collapsed": collapsed ? "" : void 0,
+					"data-disabled": props.disabled ? "" : void 0,
+					onPointerdown,
+					onPointermove,
+					onPointerup: finish,
+					onPointercancel: finish,
+					onKeydown,
+					onDblclick: () => {
+						if (props.disabled) return;
+						commit(togglePane(props.size, bounds()));
+					}
+				});
+			};
+		}
+	});
+	//#endregion
+	//#region src/vue/pane-group.ts
+	/**
+	* `OjPaneGroup`（03 §3 D 组）：按声明排布多栏，并在栏之间插分隔条。
+	*
+	* 只做三件组件里最容易写错的事，其余交给宿主：
+	*   - **哪根条子调哪一栏**由 `paneSplitter()` 决定——永远调固定宽的那一栏。
+	*     可伸缩栏的尺寸是"剩下的空间"，让它当被调对象就会出现"拖完跳回原处"。
+	*   - **栏位用命名插槽**（`#<id>`），不用默认插槽：默认插槽会把同一段内容画进每一栏，
+	*     而多栏布局里每栏内容必然不同，复制出来的 DOM 只会让宿主以为组件坏了。
+	*   - **不自己存尺寸**。`update:size` 带栏位 id 上抛，宿主回写 `panes`；否则拖拽与
+	*     外部改布局（切换预设、恢复会话）会各存一份，谁赢取决于时序。
+	*
+	* 布局只用 flex：固定栏 `flex: 0 0 auto` + 宽/高，可伸缩栏 `flex: 1 1 0`。
+	* 全部用 `width: calc(...)` 之类的表达式反而会在收起时算不清最小宽度。
+	*/
+	var OjPaneGroup = (0, vue.defineComponent)({
+		name: "OjPaneGroup",
+		props: {
+			panes: {
+				type: Array,
+				required: true
+			},
+			orientation: {
+				type: String,
+				default: "vertical"
+			},
+			/** 分隔条的兜底可访问名；栏位自己给了 `label` 时优先用栏位的。 */
+			label: {
+				type: String,
+				required: true
+			}
+		},
+		emits: ["update:size"],
+		setup(props, { emit, slots }) {
+			/** 固定栏沿主轴的长度；可伸缩栏沿主轴的 `min` 仍然要生效，否则会被压到 0 无法操作。 */
+			function paneStyle(pane) {
+				const vertical = props.orientation === "vertical";
+				const min = Number.isFinite(pane.min) ? Math.max(0, pane.min) : 0;
+				if (pane.flexible === true) return vertical ? {
+					flex: "1 1 0",
+					minWidth: `${min}px`
+				} : {
+					flex: "1 1 0",
+					minHeight: `${min}px`
+				};
+				const size = Number.isFinite(pane.size) ? Math.max(0, pane.size) : 0;
+				return vertical ? {
+					flex: "0 0 auto",
+					width: `${size}px`
+				} : {
+					flex: "0 0 auto",
+					height: `${size}px`
+				};
+			}
+			return () => {
+				const children = [];
+				props.panes.forEach((pane, index) => {
+					var _slots$pane$id;
+					if (index > 0) {
+						const splitter = paneSplitter(props.panes, index);
+						const target = splitter === void 0 ? void 0 : props.panes.find((entry) => entry.id === splitter.controlled);
+						if (splitter !== void 0 && target !== void 0) {
+							var _target$min, _target$max, _target$label;
+							children.push((0, vue.h)(OjSplitter, {
+								key: `splitter-${pane.id}`,
+								size: target.size,
+								min: (_target$min = target.min) !== null && _target$min !== void 0 ? _target$min : 0,
+								max: (_target$max = target.max) !== null && _target$max !== void 0 ? _target$max : Number.POSITIVE_INFINITY,
+								collapsible: target.collapsible === true,
+								pane: splitter.side,
+								orientation: props.orientation,
+								label: (_target$label = target.label) !== null && _target$label !== void 0 ? _target$label : props.label,
+								"onUpdate:size": (size) => emit("update:size", target.id, size)
+							}));
+						}
+					}
+					children.push((0, vue.h)("section", {
+						key: pane.id,
+						class: "oj-pane-group__pane",
+						"data-pane": pane.id,
+						"data-flexible": pane.flexible === true ? "" : void 0,
+						"data-collapsed": pane.flexible !== true && pane.size === 0 ? "" : void 0,
+						style: paneStyle(pane)
+					}, (_slots$pane$id = slots[pane.id]) === null || _slots$pane$id === void 0 ? void 0 : _slots$pane$id.call(slots)));
+				});
+				return (0, vue.h)("div", {
+					class: "oj-pane-group",
+					"data-orientation": props.orientation
+				}, children);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/virtual.ts
+	/** 非法尺寸一律当 0：`NaN` 混进前缀和会让整张表的偏移全部变成 `NaN`，且再也恢复不了。 */
+	function positive(value, fallback) {
+		if (value === void 0 || !Number.isFinite(value)) return Math.max(0, fallback);
+		return Math.max(0, value);
+	}
+	function createMetrics(items, estimateSize) {
+		const estimate = positive(estimateSize, 0);
+		const ids = [];
+		const sizes = [];
+		const offsets = [0];
+		for (const item of items) {
+			ids.push(item.id);
+			const size = positive(item.size, estimate);
+			sizes.push(size);
+			offsets.push(offsets[offsets.length - 1] + size);
+		}
+		return {
+			ids,
+			sizes,
+			offsets,
+			total: offsets[offsets.length - 1]
+		};
+	}
+	/**
+	* 量到真实高度后重建偏移。
+	*
+	* 只改 `index` 之后的偏移：前面的行与它们的滚动位置都不受影响，列表才不会在测量时抖动。
+	* 尺寸没变时返回原对象——`ResizeObserver` 会在同一帧里反复回调，引用变化会引发无意义的重渲染。
+	*/
+	function measureItem(metrics, index, size) {
+		const current = metrics.sizes[index];
+		if (current === void 0) return metrics;
+		const next = positive(size, current);
+		if (next === current) return metrics;
+		const delta = next - current;
+		const sizes = metrics.sizes.slice();
+		sizes[index] = next;
+		const offsets = metrics.offsets.slice();
+		for (let cursor = index + 1; cursor < offsets.length; cursor += 1) offsets[cursor] = offsets[cursor] + delta;
+		return {
+			ids: metrics.ids,
+			sizes,
+			offsets,
+			total: metrics.total + delta
+		};
+	}
+	/**
+	* 某个滚动位置落在第几行。
+	*
+	* 返回的是"顶部已滚过的那一行"，不是"完全可见的第一行"——两者在滚到一半时不同，
+	* 锚点与可视窗口用的都是前者。空列表返回 0，调用方靠 `ids.length` 判断空态。
+	*/
+	function indexAtOffset(metrics, offset) {
+		const count = metrics.ids.length;
+		if (count === 0) return 0;
+		const value = Number.isFinite(offset) ? offset : 0;
+		if (value <= 0) return 0;
+		if (value >= metrics.total) return count - 1;
+		let low = 0;
+		let high = count - 1;
+		while (low < high) {
+			const middle = Math.ceil((low + high) / 2);
+			if (metrics.offsets[middle] <= value) low = middle;
+			else high = middle - 1;
+		}
+		return low;
+	}
+	/**
+	* 需要渲染的窗口。
+	*
+	* `overscan` 是上下各多渲染的行数：滚动时先看到"白块"再蹦出内容，多半就是少了这一圈。
+	* 高度为 0 的视口仍然返回至少一行（见文件头第 3 条），否则永远量不到真实高度。
+	*/
+	function visibleRange(metrics, scrollOffset, viewportSize, overscan = 0) {
+		const count = metrics.ids.length;
+		if (count === 0) return {
+			start: 0,
+			end: 0,
+			padTop: 0,
+			padBottom: 0
+		};
+		const offset = Math.max(0, Number.isFinite(scrollOffset) ? scrollOffset : 0);
+		const viewport = Math.max(0, Number.isFinite(viewportSize) ? viewportSize : 0);
+		const buffer = Math.max(0, Math.floor(Number.isFinite(overscan) ? overscan : 0));
+		const start = Math.max(0, indexAtOffset(metrics, offset) - buffer);
+		const end = Math.min(count, indexAtOffset(metrics, offset + viewport) + 1 + buffer);
+		return {
+			start,
+			end: Math.max(start, end),
+			padTop: metrics.offsets[start],
+			padBottom: metrics.total - metrics.offsets[end]
+		};
+	}
+	/** 滚动位置夹进合法范围：内容比视口还短时只能停在 0。 */
+	function clampScrollOffset(offset, metrics, viewportSize) {
+		const viewport = Math.max(0, Number.isFinite(viewportSize) ? viewportSize : 0);
+		const max = Math.max(0, metrics.total - viewport);
+		return Math.min(Math.max(0, Number.isFinite(offset) ? offset : 0), max);
+	}
+	/** 记住"视口顶部是哪一行、被滚过去了多少"，供数据更新后还原。空列表没有锚点。 */
+	function anchorAt(metrics, scrollOffset) {
+		if (metrics.ids.length === 0) return void 0;
+		const offset = Math.max(0, Number.isFinite(scrollOffset) ? scrollOffset : 0);
+		const index = indexAtOffset(metrics, offset);
+		const id = metrics.ids[index];
+		if (id === void 0) return void 0;
+		return {
+			id,
+			delta: offset - metrics.offsets[index]
+		};
+	}
+	/**
+	* 数据更新后要还原到的滚动位置。
+	*
+	* 锚点行被删掉时返回 `undefined`——猜一个位置会让用户从"读第 3 条"跳到"第 1 条"，
+	* 保持当前滚动位置反而是唯一不突兀的选择。调用方负责再夹一次范围。
+	*/
+	function scrollTopForAnchor(metrics, anchor) {
+		const index = metrics.ids.indexOf(anchor.id);
+		if (index < 0) return void 0;
+		return metrics.offsets[index] + anchor.delta;
+	}
+	//#endregion
+	//#region src/vue/virtual-list.ts
+	/**
+	* `OjVirtualList`（03 §3 D 组）：变高虚拟列表，带 `scrollToIndex` 与锚点稳定。
+	*
+	* 只渲染 `visibleRange()` 给出的窗口，其余高度由 spacer 撑着。三条不变量：
+	*   - **向上插入不跳**：数据更新前记下"视口顶部那一行 + 偏移"，更新后还原；锚点行被删掉时
+	*     保持当前滚动位置（猜一个位置只会让用户从头找）。
+	*   - **测量只改被量那一行之后的偏移**，前面的行纹丝不动，所以测量期不会抖。
+	*   - **视口高度优先用 `viewportSize`**，没给才量容器（`ResizeObserver`）。放在首帧被折叠的
+	*     侧栏里时容器高度是 0，只看容器会让列表永远不渲染、尺寸也永远补不上。
+	*
+	* 组件不猜行高：行内容通过默认插槽渲染，由宿主在挂载/变化时调用 `measure(height)`；
+	* 想完全托管高度也可以直接把 `size` 写进 `items`。
+	*/
+	var OjVirtualList = (0, vue.defineComponent)({
+		name: "OjVirtualList",
+		props: {
+			items: {
+				type: Array,
+				required: true
+			},
+			/** 未测量行的估算高度（px）。估得越准，首次滚动时的跳动越小。 */
+			estimateSize: {
+				type: Number,
+				required: true
+			},
+			/** 视口上下各多渲染的行数：滚动时先看到白块再蹦出内容，多半就是少了这一圈。 */
+			overscan: {
+				type: Number,
+				default: 3
+			},
+			/** 视口高度（px）。传 0 表示由容器实际高度决定。 */
+			viewportSize: {
+				type: Number,
+				default: 0
+			},
+			/** 滚动区域的可访问名（"批注列表"）。 */
+			label: {
+				type: String,
+				required: true
+			}
+		},
+		setup(props, { slots, expose }) {
+			const scroller = (0, vue.ref)(null);
+			const scrolled = (0, vue.ref)(0);
+			const containerHeight = (0, vue.ref)(0);
+			/** 宿主量到的高度按 id 存：行被回收后再滚回来不必重量一次。 */
+			const measured = /* @__PURE__ */ new Map();
+			const metrics = (0, vue.shallowRef)(createMetrics(props.items, props.estimateSize));
+			const viewport = (0, vue.computed)(() => props.viewportSize > 0 ? props.viewportSize : containerHeight.value);
+			const viewportWindow = (0, vue.computed)(() => visibleRange(metrics.value, scrolled.value, viewport.value, props.overscan));
+			let observer;
+			function applyScroll(offset) {
+				const element = scroller.value;
+				if (element !== null) element.scrollTop = offset;
+			}
+			function scrollToIndex(index, align = "start") {
+				const current = metrics.value;
+				if (current.ids.length === 0) return;
+				const target = Math.min(Math.max(Math.floor(index), 0), current.ids.length - 1);
+				const rowOffset = current.offsets[target];
+				const rowSize = current.sizes[target];
+				const view = viewport.value;
+				const next = clampScrollOffset(align === "end" ? rowOffset + rowSize - view : align === "center" ? rowOffset + rowSize / 2 - view / 2 : rowOffset, current, view);
+				scrolled.value = next;
+				(0, vue.nextTick)(() => applyScroll(next));
+			}
+			function measure(index, height) {
+				const item = props.items[index];
+				if (item === void 0) return;
+				measured.set(item.id, height);
+				const next = measureItem(metrics.value, index, height);
+				if (next !== metrics.value) metrics.value = next;
+			}
+			(0, vue.watch)(() => props.items, (next) => {
+				const anchor = anchorAt(metrics.value, scrolled.value);
+				metrics.value = createMetrics(next.map((item) => {
+					var _measured$get;
+					const size = (_measured$get = measured.get(item.id)) !== null && _measured$get !== void 0 ? _measured$get : item.size;
+					return size === void 0 ? { id: item.id } : {
+						id: item.id,
+						size
+					};
+				}), props.estimateSize);
+				const restored = anchor === void 0 ? void 0 : scrollTopForAnchor(metrics.value, anchor);
+				const offset = clampScrollOffset(restored !== null && restored !== void 0 ? restored : scrolled.value, metrics.value, viewport.value);
+				scrolled.value = offset;
+				(0, vue.nextTick)(() => applyScroll(offset));
+			}, { flush: "pre" });
+			(0, vue.onMounted)(() => {
+				const element = scroller.value;
+				if (element === null) return;
+				containerHeight.value = element.clientHeight;
+				if (typeof ResizeObserver !== "function") return;
+				observer = new ResizeObserver((entries) => {
+					var _entries$;
+					const rect = (_entries$ = entries[0]) === null || _entries$ === void 0 ? void 0 : _entries$.contentRect;
+					if (rect !== void 0) containerHeight.value = rect.height;
+				});
+				observer.observe(element);
+			});
+			(0, vue.onBeforeUnmount)(() => {
+				observer === null || observer === void 0 || observer.disconnect();
+				observer = void 0;
+			});
+			expose({ scrollToIndex });
+			return () => {
+				const current = metrics.value;
+				const window = viewportWindow.value;
+				const rows = props.items.slice(window.start, window.end).map((item, offset) => {
+					var _slots$default;
+					const index = window.start + offset;
+					return (_slots$default = slots.default) === null || _slots$default === void 0 ? void 0 : _slots$default.call(slots, {
+						item,
+						index,
+						measure: (height) => measure(index, height)
+					});
+				});
+				return (0, vue.h)("div", {
+					class: "oj-virtual-list",
+					ref: scroller,
+					role: "list",
+					"aria-label": props.label,
+					tabindex: 0,
+					onScroll: (event) => {
+						scrolled.value = event.currentTarget.scrollTop;
+					}
+				}, [(0, vue.h)("div", {
+					class: "oj-virtual-list__spacer",
+					style: { height: `${current.total}px` }
+				}, [(0, vue.h)("div", {
+					class: "oj-virtual-list__window",
+					style: { transform: `translateY(${window.padTop}px)` }
+				}, rows)])]);
+			};
+		}
+	});
+	function finite(value, fallback) {
+		return value !== void 0 && Number.isFinite(value) ? value : fallback;
+	}
+	function between(value, min, max) {
+		return Math.min(Math.max(value, min), max);
+	}
+	function isFloating(state) {
+		return state.side === "floating";
+	}
+	/** 收起只是不画内容，标题栏必须留着——否则收起的面板就再也点不开了。 */
+	function toggleCollapsed(state) {
+		return {
+			...state,
+			collapsed: !state.collapsed
+		};
+	}
+	/** 浮出。保留 `docked`，`float` 矩形也原样带回。 */
+	function undock(state) {
+		if (state.side === "floating") return state;
+		return {
+			...state,
+			side: "floating"
+		};
+	}
+	/** 回到上次停靠的那一侧（不是默认那一侧）。 */
+	function redock(state) {
+		if (state.side !== "floating") return state;
+		return {
+			...state,
+			side: state.docked
+		};
+	}
+	/**
+	* 把浮动矩形夹回"抓得住"的范围。
+	*
+	* 横向允许左边缘移出到只剩一条标题栏（`FLOAT_GRAB_STRIP`），纵向不允许上边缘出界：
+	* 标题栏被顶到视口上方时连拖动入口都没有了。
+	*/
+	function clampFloatRect(rect, viewport) {
+		const width = Math.max(1, finite(rect.width, 320));
+		const height = Math.max(1, finite(rect.height, 480));
+		const minX = 48 - width;
+		const maxX = Math.max(minX, finite(viewport.width, 0) - 48);
+		const maxY = Math.max(0, finite(viewport.height, 0) - 48);
+		return {
+			x: between(finite(rect.x, 0), minX, maxX),
+			y: between(finite(rect.y, 0), 0, maxY),
+			width,
+			height
+		};
+	}
+	//#endregion
+	//#region src/vue/dock-panel.ts
+	/**
+	* `OjDockPanel`（03 §3 D 组）：可停靠 / 浮动 / 收起的侧栏面板（属性面板、AI 任务面板）。
+	*
+	* 状态全在 `state` 里（受控）：组件只发 `update:state`，自己不记"停在哪、浮在哪"。
+	* 理由很实际——面板位置要随会话保存、要跟着预设切换（合同审阅用右栏、写作用左栏），
+	* 组件内部再存一份就一定会与宿主的真值分叉。
+	*
+	* 三条容易做错的：
+	*   - **收起后标题栏必须还在**。整个面板隐藏掉，用户就再也找不到展开入口；
+	*   - **浮动时按标题栏拖动，按钮不算拖动区**。不排除按钮，点"收起"会顺带把面板拖走几像素；
+	*   - **位置夹取在拖动时就做**（`clampFloatRect`），不是松手后。松手才修正等于允许用户把面板
+	*     拖出屏幕，然后眼睁睁看它跳回来。
+	*
+	* 停靠尺寸不归这里管：那是 `OjPaneGroup` 的栏位尺寸，由分隔条调。
+	*/
+	var OjDockPanel = (0, vue.defineComponent)({
+		name: "OjDockPanel",
+		props: {
+			state: {
+				type: Object,
+				required: true
+			},
+			/** 面板标题，同时作为 region 的可访问名。 */
+			title: {
+				type: String,
+				required: true
+			},
+			collapseLabel: {
+				type: String,
+				required: true
+			},
+			expandLabel: {
+				type: String,
+				required: true
+			},
+			/** 浮出按钮的可访问名（"浮动"）。 */
+			floatLabel: {
+				type: String,
+				required: true
+			},
+			/** 停靠按钮的可访问名（"停靠"）。 */
+			dockLabel: {
+				type: String,
+				required: true
+			}
+		},
+		emits: ["update:state"],
+		setup(props, { emit, slots }) {
+			const dragging = (0, vue.ref)(false);
+			let originX = 0;
+			let originY = 0;
+			let originRect;
+			function viewport() {
+				if (typeof window === "undefined") return {
+					width: 0,
+					height: 0
+				};
+				return {
+					width: window.innerWidth,
+					height: window.innerHeight
+				};
+			}
+			function commit(next) {
+				if (next !== props.state) emit("update:state", next);
+			}
+			function capture(element, pointerId) {
+				try {
+					element === null || element === void 0 || element.setPointerCapture(pointerId);
+				} catch (_unused) {}
+			}
+			function onPointerdown(event) {
+				var _event$target, _event$target$closest;
+				if (!isFloating(props.state) || event.button !== 0) return;
+				if (((_event$target = event.target) === null || _event$target === void 0 || (_event$target$closest = _event$target.closest) === null || _event$target$closest === void 0 ? void 0 : _event$target$closest.call(_event$target, "button")) !== null) return;
+				event.preventDefault();
+				capture(event.currentTarget, event.pointerId);
+				dragging.value = true;
+				originX = event.clientX;
+				originY = event.clientY;
+				originRect = props.state.float;
+			}
+			function onPointermove(event) {
+				if (!dragging.value || originRect === void 0) return;
+				const rect = clampFloatRect({
+					...originRect,
+					x: originRect.x + (event.clientX - originX),
+					y: originRect.y + (event.clientY - originY)
+				}, viewport());
+				if (rect.x === props.state.float.x && rect.y === props.state.float.y) return;
+				commit({
+					...props.state,
+					float: rect
+				});
+			}
+			function finish(event) {
+				if (!dragging.value) return;
+				dragging.value = false;
+				originRect = void 0;
+				const target = event.currentTarget;
+				try {
+					if ((target === null || target === void 0 ? void 0 : target.hasPointerCapture(event.pointerId)) === true) target.releasePointerCapture(event.pointerId);
+				} catch (_unused2) {}
+			}
+			return () => {
+				var _slots$default;
+				const state = props.state;
+				const floating = isFloating(state);
+				return (0, vue.h)("section", {
+					class: "oj-dock",
+					"data-side": state.side,
+					"data-collapsed": state.collapsed ? "" : void 0,
+					"data-dragging": dragging.value ? "" : void 0,
+					"aria-label": props.title,
+					style: floating ? {
+						left: `${state.float.x}px`,
+						top: `${state.float.y}px`,
+						width: `${state.float.width}px`,
+						height: state.collapsed ? void 0 : `${state.float.height}px`
+					} : void 0
+				}, [(0, vue.h)("header", {
+					class: "oj-dock__header",
+					onPointerdown,
+					onPointermove,
+					onPointerup: finish,
+					onPointercancel: finish
+				}, [
+					(0, vue.h)("h2", { class: "oj-dock__title" }, props.title),
+					(0, vue.h)("button", {
+						type: "button",
+						class: "oj-dock__collapse",
+						"aria-expanded": state.collapsed ? "false" : "true",
+						"aria-label": state.collapsed ? props.expandLabel : props.collapseLabel,
+						title: state.collapsed ? props.expandLabel : props.collapseLabel,
+						onClick: () => commit(toggleCollapsed(state))
+					}, state.collapsed ? "▸" : "▾"),
+					(0, vue.h)("button", {
+						type: "button",
+						class: "oj-dock__float",
+						"aria-pressed": floating ? "true" : "false",
+						"aria-label": floating ? props.dockLabel : props.floatLabel,
+						title: floating ? props.dockLabel : props.floatLabel,
+						onClick: () => commit(floating ? redock(state) : undock(state))
+					}, floating ? "⇲" : "⇱")
+				]), state.collapsed ? null : (0, vue.h)("div", { class: "oj-dock__body" }, (_slots$default = slots.default) === null || _slots$default === void 0 ? void 0 : _slots$default.call(slots))]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/upload.ts
+	/** 0..1。大小为 0 的项没有"进度"，只有"完成没完成"。 */
+	function uploadPercent(item) {
+		if (item.size <= 0) return item.state === "done" ? 1 : 0;
+		return Math.min(1, Math.max(0, item.loaded / item.size));
+	}
+	function uploadSummary(items) {
+		let done = 0;
+		let failed = 0;
+		let active = 0;
+		let loaded = 0;
+		let size = 0;
+		for (const item of items) {
+			if (item.state === "done") done += 1;
+			else if (item.state === "failed") failed += 1;
+			else active += 1;
+			loaded += item.loaded;
+			size += item.size;
+		}
+		const percent = size > 0 ? loaded / size : items.length > 0 && done === items.length ? 1 : 0;
+		return {
+			count: items.length,
+			done,
+			failed,
+			active,
+			loaded,
+			size,
+			percent
+		};
+	}
+	//#endregion
+	//#region src/vue/upload-progress.ts
+	/**
+	* `OjUploadProgress`（03 §3 F 组）：分片上传的进度列表，带暂停 / 续传 / 失败重试。
+	*
+	* 三种动作按状态各只出一个按钮，**不做"能用不能用"的灰按钮**：上传中给"暂停"、
+	* 已暂停给"续传"、失败给"重试"。灰着的按钮点击无反应，用户只会反复点。
+	*
+	* 进度条用 `role="progressbar"` + `aria-valuenow`，失败项额外把原因写在下面：
+	* 只画一根红条不说明原因，用户唯一能做的就是再点一次重试。
+	*
+	* 状态文案由宿主给（`statusLabels`）：组件不拼"正在上传 3/5"这类句子。
+	*/
+	var OjUploadProgress = (0, vue.defineComponent)({
+		name: "OjUploadProgress",
+		props: {
+			items: {
+				type: Array,
+				required: true
+			},
+			/** 整个列表的可访问名（"上传进度"）。 */
+			label: {
+				type: String,
+				required: true
+			},
+			pauseLabel: {
+				type: String,
+				required: true
+			},
+			resumeLabel: {
+				type: String,
+				required: true
+			},
+			retryLabel: {
+				type: String,
+				required: true
+			},
+			/** 各状态的中文/译文由宿主给；缺的状态就不显示状态文字。 */
+			statusLabels: {
+				type: Object,
+				default: () => ({})
+			},
+			emptyLabel: {
+				type: String,
+				default: ""
+			}
+		},
+		emits: [
+			"pause",
+			"resume",
+			"retry"
+		],
+		setup(props, { emit }) {
+			function action(item) {
+				if (item.state === "uploading") return {
+					label: props.pauseLabel,
+					event: "pause"
+				};
+				if (item.state === "paused") return {
+					label: props.resumeLabel,
+					event: "resume"
+				};
+				if (item.state === "failed") return {
+					label: props.retryLabel,
+					event: "retry"
+				};
+			}
+			function track(percent, name) {
+				const value = Math.round(percent * 100);
+				return (0, vue.h)("div", {
+					class: "oj-upload-progress__track",
+					role: "progressbar",
+					"aria-label": name,
+					"aria-valuemin": 0,
+					"aria-valuemax": 100,
+					"aria-valuenow": value,
+					"aria-valuetext": `${value}%`
+				}, [(0, vue.h)("div", {
+					class: "oj-upload-progress__bar",
+					style: { width: `${value}%` }
+				})]);
+			}
+			return () => {
+				const summary = uploadSummary(props.items);
+				if (props.items.length === 0) return props.emptyLabel === "" ? null : (0, vue.h)("p", { class: "oj-upload-progress__empty" }, props.emptyLabel);
+				const rows = props.items.map((item) => {
+					var _props$statusLabels$i;
+					const percent = uploadPercent(item);
+					const button = action(item);
+					return (0, vue.h)("li", {
+						class: "oj-upload-progress__item",
+						"data-state": item.state,
+						key: item.id
+					}, [
+						(0, vue.h)("div", { class: "oj-upload-progress__row" }, [
+							(0, vue.h)("span", {
+								class: "oj-upload-progress__name",
+								title: item.name
+							}, item.name),
+							(0, vue.h)("span", {
+								class: "oj-upload-progress__status",
+								"aria-hidden": "true"
+							}, (_props$statusLabels$i = props.statusLabels[item.state]) !== null && _props$statusLabels$i !== void 0 ? _props$statusLabels$i : ""),
+							button === void 0 ? null : (0, vue.h)("button", {
+								type: "button",
+								class: "oj-button oj-upload-progress__action",
+								"data-size": "mini",
+								"data-action": button.event,
+								"aria-label": button.label,
+								onClick: () => emit(button.event, item.id)
+							}, button.label)
+						]),
+						track(percent, item.name),
+						item.error === void 0 || item.error === "" ? null : (0, vue.h)("p", { class: "oj-upload-progress__error" }, item.error)
+					]);
+				});
+				const summaryPercent = Math.round(summary.percent * 100);
+				return (0, vue.h)("section", {
+					class: "oj-upload-progress",
+					"aria-label": props.label
+				}, [(0, vue.h)("div", { class: "oj-upload-progress__summary" }, [(0, vue.h)("span", { class: "oj-upload-progress__count" }, `${summary.done} / ${summary.count}`), (0, vue.h)("span", { class: "oj-upload-progress__total" }, `${summaryPercent}%`)]), (0, vue.h)("ul", {
+					class: "oj-upload-progress__list",
+					role: "list"
+				}, rows)]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/drop-zone.ts
+	/**
+	* 按 `DataTransfer.types` 判断载荷种类。`types` 是**小写**的 MIME 列表，不是文件名。
+	*
+	* 顺序即优先级：文件优先于富文本，富文本优先于纯文本（前者信息更全）。
+	* 同时带 `text/html` 与 `text/plain` 是浏览器对富文本的常规做法，取 html 才不会丢掉格式。
+	*/
+	function classifyTransfer(types) {
+		let html = false;
+		let text = false;
+		for (const entry of types) {
+			const value = entry.trim().toLowerCase();
+			if (value === "files" || value === "application/x-moz-file") return "files";
+			if (value === "text/html") html = true;
+			else if (value === "text/plain") text = true;
+		}
+		return html ? "html" : text ? "text" : "none";
+	}
+	/** 扩展名（小写、带点）。没有扩展名或点在开头（`.gitignore`）时返回空串。 */
+	function extensionOf(name) {
+		const index = name.lastIndexOf(".");
+		if (index <= 0 || index === name.length - 1) return "";
+		return name.slice(index).toLowerCase();
+	}
+	/** 单个文件是否被受理。`accept.types` 为空/未给时一律受理。 */
+	function acceptsFile(file, accept) {
+		var _accept$types, _file$type;
+		const types = (_accept$types = accept.types) !== null && _accept$types !== void 0 ? _accept$types : [];
+		if (types.length === 0) return true;
+		const extension = extensionOf(file.name);
+		const mime = ((_file$type = file.type) !== null && _file$type !== void 0 ? _file$type : "").toLowerCase();
+		for (const entry of types) {
+			const rule = entry.trim().toLowerCase();
+			if (rule.length === 0) continue;
+			if (rule.startsWith(".")) {
+				if (extension === rule) return true;
+				continue;
+			}
+			if (rule.endsWith("/*")) {
+				if (mime.startsWith(rule.slice(0, -1))) return true;
+				continue;
+			}
+			if (mime === rule) return true;
+		}
+		return false;
+	}
+	/**
+	* 一次拖放的整体判定。`multiple: false` 时**只收第一个**，其余算数量超限。
+	*
+	* 不把"多选"当格式错误：这两种拒绝在界面上要给的提示完全不同
+	* （"这个格式不支持" vs "一次只能传一个"），混成一条会让用户改错方向。
+	*/
+	function selectDropped(files, accept) {
+		const multiple = accept.multiple !== false;
+		const accepted = [];
+		let rejected;
+		for (const file of files) {
+			if (!acceptsFile(file, accept)) {
+				rejected = "type";
+				continue;
+			}
+			if (!multiple && accepted.length >= 1) {
+				if (rejected === void 0) rejected = "count";
+				continue;
+			}
+			accepted.push(file);
+		}
+		return {
+			accepted,
+			rejected
+		};
+	}
+	//#endregion
+	//#region src/shell/drag-context.ts
+	/**
+	* 拖放协议：区分**内部拖拽**与**外部拖入**（03 §3 D 组 `OjDragDropContext`，§8.9 类型协商）。
+	*
+	* 不看 MIME 就统一处理，是本项目里最容易犯的错：
+	*   - 把"拖动文档里选中的一段字"当成"拖进来一个文件"，弹"只收 .docx"；
+	*   - 把"从桌面拖进来的文件"当成内部拖动，直接插进正文变成一段二进制乱码。
+	*
+	* 判定靠一个私有 MIME 标记：内部拖拽在 `dragstart` 里写进 `DRAG_MARKER`，
+	* 外部来源不可能带这个类型。相比"记住鼠标按下了"之类的猜测，这是唯一稳定的信号。
+	*/
+	/** 内部拖拽标记。私有 MIME 不会被任何外部应用发出。 */
+	var DRAG_MARKER = "application/x-oj-drag";
+	function safeGetData(transfer, format) {
+		try {
+			return transfer.getData(format);
+		} catch (_unused) {
+			return "";
+		}
+	}
+	/**
+	* 读一次拖放载荷。`types` 里带标记就是内部拖拽，此时不再当文件处理——
+	* 内部拖拽同样会带 `text/html`，只看那些类型永远分不开。
+	*/
+	function readTransfer(transfer) {
+		const files = [...transfer.files];
+		const internal = transfer.types.some((type) => type.trim().toLowerCase() === DRAG_MARKER);
+		return {
+			kind: internal ? "internal" : classifyTransfer(transfer.types),
+			files,
+			html: safeGetData(transfer, "text/html"),
+			text: safeGetData(transfer, "text/plain"),
+			data: internal ? safeGetData(transfer, DRAG_MARKER) : ""
+		};
+	}
+	/** MIME 规则（含通配）能否命中这次拖拽。拖入阶段拿不到文件名，只能按类型先判。 */
+	function mimeMatches(types, rules) {
+		const actual = types.map((type) => type.trim().toLowerCase());
+		return rules.some((rule) => {
+			const value = rule.trim().toLowerCase();
+			const slash = value.indexOf("/");
+			if (slash <= 0) return false;
+			if (value.endsWith("/*")) {
+				const prefix = value.slice(0, slash + 1);
+				return actual.some((type) => type.startsWith(prefix));
+			}
+			return actual.includes(value);
+		});
+	}
+	/**
+	* 这次拖拽是否归我们处理。
+	*
+	* 文件分支的规则很别扭但必须这样：`accept.types` 里只有扩展名（`.docx`）时，
+	* 拖入阶段**没有文件名**，只能放行，等 `drop` 再靠 `selectDropped` 判；
+	* 反过来若按"扩展名不匹配 MIME"直接拒绝，用户会看到遮罩根本不出现，也就再没法导入。
+	* 含 `/` 的规则（`application/pdf`、`image/*`）则必须命中，能提前挡掉明显不对的拖拽。
+	*/
+	function negotiateTransfer(types, accept = {}) {
+		if (types.some((type) => type.trim().toLowerCase() === "application/x-oj-drag")) return true;
+		const kind = classifyTransfer(types);
+		if (kind === "files") {
+			var _accept$types;
+			const mimeRules = ((_accept$types = accept.types) !== null && _accept$types !== void 0 ? _accept$types : []).filter((rule) => rule.includes("/"));
+			if (mimeRules.length === 0) return true;
+			return mimeMatches(types, mimeRules);
+		}
+		if (kind === "none") return false;
+		return accept.text === true;
+	}
+	//#endregion
+	//#region src/vue/drag-context.ts
+	var OJ_DRAG_CONTEXT = Symbol("oj-drag-context");
+	/** 子组件读取上下文。没有 `OjDragContext` 包裹时返回 `undefined`，调用方按"不在拖拽"处理。 */
+	function useOjDragContext() {
+		return (0, vue.inject)(OJ_DRAG_CONTEXT);
+	}
+	/**
+	* `OjDragContext`（03 §3 D 组）：拖放协议的统一入口，区分内部拖拽与外部拖入。
+	*
+	* 与 `OjDropZone` 的分工：`OjDropZone` 是"整页遮罩 + 文件受理"的成品；
+	* 这里是"协议层"——不画遮罩，只判断这次拖拽归谁、是什么载荷，然后上抛。
+	* 需要"拖拽高亮 + 内部排序 + 外部文件导入"同屏共存时用这个。
+	*
+	* 组件本身不产生盒子（`display: contents`）：它套在布局外面，但布局仍由内部的
+	* 分栏/网格决定。`data-kind` / `data-dragging` 落在包裹元素上，宿主用属性选择器做高亮。
+	*/
+	var OjDragContext = (0, vue.defineComponent)({
+		name: "OjDragContext",
+		props: {
+			accept: {
+				type: Object,
+				default: () => ({})
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: [
+			"enter",
+			"leave",
+			"drop"
+		],
+		setup(props, { emit, slots }) {
+			const dragging = (0, vue.ref)(false);
+			const kind = (0, vue.ref)("none");
+			const data = (0, vue.ref)("");
+			let depth = 0;
+			(0, vue.provide)(OJ_DRAG_CONTEXT, {
+				dragging,
+				kind,
+				data
+			});
+			function payloadOf(transfer) {
+				return readTransfer({
+					types: [...transfer.types],
+					files: Array.from(transfer.files),
+					getData: (format) => transfer.getData(format)
+				});
+			}
+			function reset() {
+				depth = 0;
+				dragging.value = false;
+				kind.value = "none";
+				data.value = "";
+			}
+			function onDragEnter(event) {
+				var _event$dataTransfer$t, _event$dataTransfer;
+				if (props.disabled) return;
+				const types = (_event$dataTransfer$t = (_event$dataTransfer = event.dataTransfer) === null || _event$dataTransfer === void 0 ? void 0 : _event$dataTransfer.types) !== null && _event$dataTransfer$t !== void 0 ? _event$dataTransfer$t : [];
+				if (!negotiateTransfer(types, props.accept)) return;
+				depth += 1;
+				dragging.value = true;
+				const preview = readTransfer({
+					types,
+					files: [],
+					getData: () => ""
+				});
+				kind.value = preview.kind;
+				data.value = preview.data;
+				emit("enter", preview.kind);
+			}
+			function onDragOver(event) {
+				if (props.disabled || !dragging.value) return;
+				event.preventDefault();
+				if (event.dataTransfer !== null) event.dataTransfer.dropEffect = kind.value === "internal" ? "move" : "copy";
+			}
+			function onDragLeave(event) {
+				if (event.relatedTarget === null) {
+					reset();
+					emit("leave");
+					return;
+				}
+				depth = Math.max(0, depth - 1);
+				if (depth > 0) return;
+				dragging.value = false;
+				kind.value = "none";
+				data.value = "";
+				emit("leave");
+			}
+			function onDrop(event) {
+				if (props.disabled) return;
+				const transfer = event.dataTransfer;
+				if (transfer === null) {
+					reset();
+					return;
+				}
+				if (!negotiateTransfer([...transfer.types], props.accept)) {
+					reset();
+					return;
+				}
+				event.preventDefault();
+				const payload = payloadOf(transfer);
+				reset();
+				if ((payload.kind === "html" || payload.kind === "text") && props.accept.text !== true) return;
+				emit("drop", payload);
+			}
+			(0, vue.onMounted)(() => {
+				if (typeof window === "undefined") return;
+				window.addEventListener("dragenter", onDragEnter);
+				window.addEventListener("dragover", onDragOver);
+				window.addEventListener("dragleave", onDragLeave);
+				window.addEventListener("drop", onDrop);
+				window.addEventListener("dragend", reset);
+			});
+			(0, vue.onBeforeUnmount)(() => {
+				if (typeof window === "undefined") return;
+				window.removeEventListener("dragenter", onDragEnter);
+				window.removeEventListener("dragover", onDragOver);
+				window.removeEventListener("dragleave", onDragLeave);
+				window.removeEventListener("drop", onDrop);
+				window.removeEventListener("dragend", reset);
+			});
+			return () => {
+				var _slots$default;
+				return (0, vue.h)("div", {
+					class: "oj-drag-context",
+					"data-dragging": dragging.value ? "" : void 0,
+					"data-kind": kind.value === "none" ? void 0 : kind.value
+				}, (_slots$default = slots.default) === null || _slots$default === void 0 ? void 0 : _slots$default.call(slots));
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/share.ts
+	/**
+	* 共享权限模型（03 §3 E 组 `OjShareDialog`）。
+	*
+	* 这里只做一件容易被做错的事：**决定"实际发出去的是什么权限"**。
+	*
+	* 界面上的选择组合不都是合法的：`private` 没有角色，`link` 不该给"可编辑"（拿到链接就能改），
+	* 有效期只对链接有意义。把归一化放进组件，就会出现"界面上选了可编辑、请求里发的是可评论"，
+	* 谁也不知道到底给了什么权限。所以：范围切换时把角色降级，`resolveShare()` 给出真正生效的值。
+	*/
+	var SHARE_SCOPES = [
+		"private",
+		"link",
+		"org",
+		"people"
+	];
+	/** 各范围允许的角色。链接范围不给"可编辑"：链接会被转发，转发的人不该顺带给出编辑权。 */
+	var ROLES_BY_SCOPE = {
+		private: [],
+		link: ["viewer", "commenter"],
+		org: [
+			"viewer",
+			"commenter",
+			"editor"
+		],
+		people: [
+			"viewer",
+			"commenter",
+			"editor"
+		]
+	};
+	var SHARE_MAX_EXPIRY_DAYS = 3650;
+	var SHARE_MAX_PEOPLE = 9999;
+	function rolesForScope(scope) {
+		return ROLES_BY_SCOPE[scope];
+	}
+	function whole(value, fallback, max) {
+		if (value === void 0 || !Number.isFinite(value)) return fallback;
+		return Math.min(Math.max(0, Math.floor(value)), max);
+	}
+	function allowedRole(scope, role) {
+		var _allowed$;
+		const allowed = ROLES_BY_SCOPE[scope];
+		if (allowed.includes(role)) return role;
+		return (_allowed$ = allowed[0]) !== null && _allowed$ !== void 0 ? _allowed$ : role;
+	}
+	/** 切范围时顺手把角色降级到合法值：界面上不会出现"当前范围根本不允许的角色"。 */
+	function setShareScope(state, scope) {
+		const role = allowedRole(scope, state.role);
+		if (scope === state.scope && role === state.role) return state;
+		return {
+			...state,
+			scope,
+			role
+		};
+	}
+	/** 选角色。当前范围不允许的角色直接忽略（UI 不该放出这种选项，但宿主可能直接调）。 */
+	function setShareRole(state, role) {
+		if (state.role === role) return state;
+		if (!ROLES_BY_SCOPE[state.scope].includes(role)) return state;
+		return {
+			...state,
+			role
+		};
+	}
+	/** 链接有效期。只影响 `link`；负数/NaN 归 0（永久）。 */
+	function setShareExpiry(state, days) {
+		const expiryDays = whole(days, state.expiryDays, SHARE_MAX_EXPIRY_DAYS);
+		if (expiryDays === state.expiryDays) return state;
+		return {
+			...state,
+			expiryDays
+		};
+	}
+	function setSharePeopleCount(state, count) {
+		const peopleCount = whole(count, state.peopleCount, SHARE_MAX_PEOPLE);
+		if (peopleCount === state.peopleCount) return state;
+		return {
+			...state,
+			peopleCount
+		};
+	}
+	/**
+	* 归一化后的权限——真正该发给后端的东西。
+	*
+	* 不做这一步，就会出现"界面显示可评论、实际给了可编辑"或反过来的事故：
+	* 两类信息（范围、角色）在 UI 上互相覆盖，只有一处能算出最终值才不会分叉。
+	*/
+	function resolveShare(state) {
+		if (state.scope === "private") return {
+			scope: state.scope,
+			role: void 0,
+			expiryDays: void 0,
+			peopleCount: void 0
+		};
+		return {
+			scope: state.scope,
+			role: allowedRole(state.scope, state.role),
+			expiryDays: state.scope === "link" ? state.expiryDays : void 0,
+			peopleCount: state.scope === "people" ? state.peopleCount : void 0
+		};
+	}
+	//#endregion
+	//#region src/vue/share-dialog.ts
+	/**
+	* `OjShareDialog`（03 §3 E 组）：共享范围 + 角色 + 链接有效期。
+	*
+	* 只负责把选择变成 `update:state`，确认时上抛 **归一化后的** `resolveShare(state)`——
+	* 也就是真正该发给后端的权限。界面显示"可评论"而请求里发"可编辑"这类事故，
+	* 根因就是两处各算一遍；这里只算一次。
+	*
+	* 范围切换时角色会降级（链接范围不给"可编辑"，见 `shell/share.ts`）：
+	* 降级发生在 `update:state` 里，不是渲染时偷偷改，宿主存下来的状态与界面永远一致。
+	*/
+	var OjShareDialog = (0, vue.defineComponent)({
+		name: "OjShareDialog",
+		props: {
+			open: {
+				type: Boolean,
+				required: true
+			},
+			title: {
+				type: String,
+				required: true
+			},
+			state: {
+				type: Object,
+				required: true
+			},
+			/** "谁可以访问"分组名。 */
+			scopeLabel: {
+				type: String,
+				required: true
+			},
+			/** "权限"分组名。 */
+			roleLabel: {
+				type: String,
+				required: true
+			},
+			scopeLabels: {
+				type: Object,
+				required: true
+			},
+			roleLabels: {
+				type: Object,
+				required: true
+			},
+			expiryLabel: {
+				type: String,
+				default: ""
+			},
+			expiryOptions: {
+				type: Array,
+				default: () => []
+			},
+			peopleLabel: {
+				type: String,
+				default: ""
+			},
+			confirmLabel: {
+				type: String,
+				default: ""
+			},
+			cancelLabel: {
+				type: String,
+				default: ""
+			},
+			teleport: {
+				type: [String, Boolean],
+				default: "body"
+			}
+		},
+		emits: [
+			"update:open",
+			"update:state",
+			"confirm",
+			"cancel"
+		],
+		setup(props, { emit }) {
+			function option(scope) {
+				const active = props.state.scope === scope;
+				return (0, vue.h)("label", {
+					class: "oj-share__option",
+					"data-active": active ? "" : void 0
+				}, [(0, vue.h)("input", {
+					class: "oj-share__radio",
+					type: "radio",
+					name: "oj-share-scope",
+					value: scope,
+					checked: active,
+					onChange: () => emit("update:state", setShareScope(props.state, scope))
+				}), (0, vue.h)("span", { class: "oj-share__option-text" }, props.scopeLabels[scope])]);
+			}
+			function role(role) {
+				const active = props.state.role === role;
+				return (0, vue.h)("label", {
+					class: "oj-share__option",
+					"data-active": active ? "" : void 0
+				}, [(0, vue.h)("input", {
+					class: "oj-share__radio",
+					type: "radio",
+					name: "oj-share-role",
+					value: role,
+					checked: active,
+					onChange: () => emit("update:state", setShareRole(props.state, role))
+				}), (0, vue.h)("span", { class: "oj-share__option-text" }, props.roleLabels[role])]);
+			}
+			return () => {
+				const roles = rolesForScope(props.state.scope);
+				const body = [(0, vue.h)("fieldset", { class: "oj-share__group" }, [(0, vue.h)("legend", { class: "oj-share__legend" }, props.scopeLabel), ...SHARE_SCOPES.map(option)])];
+				if (roles.length > 0) body.push((0, vue.h)("fieldset", { class: "oj-share__group" }, [(0, vue.h)("legend", { class: "oj-share__legend" }, props.roleLabel), ...roles.map(role)]));
+				if (props.state.scope === "link" && props.expiryOptions.length > 0) body.push((0, vue.h)("label", { class: "oj-share__field" }, [(0, vue.h)("span", { class: "oj-share__field-label" }, props.expiryLabel), (0, vue.h)("select", {
+					class: "oj-share__select",
+					value: String(props.state.expiryDays),
+					onChange: (event) => emit("update:state", setShareExpiry(props.state, Number(event.target.value)))
+				}, props.expiryOptions.map((choice) => (0, vue.h)("option", {
+					value: String(choice.days),
+					selected: choice.days === props.state.expiryDays
+				}, choice.label)))]));
+				if (props.state.scope === "people" && props.peopleLabel !== "") body.push((0, vue.h)("label", { class: "oj-share__field" }, [(0, vue.h)("span", { class: "oj-share__field-label" }, props.peopleLabel), (0, vue.h)("input", {
+					class: "oj-share__count",
+					type: "number",
+					min: 0,
+					value: String(props.state.peopleCount),
+					onChange: (event) => emit("update:state", setSharePeopleCount(props.state, Number(event.target.value)))
+				})]));
+				return (0, vue.h)(OjDialog, {
+					open: props.open,
+					title: props.title,
+					confirmLabel: props.confirmLabel,
+					cancelLabel: props.cancelLabel,
+					teleport: props.teleport,
+					onConfirm: () => emit("confirm", resolveShare(props.state)),
+					onCancel: () => emit("cancel"),
+					"onUpdate:open": (open) => emit("update:open", open)
+				}, { default: () => (0, vue.h)("div", { class: "oj-share" }, body) });
+			};
+		}
+	});
+	//#endregion
+	//#region src/vue/drop-zone.ts
+	var EMPTY_LABELS = {};
+	/**
+	* `OjDropZone`（03 §3 F 组）：拖放导入 + 整页遮罩 + 类型校验 + 多文件 + 粘贴图片。
+	*
+	* 三个"不做就会错"的点：
+	*   - **按 `DataTransfer.types` 分支**（03 §8.9）。文件、`text/html`、`text/plain` 是三种载荷，
+	*     不分支会把"从网页拖一段文字"判成"格式不支持的文件"，提示方向完全相反。
+	*     文本分支默认关闭（`textPayload`），否则拖选区内文字也会弹出导入遮罩。
+	*   - **整页遮罩用计数器进出**。`dragenter` / `dragleave` 在子元素间移动时会成对触发，
+	*     只看单个事件会让遮罩疯狂闪；只有计数归零（或 `relatedTarget === null` 离开窗口）才收起。
+	*   - **拒绝要说出原因**。`type`（格式不支持）与 `count`（一次只能一个）是两句话，
+	*     混成"导入失败"会让用户改错方向。
+	*
+	* 全页监听而不是只监听根元素：文档编辑器的拖放目标是画布/文档区，不是这个包裹层；
+	* 遮罩本身 `pointer-events: none`，不会挡住 `drop`。代价要写在明面上——**一个页面只应有的一个实例**：
+	* 同页挂两个会各自收到同一次 drop / paste（需要区分时由宿主拆页面，或把整个应用包进一个实例）。
+	*/
+	var OjDropZone = (0, vue.defineComponent)({
+		name: "OjDropZone",
+		props: {
+			accept: {
+				type: Object,
+				default: () => ({})
+			},
+			disabled: {
+				type: Boolean,
+				default: false
+			},
+			/** 遮罩主文案（"松开以导入"）。 */
+			title: {
+				type: String,
+				required: true
+			},
+			/** 遮罩副文案（"支持 .docx / .pdf，最多 5 个"），由宿主拼好。 */
+			hint: {
+				type: String,
+				default: ""
+			},
+			/** 打开文件选择框的按钮文案；留空则不出现按钮。 */
+			browseLabel: {
+				type: String,
+				default: ""
+			},
+			/** 两类拒绝的原因文案，按种类给（组件不拼句子）。 */
+			rejectLabels: {
+				type: Object,
+				default: () => EMPTY_LABELS
+			},
+			/** 拒绝提示保留多久（ms）；`0` 表示留到下一次成功导入。 */
+			messageDuration: {
+				type: Number,
+				default: 4e3
+			},
+			/** 是否接管 `text/html` / `text/plain` 拖放（富文本导入、纯文本插入）。 */
+			textPayload: {
+				type: Boolean,
+				default: false
+			}
+		},
+		emits: [
+			"files",
+			"reject",
+			"insert"
+		],
+		setup(props, { emit, slots }) {
+			const active = (0, vue.ref)(false);
+			const message = (0, vue.ref)("");
+			const input = (0, vue.ref)(null);
+			let depth = 0;
+			let timer;
+			function clearTimer() {
+				if (timer === void 0) return;
+				clearTimeout(timer);
+				timer = void 0;
+			}
+			function arm() {
+				clearTimer();
+				if (props.messageDuration <= 0) return;
+				timer = setTimeout(() => {
+					message.value = "";
+					timer = void 0;
+				}, props.messageDuration);
+			}
+			function reject(reason) {
+				var _props$rejectLabels$r;
+				const text = (_props$rejectLabels$r = props.rejectLabels[reason]) !== null && _props$rejectLabels$r !== void 0 ? _props$rejectLabels$r : "";
+				message.value = text;
+				arm();
+				emit("reject", reason);
+			}
+			function deliver(files) {
+				const selection = selectDropped(files.map((file) => ({
+					name: file.name,
+					type: file.type,
+					file
+				})), props.accept);
+				if (selection.accepted.length > 0) {
+					message.value = "";
+					clearTimer();
+					emit("files", selection.accepted.map((entry) => entry.file));
+				}
+				if (selection.rejected !== void 0) reject(selection.rejected);
+			}
+			/** 这一次拖放要不要接管：文件总是接管；文本只在显式开启时接管。 */
+			function interested(types) {
+				const kind = classifyTransfer(types);
+				if (kind === "files") return true;
+				return props.textPayload && kind !== "none";
+			}
+			function reset() {
+				depth = 0;
+				active.value = false;
+			}
+			function onDragEnter(event) {
+				var _event$dataTransfer$t, _event$dataTransfer;
+				if (props.disabled) return;
+				if (!interested((_event$dataTransfer$t = (_event$dataTransfer = event.dataTransfer) === null || _event$dataTransfer === void 0 ? void 0 : _event$dataTransfer.types) !== null && _event$dataTransfer$t !== void 0 ? _event$dataTransfer$t : [])) return;
+				depth += 1;
+				active.value = true;
+			}
+			function onDragOver(event) {
+				if (props.disabled) return;
+				if (!active.value) {
+					var _event$dataTransfer$t2, _event$dataTransfer2;
+					if (!interested((_event$dataTransfer$t2 = (_event$dataTransfer2 = event.dataTransfer) === null || _event$dataTransfer2 === void 0 ? void 0 : _event$dataTransfer2.types) !== null && _event$dataTransfer$t2 !== void 0 ? _event$dataTransfer$t2 : [])) return;
+					depth = 1;
+					active.value = true;
+				}
+				event.preventDefault();
+				if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy";
+			}
+			function onDragLeave(event) {
+				if (event.relatedTarget === null) {
+					reset();
+					return;
+				}
+				depth = Math.max(0, depth - 1);
+				if (depth === 0) active.value = false;
+			}
+			function onDrop(event) {
+				reset();
+				if (props.disabled) return;
+				const transfer = event.dataTransfer;
+				if (transfer === null) return;
+				const kind = classifyTransfer(transfer.types);
+				if (kind === "none") return;
+				event.preventDefault();
+				if (kind === "files") {
+					deliver(Array.from(transfer.files));
+					return;
+				}
+				if (!props.textPayload) return;
+				const payload = {
+					html: transfer.getData("text/html"),
+					text: transfer.getData("text/plain")
+				};
+				if (payload.html === "" && payload.text === "") return;
+				emit("insert", payload);
+			}
+			/** 粘贴只接管带文件的剪贴板（截图、复制的图片）；纯文本必须原样留给宿主。 */
+			function onPaste(event) {
+				var _event$clipboardData;
+				if (props.disabled) return;
+				const files = (_event$clipboardData = event.clipboardData) === null || _event$clipboardData === void 0 ? void 0 : _event$clipboardData.files;
+				if (files === void 0 || files.length === 0) return;
+				event.preventDefault();
+				deliver(Array.from(files));
+			}
+			function onPick(event) {
+				const element = event.target;
+				const files = element.files;
+				if (files !== null && files.length > 0) deliver(Array.from(files));
+				element.value = "";
+			}
+			const acceptAttribute = (0, vue.computed)(() => {
+				var _props$accept$types;
+				return ((_props$accept$types = props.accept.types) !== null && _props$accept$types !== void 0 ? _props$accept$types : []).join(",");
+			});
+			const multiple = (0, vue.computed)(() => props.accept.multiple !== false);
+			(0, vue.onMounted)(() => {
+				if (typeof window === "undefined") return;
+				window.addEventListener("dragenter", onDragEnter);
+				window.addEventListener("dragover", onDragOver);
+				window.addEventListener("dragleave", onDragLeave);
+				window.addEventListener("drop", onDrop);
+				window.addEventListener("dragend", reset);
+				window.addEventListener("paste", onPaste);
+			});
+			(0, vue.onBeforeUnmount)(() => {
+				if (typeof window === "undefined") return;
+				window.removeEventListener("dragenter", onDragEnter);
+				window.removeEventListener("dragover", onDragOver);
+				window.removeEventListener("dragleave", onDragLeave);
+				window.removeEventListener("drop", onDrop);
+				window.removeEventListener("dragend", reset);
+				window.removeEventListener("paste", onPaste);
+				clearTimer();
+			});
+			return () => {
+				var _slots$default;
+				return (0, vue.h)("div", {
+					class: "oj-drop-zone",
+					"data-active": active.value ? "" : void 0,
+					"data-disabled": props.disabled ? "" : void 0
+				}, [
+					(0, vue.h)("div", { class: "oj-drop-zone__body" }, (_slots$default = slots.default) === null || _slots$default === void 0 ? void 0 : _slots$default.call(slots)),
+					props.browseLabel === "" ? null : (0, vue.h)("button", {
+						type: "button",
+						class: "oj-button oj-drop-zone__browse",
+						"data-size": "mini",
+						disabled: props.disabled,
+						onClick: () => {
+							var _input$value;
+							return (_input$value = input.value) === null || _input$value === void 0 ? void 0 : _input$value.click();
+						}
+					}, props.browseLabel),
+					(0, vue.h)("input", {
+						ref: input,
+						class: "oj-drop-zone__input",
+						type: "file",
+						tabindex: -1,
+						"aria-hidden": "true",
+						accept: acceptAttribute.value === "" ? void 0 : acceptAttribute.value,
+						multiple: multiple.value ? "" : void 0,
+						onChange: onPick
+					}),
+					message.value === "" ? null : (0, vue.h)("p", {
+						class: "oj-drop-zone__message",
+						role: "status"
+					}, message.value),
+					active.value ? (0, vue.h)("div", { class: "oj-drop-zone__overlay" }, [(0, vue.h)("div", { class: "oj-drop-zone__card" }, [(0, vue.h)("strong", { class: "oj-drop-zone__title" }, props.title), props.hint === "" ? null : (0, vue.h)("span", { class: "oj-drop-zone__hint" }, props.hint)])]) : null
+				]);
+			};
+		}
+	});
+	//#endregion
+	//#region src/shell/versions.ts
+	var IDLE_RESTORE = { status: "idle" };
+	/** 新的在前；时间相同保持原有顺序（`Array.prototype.sort` 是稳定排序）。 */
+	function sortVersions(entries) {
+		return [...entries].sort((left, right) => right.at - left.at);
+	}
+	/** 请求恢复：进入"待确认"。同一条重复请求返回原对象。 */
+	function requestRestore(state, entryId) {
+		if (state.status === "confirming" && state.entryId === entryId) return state;
+		return {
+			status: "confirming",
+			entryId
+		};
+	}
+	function cancelRestore(state) {
+		return state.status === "idle" ? state : IDLE_RESTORE;
+	}
+	/** 用户点了"确认恢复"：进入执行态，组件据此上抛 `restore`。 */
+	function confirmRestore(state) {
+		if (state.status !== "confirming") return state;
+		return {
+			status: "restoring",
+			entryId: state.entryId
+		};
+	}
+	function restoreEntryId(state) {
+		return state.status === "idle" ? void 0 : state.entryId;
+	}
+	//#endregion
+	//#region src/vue/version-history.ts
+	/**
+	* `OjVersionHistory`（03 §3 E 组）：版本时间线，支持预览、命名、恢复（带确认）。
+	*
+	* 恢复**必须二次确认**，而且确认条就贴在那一条下面：弹窗确认里用户看不到自己要覆盖的是哪个版本，
+	* 只能凭记忆点"确定"。确认条用 `role="alertdialog"`，读屏也会先念"覆盖当前内容？"。
+	*
+	* 命名用行内输入：改完按 Enter 或失焦提交、Esc 取消、清空等于退回自动版本
+	* （`renameVersion` 把空名字处理成"去掉名字"）。命名不改顺序——排序只看时间，
+	* 否则用户刚改完名字，那一条就跳到别处去了。
+	*
+	* 时间格式化交给宿主（`formatTime`），组件不猜地区格式。
+	*/
+	var OjVersionHistory = (0, vue.defineComponent)({
+		name: "OjVersionHistory",
+		props: {
+			entries: {
+				type: Array,
+				required: true
+			},
+			/** 列表的可访问名（"版本历史"）。 */
+			label: {
+				type: String,
+				required: true
+			},
+			previewLabel: {
+				type: String,
+				required: true
+			},
+			restoreLabel: {
+				type: String,
+				required: true
+			},
+			renameLabel: {
+				type: String,
+				required: true
+			},
+			/** 确认条上的提示（"恢复后当前内容会被覆盖"）。 */
+			restorePrompt: {
+				type: String,
+				required: true
+			},
+			confirmRestoreLabel: {
+				type: String,
+				required: true
+			},
+			cancelRestoreLabel: {
+				type: String,
+				required: true
+			},
+			emptyLabel: {
+				type: String,
+				default: ""
+			},
+			/** 时间格式化；默认用系统地区格式，宿主可换成固定格式。 */
+			formatTime: {
+				type: Function,
+				default: (at) => new Date(at).toLocaleString()
+			}
+		},
+		emits: [
+			"preview",
+			"restore",
+			"rename"
+		],
+		setup(props, { emit }) {
+			const renamingId = (0, vue.ref)(null);
+			const draft = (0, vue.ref)("");
+			const restore = (0, vue.ref)(IDLE_RESTORE);
+			function startRename(entry) {
+				var _entry$name;
+				renamingId.value = entry.id;
+				draft.value = (_entry$name = entry.name) !== null && _entry$name !== void 0 ? _entry$name : "";
+			}
+			function cancelRename() {
+				renamingId.value = null;
+			}
+			function commitRename() {
+				var _props$entries$find$n, _props$entries$find;
+				const id = renamingId.value;
+				if (id === null) return;
+				renamingId.value = null;
+				const original = (_props$entries$find$n = (_props$entries$find = props.entries.find((entry) => entry.id === id)) === null || _props$entries$find === void 0 ? void 0 : _props$entries$find.name) !== null && _props$entries$find$n !== void 0 ? _props$entries$find$n : "";
+				const name = draft.value.trim();
+				if (name === original) return;
+				emit("rename", id, name);
+			}
+			function askRestore(id) {
+				restore.value = requestRestore(restore.value, id);
+			}
+			function cancel() {
+				restore.value = cancelRestore(restore.value);
+			}
+			function confirm() {
+				const id = restoreEntryId(confirmRestore(restore.value));
+				restore.value = IDLE_RESTORE;
+				if (id !== void 0) emit("restore", id);
+			}
+			return () => {
+				const entries = sortVersions(props.entries);
+				if (entries.length === 0) return props.emptyLabel === "" ? null : (0, vue.h)("p", { class: "oj-version-history__empty" }, props.emptyLabel);
+				return (0, vue.h)("section", {
+					class: "oj-version-history",
+					"aria-label": props.label
+				}, [(0, vue.h)("ol", { class: "oj-version-history__list" }, entries.map((entry) => {
+					const renaming = renamingId.value === entry.id;
+					const confirming = restore.value.status === "confirming" && restore.value.entryId === entry.id;
+					return (0, vue.h)("li", {
+						class: "oj-version-history__item",
+						"data-version": entry.id,
+						key: entry.id
+					}, [
+						(0, vue.h)("div", { class: "oj-version-history__head" }, [
+							entry.name === void 0 ? null : (0, vue.h)("span", { class: "oj-version-history__name" }, entry.name),
+							(0, vue.h)("span", { class: "oj-version-history__time" }, props.formatTime(entry.at)),
+							(0, vue.h)("span", { class: "oj-version-history__author" }, entry.author)
+						]),
+						entry.summary === void 0 ? null : (0, vue.h)("p", { class: "oj-version-history__summary" }, entry.summary),
+						renaming ? (0, vue.h)("div", { class: "oj-version-history__rename" }, [(0, vue.h)("input", {
+							class: "oj-version-history__input",
+							value: draft.value,
+							"aria-label": props.renameLabel,
+							onInput: (event) => {
+								draft.value = event.target.value;
+							},
+							onKeydown: (event) => {
+								if (event.key === "Enter") {
+									event.preventDefault();
+									commitRename();
+								} else if (event.key === "Escape") {
+									event.preventDefault();
+									cancelRename();
+								}
+							},
+							onBlur: () => commitRename(),
+							ref: (element) => {
+								const input = element;
+								if (input !== null && typeof input.focus === "function" && document.activeElement !== input) input.focus();
+							}
+						})]) : null,
+						confirming ? (0, vue.h)("div", {
+							class: "oj-version-history__confirm",
+							role: "alertdialog",
+							"aria-label": props.restorePrompt
+						}, [
+							(0, vue.h)("span", { class: "oj-version-history__prompt" }, props.restorePrompt),
+							(0, vue.h)("button", {
+								type: "button",
+								class: "oj-button",
+								"data-size": "mini",
+								onClick: cancel
+							}, props.cancelRestoreLabel),
+							(0, vue.h)("button", {
+								type: "button",
+								class: "oj-button oj-version-history__confirm-restore",
+								"data-size": "mini",
+								"data-active": "",
+								onClick: confirm
+							}, props.confirmRestoreLabel)
+						]) : null,
+						(0, vue.h)("div", { class: "oj-version-history__actions" }, [
+							(0, vue.h)("button", {
+								type: "button",
+								class: "oj-button",
+								"data-size": "mini",
+								onClick: () => emit("preview", entry.id)
+							}, props.previewLabel),
+							(0, vue.h)("button", {
+								type: "button",
+								class: "oj-button",
+								"data-size": "mini",
+								onClick: () => askRestore(entry.id)
+							}, props.restoreLabel),
+							(0, vue.h)("button", {
+								type: "button",
+								class: "oj-button",
+								"data-size": "mini",
+								onClick: () => startRename(entry)
+							}, props.renameLabel)
+						])
+					]);
+				}))]);
+			};
+		}
+	});
 	//#endregion
 	//#region src/vue/registry.ts
 	/**
@@ -5404,12 +7941,19 @@
 		"oj-gallery": OjGallery,
 		"oj-style-gallery": OjStyleGallery,
 		"oj-code-block": OjCodeBlock,
+		"oj-comment-thread": OjCommentThread,
+		"oj-drop-zone": OjDropZone,
+		"oj-file-name-header": OjFileNameHeader,
+		"oj-presence-avatars": OjPresenceAvatars,
+		"oj-review-panel": OjReviewPanel,
 		"oj-color-picker": OjColorPicker,
 		"oj-command-button": OjCommandButton,
 		"oj-command-launcher": OjCommandLauncher,
 		"oj-command-palette": OjCommandPalette,
 		"oj-context-menu": OjContextMenu,
 		"oj-dialog": OjDialog,
+		"oj-dock-panel": OjDockPanel,
+		"oj-drag-context": OjDragContext,
 		"oj-dropdown": OjDropdown,
 		"oj-dropdown-button": OjDropdownButton,
 		"oj-file-tree": OjFileTree,
@@ -5417,6 +7961,7 @@
 		"oj-font-size-field": OjFontSizeField,
 		"oj-line-spacing-picker": OjLineSpacingPicker,
 		"oj-number-field": OjNumberField,
+		"oj-pane-group": OjPaneGroup,
 		"oj-hotkey": OjHotkey,
 		"oj-icon": OjIcon,
 		"oj-locale-provider": OjLocaleProvider,
@@ -5429,7 +7974,9 @@
 		"oj-ribbon-tab": OjRibbonTab,
 		"oj-ruler": OjRuler,
 		"oj-search-replace-bar": OjSearchReplaceBar,
+		"oj-share-dialog": OjShareDialog,
 		"oj-signature-pad": OjSignaturePad,
+		"oj-splitter": OjSplitter,
 		"oj-split-button": OjSplitButton,
 		"oj-stamp": OjStamp,
 		"oj-symbol-picker": OjSymbolPicker,
@@ -5438,6 +7985,9 @@
 		"oj-tabs": OjTabs,
 		"oj-toggle-button": OjToggleButton,
 		"oj-toolbar": OjToolbar,
+		"oj-upload-progress": OjUploadProgress,
+		"oj-version-history": OjVersionHistory,
+		"oj-virtual-list": OjVirtualList,
 		"oj-tooltip": OjTooltip,
 		"oj-trigger": OjTrigger,
 		"oj-watermark": OjWatermark,
@@ -5636,6 +8186,7 @@
 	}
 	//#endregion
 	exports.OJ_COMPONENTS = OJ_COMPONENTS;
+	exports.OJ_DRAG_CONTEXT = OJ_DRAG_CONTEXT;
 	exports.OjAiPanel = OjAiPanel;
 	exports.OjAlignmentPicker = OjAlignmentPicker;
 	exports.OjBorderPicker = OjBorderPicker;
@@ -5644,10 +8195,15 @@
 	exports.OjCommandButton = OjCommandButton;
 	exports.OjCommandLauncher = OjCommandLauncher;
 	exports.OjCommandPalette = OjCommandPalette;
+	exports.OjCommentThread = OjCommentThread;
 	exports.OjContextMenu = OjContextMenu;
 	exports.OjDialog = OjDialog;
+	exports.OjDockPanel = OjDockPanel;
+	exports.OjDragContext = OjDragContext;
+	exports.OjDropZone = OjDropZone;
 	exports.OjDropdown = OjDropdown;
 	exports.OjDropdownButton = OjDropdownButton;
+	exports.OjFileNameHeader = OjFileNameHeader;
 	exports.OjFileTree = OjFileTree;
 	exports.OjFontPicker = OjFontPicker;
 	exports.OjFontSizeField = OjFontSizeField;
@@ -5658,16 +8214,21 @@
 	exports.OjLocaleProvider = OjLocaleProvider;
 	exports.OjLocaleSwitcher = OjLocaleSwitcher;
 	exports.OjNumberField = OjNumberField;
+	exports.OjPaneGroup = OjPaneGroup;
 	exports.OjPopper = OjPopper;
 	exports.OjPortal = OjPortal;
+	exports.OjPresenceAvatars = OjPresenceAvatars;
+	exports.OjReviewPanel = OjReviewPanel;
 	exports.OjRibbon = OjRibbon;
 	exports.OjRibbonGallery = OjRibbonGallery;
 	exports.OjRibbonGroup = OjRibbonGroup;
 	exports.OjRibbonTab = OjRibbonTab;
 	exports.OjRuler = OjRuler;
 	exports.OjSearchReplaceBar = OjSearchReplaceBar;
+	exports.OjShareDialog = OjShareDialog;
 	exports.OjSignaturePad = OjSignaturePad;
 	exports.OjSplitButton = OjSplitButton;
+	exports.OjSplitter = OjSplitter;
 	exports.OjStamp = OjStamp;
 	exports.OjStatusBar = OjStatusBar;
 	exports.OjStyleGallery = OjStyleGallery;
@@ -5678,6 +8239,9 @@
 	exports.OjToolbar = OjToolbar;
 	exports.OjTooltip = OjTooltip;
 	exports.OjTrigger = OjTrigger;
+	exports.OjUploadProgress = OjUploadProgress;
+	exports.OjVersionHistory = OjVersionHistory;
+	exports.OjVirtualList = OjVirtualList;
 	exports.OjWatermark = OjWatermark;
 	exports.OjZoomControl = OjZoomControl;
 	exports.configure = configure;
@@ -5687,4 +8251,5 @@
 	exports.resetConfigure = resetConfigure;
 	exports.resolveOjComponent = resolveOjComponent;
 	exports.useLocale = useLocale;
+	exports.useOjDragContext = useOjDragContext;
 });

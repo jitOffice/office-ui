@@ -298,8 +298,57 @@ M2 验收三条的现状：
   文档区实时生效，Chrome 151 逐条量过计算样式。
 - **三语无拼接文案**：✅ 且是四语（新增 22 个 key × 4 语）。线型名与对齐名由使用方以 `styleLabels` /
   `itemLabels` 传入，组件里不拼字符串。
-- **视觉回归 12 组**：**未做**。`test:visual` 目前只有排版 3 例（tokens）与无构建器 2 例（ui 的
-  UMD 端到端），组件级像素基线尚未建立；它依赖 B5 那套截图比对，不是组件本身缺东西。
+- **视觉回归 12 组**：**第一切片已落地（2026-11-02）**。`packages/ui/test/visual/theme-matrix.spec.ts`
+  在 `examples/theme-matrix/index.html`（纯静态、`hydrate()` 挂 8 个实例）上跑
+  `light/dark × comfortable/compact × zh-CN/zh-TW/ja` 12 组：一条用例只读计算值锁三条轴的交叉不变量
+  （颜色只随主题变、尺寸只随密度变、排版只随语言变），12 条用例按 6 个板块各出一张 0.1% 阈值的像素基线
+  （**72 张**）。按板块切而不截整板是实测决定的：整板 43 万像素的 0.1% 等于宽容 432 px，
+  而把状态栏颜色写死成字面色值只差 214–437 px，一半档位会从阈值底下溜过去。
+  **遗留**：基线只有 darwin 一套（唯一能跑浏览器的机器），linux 那套要在 runner 上跑一次
+  `--update-snapshots` 再提交；`en` 不进这个积（理由见 01 §8）。
+
+### 实现状态（2026-10-31 增补：M3 第一批 · 审阅与协同）
+
+M3 的 14 件里已交付 6 件：`OjCommandPalette`、`OjSearchReplaceBar`（前序）与本轮四件——
+
+| 组件 | 组 | 行为层 | 关键约束 |
+|---|---|---|---|
+| `OjCommentThread` | E | `shell/comments.ts` | 不可变追加；回复不改解决态；受控（回复/解决都走上抛事件） |
+| `OjReviewPanel` | E | `shell/review.ts` | 批量决策只作用于当前筛选；决策后条目消失；筛选是本地状态 |
+| `OjPresenceAvatars` | E | `shell/people.ts` | 颜色/首字母由 id 派生；`max` 含"更多"按钮；`max=0` 整组不画 |
+| `OjFileNameHeader` | F | `shell/file-name.ts` | Windows 最严校验；非法名不退出编辑态；保存态三档不可跳过 |
+
+### 实现状态（2026-11-01 增补：M3 第二批 · 外壳布局与导入）
+
+本轮交付 5 件：`OjSplitter`、`OjPaneGroup`、`OjVirtualList`、`OjDockPanel`（D 组）与 `OjDropZone`（F 组）。
+
+| 组件 | 组 | 行为层 | 关键约束 |
+|---|---|---|---|
+| `OjSplitter` | D | `shell/splitter.ts` | `size` 指**被调那一栏**，由 `pane: 'before'\|'after'` 声明方向；受控，只上抛 `update:size`；折叠阈值 `min/2`，键盘在 `min` 上再"变小"才折叠；折好后拖动不自动弹开 |
+| `OjPaneGroup` | D | `shell/splitter.ts`（`paneSplitter()`） | 栏位声明式（`panes`）+ 命名插槽；**分隔条只调固定宽那一栏**（可伸缩栏的尺寸是"剩下的空间"）；`update:size` 带栏位 id 上抛；不让拖的栏不画条子 |
+| `OjVirtualList` | D | `shell/virtual.ts` | 变高前缀和只改被量行之后的偏移；**上方插入还原锚点**（锚点行被删则保持原位置）；高度为 0 的视口也渲染一行；`scrollToIndex(index, align)` |
+| `OjDockPanel` | D | `shell/dock.ts` | 状态全在 `state`（受控）；**记住上次停靠侧**，浮动回来不跳默认侧；收起只藏内容、标题栏留着；浮动位置在拖动时就夹取（至少露出 `FLOAT_GRAB_STRIP`），按钮不算拖动区 |
+| `OjDropZone` | F | `shell/drop-zone.ts` | 按 `DataTransfer.types` 分支（files / text-html / text）；遮罩用 enter/leave **计数**进出；拒绝区分 `type` / `count`；粘贴图片与拖入共用同一套受理规则 |
+
+### 实现状态（2026-11-02 增补：M3 收尾 · 共享 / 版本 / 上传 / 拖放协议）
+
+本轮交付余下 4 件，**M3 的 14 件全部交付**：
+
+| 组件 | 组 | 行为层 | 关键约束 |
+|---|---|---|---|
+| `OjDragDropContext` | D | `shell/drag-context.ts` | 私有 MIME 标记区分内部拖拽 / 外部拖入；`negotiateTransfer` 只按 MIME 提前挡，扩展名规则一律放行到 drop 再判；文本载荷默认不接管；`provide` 只读状态给子组件 |
+| `OjShareDialog` | E | `shell/share.ts` | 切范围时角色**降级**（链接不给"可编辑"）；`resolveShare()` 是唯一真值：私有没角色、有效期只跟链接、人数只跟指定人；确认上抛归一化后的权限 |
+| `OjVersionHistory` | E | `shell/versions.ts` | 排序只看时间（改名不改顺序）；恢复是 `idle → confirming → restoring` 状态机，确认条贴在该版本下面；行内命名 Enter/失焦提交、Esc 取消、清空退回自动版本 |
+| `OjUploadProgress` | F | `shell/upload.ts` | 进度只增不减（暂停期间到达的分片回报丢弃）；失败保留断点，重试从 `loaded` 继续；分片按字节对齐重发；动作按钮按状态各只出一个 |
+
+**M3 验收（合同审阅 preset）已收口**：`packages/ui/demo` 的 shell 三栏从写死的
+`grid-template-columns` 换成 `OjPaneGroup`——左文件栏（可收起，160–360px）+ 中文档（`flexible`，吃剩余宽度，
+`min 480`）+ 右审阅栏（可收起，260–520px）。分隔条可拖（只调固定宽的两栏），双击或聚焦后 Enter 折叠/展开，
+栏宽由宿主 `ref` 回写；顶 Ribbon、底状态栏沿用既有外壳。
+
+仍未做的只有 M0 的第 7 条（视觉回归 12 组基线）：2026-11-02 已落第一切片（12 组 × 6 板块 = 72 张
+darwin 基线 + 三条轴的交叉不变量用例），欠的是 linux 基线（需在 runner 上生成一次），
+详见上面 M2 验收段落。
 
 ---
 
@@ -413,6 +462,11 @@ M2 验收三条的现状：
 - 上下文选项卡（选中图片才出现的"图片格式"）由**选区类型驱动**，且激活时不得抢焦点。
 - 标签页用 `role="tablist"`，工具条用 `role="toolbar"` + `aria-activedescendant`；下拉展开时指针移入面板**不得**关闭面板（需离开延迟 + 面板本身计入 hover 区）。
 - **i18n 会让 Ribbon 撑爆**：德语/俄语标签长度约为中文 1.8 倍，日语全角字符更宽。`OjRibbonGroup` 的 `large/medium/small` 降级必须按**实测宽度**而非字符数触发，溢出进 `»` 菜单。
+- **`OjRibbonGroup` 的宿主必须约束宽度**（2026-10-31 实测踩到）：组自己用 `ResizeObserver` 量宽度，
+  而在普通 `flex` 容器里它的宽度是**由内容撑开**的——内容先因"量到 0"全部进 `»`，宽度于是永远是 20px，
+  再也回不来（整组只剩一个 `»`，看起来像命令丢了）。宿主有两条正确姿势：给它 `available`（固定预算/面板宽），
+  或把它放进 `flex: 1 1 auto` / grid 列这类**会限制它宽度**的容器。demo 的功能区走前者（每组 240）。
+  这个坑的成因与 `ResizeObserver` 做自适应的通病一致：**被测量的元素不能靠被测量物自己撑开**。
 
 ### 8.3 文档画布：坐标与缩放
 

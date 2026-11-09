@@ -192,14 +192,21 @@
 }
 
 .oj-shell__body {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 280px;
+  display: flex;
   min-height: 0;
+}
+
+/* 栏宽不再写死在网格里：由 `OjPaneGroup` 的栏位（含分隔条拖动与收起）决定 */
+.oj-shell__body .oj-pane-group {
+  flex: 1;
+  min-width: 0;
 }
 
 .oj-files-pane,
 .oj-stage,
 .oj-ai {
+  flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
 }
@@ -1502,4 +1509,923 @@
 
 .oj-style-gallery__sample {
   color: var(--oj-text-1);
+}
+
+/* ---- 头像（OjPresenceAvatars / OjCommentThread / OjReviewPanel 共用底座）
+   颜色档由 shell/people.ts 的 avatarTone() 派生，这里只负责"档 → 色"的映射 */
+.oj-avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  /* 边框取当前字色：`*-subtle` 底色在白底上太淡，没有这圈描边头像会"消失" */
+  border: 1px solid currentColor;
+  border-radius: var(--oj-radius-full);
+  font-size: var(--oj-fs-12);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.oj-avatar--small {
+  width: 20px;
+  height: 20px;
+}
+
+.oj-avatar[data-tone='0'] {
+  background: var(--oj-bg-brand-subtle);
+  color: var(--oj-text-brand);
+}
+
+.oj-avatar[data-tone='1'] {
+  background: var(--oj-bg-success-subtle);
+  color: var(--oj-text-success);
+}
+
+.oj-avatar[data-tone='2'] {
+  background: var(--oj-bg-warning-subtle);
+  color: var(--oj-text-warning);
+}
+
+.oj-avatar[data-tone='3'] {
+  background: var(--oj-bg-danger-subtle);
+  color: var(--oj-text-danger);
+}
+
+/* ---- 协同在场（OjPresenceAvatars） */
+.oj-presence {
+  display: flex;
+  align-items: center;
+  padding-left: var(--oj-space-1);
+}
+
+.oj-presence__avatar {
+  cursor: pointer;
+}
+
+.oj-presence__avatar + .oj-presence__avatar,
+.oj-presence__more {
+  margin-left: calc(-1 * var(--oj-space-1));
+}
+
+.oj-presence__more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 var(--oj-space-1);
+  border: 1px solid var(--oj-bg-container);
+  border-radius: var(--oj-radius-full);
+  background: var(--oj-bg-active);
+  color: var(--oj-text-2);
+  font: inherit;
+  font-size: var(--oj-fs-12);
+  cursor: pointer;
+}
+
+.oj-presence__avatar:hover,
+.oj-presence__more:hover {
+  box-shadow: var(--oj-shadow-1);
+}
+
+/* ---- 标题栏文件名（OjFileNameHeader） */
+.oj-file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  min-width: 0;
+}
+
+.oj-file-name__favorite {
+  border: 0;
+  background: none;
+  color: var(--oj-text-4);
+  font-size: var(--oj-fs-14);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.oj-file-name__favorite[data-active] {
+  color: var(--oj-color-warning);
+}
+
+.oj-file-name__title {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 var(--oj-space-1);
+  border: 1px solid transparent;
+  border-radius: var(--oj-radius-xs);
+  background: none;
+  color: var(--oj-text-1);
+  font: inherit;
+  font-size: var(--oj-fs-14);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.oj-file-name__title:hover {
+  border-color: var(--oj-border-2);
+  background: var(--oj-bg-hover);
+}
+
+.oj-file-name__input {
+  width: 220px;
+  height: 24px;
+  padding: 0 var(--oj-space-2);
+  border: 1px solid var(--oj-border-brand);
+  border-radius: var(--oj-radius-xs);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+  font: inherit;
+  font-size: var(--oj-fs-14);
+}
+
+.oj-file-name__input[aria-invalid='true'] {
+  border-color: var(--oj-text-danger);
+}
+
+.oj-file-name__state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--oj-space-1);
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+  white-space: nowrap;
+}
+
+.oj-file-name__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--oj-radius-full);
+  background: var(--oj-text-4);
+}
+
+.oj-file-name[data-state='saved'] .oj-file-name__dot {
+  background: var(--oj-text-success);
+}
+
+.oj-file-name[data-state='saving'] .oj-file-name__dot {
+  background: var(--oj-text-warning);
+}
+
+.oj-file-name__problem {
+  color: var(--oj-text-danger);
+  font-size: var(--oj-fs-12);
+}
+
+/* ---- 拖拽分栏（OjSplitter）：视觉上是 1px 的线，命中区靠条子自身撑宽 */
+.oj-splitter {
+  position: relative;
+  flex: 0 0 auto;
+  background: var(--oj-border-2);
+  touch-action: none;
+  transition: background var(--oj-motion-duration-fast) var(--oj-motion-ease-out);
+}
+
+.oj-splitter[data-orientation='vertical'] {
+  width: 8px;
+  cursor: col-resize;
+}
+
+.oj-splitter[data-orientation='horizontal'] {
+  height: 8px;
+  cursor: row-resize;
+}
+
+.oj-splitter:hover,
+.oj-splitter[data-dragging] {
+  background: var(--oj-border-brand);
+}
+
+.oj-splitter:focus-visible {
+  outline: 2px solid var(--oj-border-brand);
+  outline-offset: -2px;
+}
+
+.oj-splitter[data-collapsed] {
+  background: var(--oj-bg-hover);
+}
+
+.oj-splitter[data-disabled] {
+  cursor: default;
+  background: var(--oj-border-2);
+}
+
+/* ---- 多栏容器（OjPaneGroup）：栏与栏之间由 OjSplitter 分隔 */
+.oj-pane-group {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.oj-pane-group[data-orientation='horizontal'] {
+  flex-direction: column;
+}
+
+.oj-pane-group__pane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ---- 变高虚拟列表（OjVirtualList）：spacer 撑总高，窗口用 translateY 定位 */
+.oj-virtual-list {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-height: 0;
+  color: var(--oj-text-1);
+}
+
+.oj-virtual-list:focus-visible {
+  outline: 2px solid var(--oj-border-brand);
+  outline-offset: -2px;
+}
+
+.oj-virtual-list__spacer {
+  position: relative;
+  width: 100%;
+}
+
+.oj-virtual-list__window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+/* ---- 停靠面板（OjDockPanel）：停靠尺寸由 OjPaneGroup 的栏位给，这里只管面板自身 */
+.oj-dock {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--oj-border-2);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+}
+
+.oj-dock[data-side='floating'] {
+  position: fixed;
+  z-index: var(--oj-z-drawer);
+  overflow: hidden;
+  border-radius: var(--oj-radius-md);
+  box-shadow: var(--oj-shadow-1);
+}
+
+.oj-dock__header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--oj-space-2);
+  height: 32px;
+  padding: 0 var(--oj-space-2);
+  border-bottom: 1px solid var(--oj-border-2);
+  background: var(--oj-bg-container);
+}
+
+/* 只有浮动态可以从标题栏拖动：停靠态的移动由分隔条负责 */
+.oj-dock[data-side='floating'] .oj-dock__header {
+  cursor: move;
+  touch-action: none;
+}
+
+.oj-dock__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--oj-fs-13);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oj-dock__collapse,
+.oj-dock__float {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--oj-radius-xs);
+  background: none;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+  cursor: pointer;
+}
+
+.oj-dock__collapse:hover,
+.oj-dock__float:hover {
+  background: var(--oj-bg-hover);
+  color: var(--oj-text-1);
+}
+
+.oj-dock__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--oj-space-3);
+}
+
+/* ---- 上传进度（OjUploadProgress）：状态靠 data-state 上色，不额外加类名 */
+.oj-upload-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  min-width: 0;
+}
+
+.oj-upload-progress__summary {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--oj-space-2);
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-upload-progress__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oj-upload-progress__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-1);
+  min-width: 0;
+}
+
+.oj-upload-progress__row {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  min-width: 0;
+}
+
+.oj-upload-progress__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oj-upload-progress__status {
+  flex: 0 0 auto;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-upload-progress__action {
+  flex: 0 0 auto;
+}
+
+.oj-upload-progress__track {
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--oj-radius-full);
+  background: var(--oj-bg-hover);
+}
+
+.oj-upload-progress__bar {
+  height: 100%;
+  background: var(--oj-border-brand);
+  transition: width var(--oj-motion-duration-fast) var(--oj-motion-ease-out);
+}
+
+.oj-upload-progress__item[data-state='done'] .oj-upload-progress__bar {
+  background: var(--oj-text-success);
+}
+
+.oj-upload-progress__item[data-state='failed'] .oj-upload-progress__bar {
+  background: var(--oj-text-danger);
+}
+
+.oj-upload-progress__error {
+  margin: 0;
+  color: var(--oj-text-danger);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-upload-progress__empty {
+  margin: 0;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+/* ---- 拖放协议（OjDragContext）：不产生盒子，只把状态挂在包裹元素上供宿主高亮 */
+.oj-drag-context {
+  display: contents;
+}
+
+/* ---- 共享对话框（OjShareDialog）：范围与角色都是单选组，选中的一档自己描边 */
+.oj-share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-4);
+  min-width: 0;
+}
+
+.oj-share__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.oj-share__legend {
+  padding: 0 0 var(--oj-space-1);
+  color: var(--oj-text-2);
+  font-size: var(--oj-fs-12);
+  font-weight: 600;
+}
+
+.oj-share__option {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--oj-radius-sm);
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-13);
+  cursor: pointer;
+}
+
+.oj-share__option:hover {
+  background: var(--oj-bg-hover);
+}
+
+.oj-share__option[data-active] {
+  border-color: var(--oj-border-brand);
+  background: var(--oj-bg-active);
+}
+
+.oj-share__radio {
+  accent-color: var(--oj-border-brand);
+}
+
+.oj-share__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-1);
+  color: var(--oj-text-2);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-share__field-label {
+  font-weight: 600;
+}
+
+.oj-share__select,
+.oj-share__count {
+  max-width: 240px;
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-13);
+}
+
+/* ---- 版本历史（OjVersionHistory）：确认条贴在条目内，用户一眼看到要覆盖的是哪一版 */
+.oj-version-history {
+  min-width: 0;
+}
+
+.oj-version-history__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.oj-version-history__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-1);
+  padding: var(--oj-space-2) var(--oj-space-3);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+}
+
+.oj-version-history__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--oj-space-2);
+  min-width: 0;
+}
+
+.oj-version-history__name {
+  overflow: hidden;
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-13);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.oj-version-history__time {
+  color: var(--oj-text-2);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-version-history__author {
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-version-history__summary {
+  margin: 0;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-version-history__rename {
+  display: flex;
+}
+
+.oj-version-history__input {
+  width: 100%;
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 1px solid var(--oj-border-brand);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-13);
+}
+
+.oj-version-history__confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 1px solid var(--oj-border-brand);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-active);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-version-history__prompt {
+  flex: 1;
+  color: var(--oj-text-1);
+}
+
+.oj-version-history__actions {
+  display: flex;
+  gap: var(--oj-space-1);
+}
+
+.oj-version-history__empty {
+  margin: 0;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+/* ---- 拖放导入（OjDropZone）：判定在 window 上，这里只负责画 */
+.oj-drop-zone {
+  position: relative;
+}
+
+.oj-drop-zone__input {
+  display: none;
+}
+
+.oj-drop-zone__browse {
+  margin-top: var(--oj-space-2);
+}
+
+.oj-drop-zone__message {
+  margin: var(--oj-space-2) 0 0;
+  color: var(--oj-text-danger);
+  font-size: var(--oj-fs-12);
+}
+
+.oj-drop-zone__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--oj-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--oj-space-6);
+  background: var(--oj-bg-mask);
+  /* 遮罩不吃指针事件：drop 必须落到页面原本的目标上，否则编辑器拿不到文件 */
+  pointer-events: none;
+}
+
+.oj-drop-zone__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-8) var(--oj-space-10);
+  border: 1px dashed var(--oj-border-brand);
+  border-radius: var(--oj-radius-md);
+  background: var(--oj-bg-elevated);
+  box-shadow: var(--oj-shadow-1);
+}
+
+.oj-drop-zone__title {
+  color: var(--oj-text-1);
+  font-size: var(--oj-fs-16);
+}
+
+.oj-drop-zone__hint {
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+/* ---- 批注线程（OjCommentThread） */
+.oj-comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-3);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-md);
+  background: var(--oj-bg-elevated);
+  color: var(--oj-text-1);
+}
+
+.oj-comment[data-resolved] {
+  background: var(--oj-bg-container);
+  color: var(--oj-text-3);
+}
+
+.oj-comment__head,
+.oj-comment__reply-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oj-space-1) var(--oj-space-2);
+}
+
+.oj-comment__author {
+  font-size: var(--oj-fs-13);
+  font-weight: 600;
+  /* 名字与时间各自成"原子"：窄侧栏里让它们整体换行，而不是把「王芳」拆成两个字 */
+  white-space: nowrap;
+}
+
+.oj-comment__time {
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+  white-space: nowrap;
+}
+
+.oj-comment__resolve {
+  margin-left: auto;
+  padding: 0 var(--oj-space-2);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-full);
+  background: none;
+  color: var(--oj-text-2);
+  font: inherit;
+  font-size: var(--oj-fs-12);
+  cursor: pointer;
+}
+
+.oj-comment__resolve[data-active] {
+  border-color: var(--oj-border-brand);
+  background: var(--oj-bg-brand-subtle);
+  color: var(--oj-text-brand);
+}
+
+.oj-comment__text {
+  margin: 0;
+  font-size: var(--oj-fs-13);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.oj-comment__replies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  margin: 0;
+  padding: 0 0 0 var(--oj-space-3);
+  border-left: 2px solid var(--oj-border-2);
+  list-style: none;
+}
+
+.oj-comment__reply {
+  display: flex;
+  gap: var(--oj-space-2);
+}
+
+.oj-comment__reply-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-1);
+  min-width: 0;
+}
+
+.oj-comment__compose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--oj-space-2);
+}
+
+.oj-comment__send {
+  flex: none;
+}
+
+.oj-comment__input {
+  flex: 1;
+  /* 没有 min-width: 0 时 `textarea` 的默认列宽会把整行撑破，按钮被挤到看不见 */
+  min-width: 0;
+  min-height: 48px;
+  padding: var(--oj-space-1) var(--oj-space-2);
+  border: 1px solid var(--oj-border-3);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-container);
+  color: var(--oj-text-1);
+  font: inherit;
+  font-size: var(--oj-fs-13);
+  resize: vertical;
+}
+
+/* ---- 修订列表（OjReviewPanel） */
+.oj-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  color: var(--oj-text-1);
+}
+
+.oj-review__filters,
+.oj-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--oj-space-1);
+}
+
+.oj-review__chip {
+  height: 24px;
+  padding: 0 var(--oj-space-2);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-full);
+  background: none;
+  color: var(--oj-text-2);
+  font: inherit;
+  font-size: var(--oj-fs-12);
+  cursor: pointer;
+}
+
+.oj-review__chip[data-active] {
+  border-color: var(--oj-border-brand);
+  background: var(--oj-bg-brand-subtle);
+  color: var(--oj-text-brand);
+}
+
+/*
+ * 面板里的按钮要"看起来是按钮"。
+ * `.oj-button` 默认是 Ribbon 风格（无边框、悬停才出底色）——那套在功能区是对的，
+ * 但列表里的"接受/拒绝"没有边框就只是两段文字，用户不知道能不能点。
+ */
+.oj-review__actions .oj-button,
+.oj-review__decide .oj-button,
+.oj-comment__send {
+  border-color: var(--oj-border-3);
+  background: var(--oj-bg-elevated);
+}
+
+.oj-review__actions .oj-button:hover,
+.oj-review__decide .oj-button:hover,
+.oj-comment__send:hover {
+  background: var(--oj-bg-hover);
+}
+
+/* 接受是这一行里的主操作：只给它品牌色，拒绝保持中性（拒绝可撤销，不是危险操作） */
+.oj-review__decide .oj-button:first-child {
+  border-color: var(--oj-border-brand);
+  color: var(--oj-text-brand);
+}
+
+/* 拒绝也要看得出是按钮：`--oj-border-2` 在这个尺寸下几乎看不见，用 3 档 */
+.oj-review__decide .oj-button + .oj-button {
+  border-color: var(--oj-border-3);
+}
+
+.oj-review__actions .oj-button:disabled,
+.oj-review__decide .oj-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.oj-review__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--oj-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * 三块（头像 / 正文 / 决策）用 grid 而不是 flex：侧栏只有 280px 时，
+ * flex 会把「接受 拒绝」挤在正文旁边，正文被压到几十像素——文字于是竖着一个字一行。
+ * 决策按钮独占一行、靠右，就是在窄栏里的正确答案。
+ */
+.oj-review__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'avatar body'
+    'decide decide';
+  align-items: start;
+  gap: var(--oj-space-2);
+  padding: var(--oj-space-2);
+  border: 1px solid var(--oj-border-2);
+  border-radius: var(--oj-radius-sm);
+  background: var(--oj-bg-elevated);
+}
+
+.oj-review__avatar {
+  grid-area: avatar;
+}
+
+.oj-review__item[data-kind='insert'] {
+  border-left: 3px solid var(--oj-text-success);
+}
+
+.oj-review__item[data-kind='delete'] {
+  border-left: 3px solid var(--oj-text-danger);
+}
+
+.oj-review__item[data-kind='format'] {
+  border-left: 3px solid var(--oj-text-brand);
+}
+
+.oj-review__body {
+  display: flex;
+  flex-direction: column;
+  grid-area: body;
+  gap: var(--oj-space-1);
+  min-width: 0;
+}
+
+.oj-review__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--oj-space-1) var(--oj-space-2);
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-12);
+}
+
+/* 种类/作者/时间是三个"原子"：整块换行，不把一个词拆成两行 */
+.oj-review__kind,
+.oj-review__author,
+.oj-review__time {
+  white-space: nowrap;
+}
+
+.oj-review__kind {
+  color: var(--oj-text-2);
+  font-weight: 600;
+}
+
+.oj-review__summary {
+  margin: 0;
+  font-size: var(--oj-fs-13);
+  line-height: 1.5;
+  /* 长串（URL、英文长单词）在窄栏里必须能断，否则整行溢出到列表外面 */
+  overflow-wrap: anywhere;
+}
+
+.oj-review__decide {
+  display: flex;
+  grid-area: decide;
+  justify-self: end;
+  gap: var(--oj-space-1);
+}
+
+.oj-review__empty {
+  margin: 0;
+  padding: var(--oj-space-4) 0;
+  color: var(--oj-text-3);
+  font-size: var(--oj-fs-13);
+  text-align: center;
 }

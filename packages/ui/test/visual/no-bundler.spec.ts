@@ -61,6 +61,81 @@ test('无构建器页面：UMD 渲染、两份 CSS 生效、tooltip 可键盘唤
   expect(noisy, noisy.join('\n')).toEqual([])
 })
 
+test('声明式 hydrate：属性即声明，两个 [data-oj] 变真图标、幂等、不碰主 app 的树', async ({
+  page: browser,
+}) => {
+  await browser.goto(page)
+  await browser.waitForSelector('[data-testid="hydrate-log"]')
+  await browser.waitForSelector('[data-oj-instance="icon"]')
+
+  // 1. 返回值就是"挂载了几个"——页面把它直接打在日志里，所以这行日志本身就是被测对象：
+  //    它是 §4.3 唯一对外的可观测结果，写错一个数字就说明扫描把某个元素漏了或多扫了。
+  await expect(browser.locator('[data-testid="hydrate-log"]')).toHaveText(
+    'hydrate() 挂载了 2 个实例',
+  )
+
+  // 2. 真的画出来了：两个图标各带一个 svg path，尺寸取的是属性上的 20
+  const icons = browser.locator('[data-oj-instance="icon"]')
+  await expect(icons).toHaveCount(2)
+  await expect(icons.nth(0).locator('svg path')).toHaveCount(1)
+  await expect(icons.nth(1).locator('svg path')).toHaveCount(1)
+  const size = await icons.nth(0).evaluate((el) => {
+    const icon = el.querySelector('.oj-icon') as HTMLElement
+    return { width: getComputedStyle(icon).width, height: getComputedStyle(icon).height }
+  })
+  expect(size).toEqual({ width: '20px', height: '20px' })
+
+  // 3. 实例是**占位元素的兄弟**，不是子节点（create.ts 里 `anchor.after(el)`）。
+  //    塞进去会把占位元素自己的内容顶走——这正是 jQuery 页面最容易被搞坏的形态。
+  const nested = await browser.evaluate(() => {
+    const first = document.querySelector('[data-oj="icon"]')
+    return first === null ? -1 : first.querySelectorAll('[data-oj-instance]').length
+  })
+  expect(nested).toBe(0)
+
+  // 4. 幂等：jQuery 页面里脚本被重复执行是常态（局部刷新、模板二次注入）。
+  //    第二次 hydrate 必须返回 0，否则同一个位置会叠出第二份图标。
+  //    `OfficeUI` 是 UMD 的浏览器全局，TS 侧只能就地声明它的形状。
+  const again = await browser.evaluate(
+    () => (window as unknown as { OfficeUI: { hydrate: () => unknown[] } }).OfficeUI.hydrate().length,
+  )
+  expect(again).toBe(0)
+  await expect(icons).toHaveCount(2)
+})
+
+test('命令式 create：插在 anchor 之后、打开即渲染、update:open=false 后 destroy 收干净', async ({
+  page: browser,
+}) => {
+  await browser.goto(page)
+  await browser.waitForSelector('[data-testid="make-dialog"]')
+
+  await expect(browser.locator('[role="dialog"]')).toHaveCount(0)
+  await browser.locator('[data-testid="make-dialog"]').click()
+  const dialog = browser.locator('[role="dialog"]')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('命令式创建的对话框')
+
+  // create 生成的是独立实例：宿主 div 挂在锚点**之后**，主题/密度之类的配置写在它自己身上，
+  // 不会去改页面（02 §4.2 的 `configure` 之所以存在，就是因为这里拿不到页面的 provide）
+  const host = await browser.evaluate(() => {
+    const anchor = document.querySelector('#make-dialog') as HTMLElement
+    const next = anchor.nextElementSibling as HTMLElement | null
+    return {
+      instanceName: next?.getAttribute('data-oj-instance') ?? null,
+      insideAnchor: anchor.querySelectorAll('[data-oj-instance]').length,
+    }
+  })
+  expect(host.instanceName).toBe('oj-dialog')
+  expect(host.insideAnchor).toBe(0)
+
+  // 关掉之后 DOM 与实例都要没：`destroy()` 是显式契约，不是 GC 的活。
+  // 取消按钮没有专属类名（`.oj-dialog__confirm` 才是那个被 data-active 标出来的），
+  // 只能按可访问名找；但页眉的关闭叉也叫「关闭」，所以要限定在页脚里点。
+  await dialog.locator('.oj-dialog__footer').getByRole('button', { name: '关闭' }).click()
+  await expect(browser.locator('[role="dialog"]')).toHaveCount(0)
+  await expect(browser.locator('[data-oj-instance="oj-dialog"]')).toHaveCount(0)
+})
+
 test('样式双产物：layered 版只是同一批规则多包了一层 @layer', () => {
   const plain = readFileSync(join(repoRoot, 'packages/ui/dist/styles/office-ui.css'), 'utf8')
   const layered = readFileSync(join(repoRoot, 'packages/ui/dist/styles/office-ui.layered.css'), 'utf8')

@@ -113,6 +113,41 @@ var enUS = {
 			middle: "Align middle",
 			bottom: "Align bottom"
 		},
+		comment: {
+			reply: "Reply",
+			resolve: "Resolve",
+			reopen: "Reopen",
+			replyPlaceholder: "Reply to this comment…"
+		},
+		review: {
+			title: "Tracked changes",
+			accept: "Accept",
+			reject: "Reject",
+			acceptAll: "Accept all",
+			rejectAll: "Reject all",
+			empty: "No pending changes",
+			allKinds: "All",
+			kind: {
+				insert: "Insertion",
+				delete: "Deletion",
+				format: "Formatting"
+			}
+		},
+		presence: {
+			label: "Collaborators online",
+			more: "{n} more",
+			overflowTitle: "Show all collaborators"
+		},
+		fileName: {
+			saved: "Saved",
+			saving: "Saving…",
+			unsaved: "Not saved",
+			rename: "Rename",
+			favorite: "Favorite",
+			empty: "Name cannot be empty",
+			illegal: "Cannot contain \\ / : * ? \" < > |",
+			reserved: "This name is reserved"
+		},
 		shell: {
 			tabs: {
 				start: "Start",
@@ -133,6 +168,11 @@ var enUS = {
 				zoomOut: "Zoom out",
 				zoomIn: "Zoom in",
 				reset: "100%"
+			},
+			pane: {
+				files: "File pane width",
+				side: "Side pane width",
+				resize: "Resize panes"
 			},
 			files: {
 				title: "Files",
@@ -164,7 +204,8 @@ var enUS = {
 				open: "Stamp"
 			},
 			status: { kernel: "Images, links, and body editing need a document kernel. This repository does not include one." },
-			insert: { image: "Image" }
+			insert: { image: "Image" },
+			review: { title: "Review" }
 		}
 	} }
 };

@@ -92,6 +92,7 @@ import {
   OjFontSizeField,
   OjHotkey,
   OjLineSpacingPicker,
+  OjPaneGroup,
   OjPresenceAvatars,
   OjReviewPanel,
   OjLocaleProvider,
@@ -263,6 +264,12 @@ const Demo = defineComponent({
     const docName = ref('产品说明')
     const favored = ref(false)
     const saveState = ref<SaveState>('saved')
+    /**
+     * 合同审阅 preset 的两条侧栏宽度：由 `OjPaneGroup` 的分隔条回写（收起时是 0）。
+     * 中文档栏 `flexible`，不存尺寸——它的宽度就是"剩下的空间"。
+     */
+    const filesSize = ref(220)
+    const sideSize = ref(320)
     const sidePane = ref<'ai' | 'review'>('ai')
     const now = Date.now()
     const threads = ref<CommentThread[]>([
@@ -285,10 +292,11 @@ const Demo = defineComponent({
         resolved: true,
       },
     ])
+    // 摘要只说"改了哪段内容"，"插入/删除/格式"由左边的种类标签给——重复一遍读起来像口吃
     const changes = ref<ReviewChange[]>([
-      { id: 'ch1', kind: 'insert', author: PEOPLE[1]!, at: now - 30 * 60 * 1000, summary: '插入「以实际交付为准。」', anchor: 'p0' },
-      { id: 'ch2', kind: 'delete', author: PEOPLE[0]!, at: now - 20 * 60 * 1000, summary: '删除「本页仅供参考」', anchor: 'p1' },
-      { id: 'ch3', kind: 'format', author: PEOPLE[3]!, at: now - 5 * 60 * 1000, summary: '「产品说明」改为加粗', anchor: 'p2' },
+      { id: 'ch1', kind: 'insert', author: PEOPLE[1]!, at: now - 30 * 60 * 1000, summary: '「以实际交付为准。」', anchor: 'p0' },
+      { id: 'ch2', kind: 'delete', author: PEOPLE[0]!, at: now - 20 * 60 * 1000, summary: '「本页仅供参考」', anchor: 'p1' },
+      { id: 'ch3', kind: 'format', author: PEOPLE[3]!, at: now - 5 * 60 * 1000, summary: '「产品说明」→ 加粗', anchor: 'p2' },
     ])
 
     let saveTimer: ReturnType<typeof setTimeout> | undefined
@@ -534,10 +542,17 @@ const Demo = defineComponent({
       ])
     }
 
-    function ribbonGroup(ids: string[], size: 'large' | 'medium' = 'large') {
+    /**
+     * 一条 Ribbon 组。
+     *
+     * `available` 必须给：demo 的功能区是普通 flex 容器，组的宽度由内容撑开，
+     * 而 `OjRibbonGroup` 自己量宽时会发生一次"先量到 0 → 全进 `»` → 宽度永远是 20px"的死循环
+     * （组件注释里写明的宿主责任：组必须被父级约束宽度）。给固定预算就等于告诉它"你最多这么宽"。
+     */
+    function ribbonGroup(ids: string[], size: 'large' | 'medium' = 'large', available = 240) {
       return h(
         OjRibbonGroup,
-        { items: ids.map((id) => ({ id, size })) },
+        { items: ids.map((id) => ({ id, size })), available },
         {
           item: ({ item }: { item: { id: string; display: string } }) => ribbonCommand(item.id, item.display),
         },
@@ -556,7 +571,6 @@ const Demo = defineComponent({
       const shownOpen = fileQuery.value.trim().length > 0 ? folderIds(visibleFiles) : openIds.value
       const width = pageWidth(zoom.value)
       const paperHeight = Math.round(480 * (zoom.value / 100))
-      const selected = findFile(FILES, selectedId.value)
 
       return h('div', { class: 'oj-shell' }, [
         h('header', { class: 'oj-shell__bar' }, [
@@ -584,7 +598,6 @@ const Demo = defineComponent({
               },
             }),
           ),
-          h('span', { class: 'oj-shell__file' }, selected?.name ?? i18n.t('oj.shell.paper.untitled')),
           h(OjPresenceAvatars, {
             people: PEOPLE,
             // 5 人、4 格：留一格给"还有 2 人"，点它能展开完整名单（这里用状态栏回显占位）
@@ -611,7 +624,8 @@ const Demo = defineComponent({
           tab.value === 'start'
             ? [
                 formatGroup(),
-                ribbonGroup([COMMAND_BOLD, COMMAND_ITALIC, COMMAND_UNDERLINE]),
+                // 三组都用 medium：large 会把第一行撑到放不下，三个组各自溢出成 `»`
+                ribbonGroup([COMMAND_BOLD, COMMAND_ITALIC, COMMAND_UNDERLINE], 'medium'),
                 ribbonGroup([COMMAND_ALIGN_LEFT, COMMAND_HEADING, COMMAND_BLOCKQUOTE], 'medium'),
                 ribbonGroup([COMMAND_BULLET_LIST, COMMAND_ORDERED_LIST, COMMAND_CODE_BLOCK], 'medium'),
                 h(OjSearchReplaceBar, {
@@ -758,126 +772,164 @@ const Demo = defineComponent({
           ]),
         }),
         h('div', { class: 'oj-shell__body' }, [
-          h('aside', { class: 'oj-files-pane', 'aria-label': i18n.t('oj.shell.files.title') }, [
-            h('input', {
-              id: 'file-search',
-              class: 'oj-files-pane__search',
-              placeholder: i18n.t('oj.shell.files.search'),
-              value: fileQuery.value,
-              onInput: (event: Event) => {
-                fileQuery.value = (event.target as HTMLInputElement).value
+          /*
+           * 合同审阅 preset：左文件栏（可收起）+ 中文档（吃剩余宽度）+ 右审阅栏（可收起）。
+           * 三栏都交给 `OjPaneGroup`——分隔条只调固定宽的那两栏，中文档没有可拖的数值。
+           * 收起靠双击分隔条或聚焦后按 Enter，展开同理。
+           */
+          h(OjPaneGroup, {
+            panes: [
+              {
+                id: 'files',
+                size: filesSize.value,
+                min: 160,
+                max: 360,
+                collapsible: true,
+                label: i18n.t('oj.shell.pane.files'),
               },
-            }),
-            h(OjFileTree, {
-              nodes: visibleFiles,
-              openIds: shownOpen,
-              selectedId: selectedId.value,
-              emptyLabel: i18n.t('oj.shell.files.empty'),
-              onToggle: (id: string) => {
-                openIds.value = toggleId(openIds.value, id)
+              { id: 'doc', size: 0, flexible: true, min: 480 },
+              {
+                id: 'side',
+                size: sideSize.value,
+                min: 260,
+                max: 520,
+                collapsible: true,
+                label: i18n.t('oj.shell.pane.side'),
               },
-              onSelect: (id: string) => {
-                selectedId.value = id
-              },
-            }),
-          ]),
-          h('section', { class: 'oj-stage' }, [
-            h('div', { class: 'oj-stage__sheet' }, [
-              h('div'),
-              h(OjRuler, { length: width, zoom: zoom.value }),
-              h(OjRuler, { length: paperHeight, zoom: zoom.value, orientation: 'vertical' }),
-              h(
-                'article',
-                {
-                  class: 'oj-paper',
-                  id: 'paper',
-                  /**
-                   * 文档区把六条格式命令的结果**画出来**，否则"命令跑成功了"只有一行日志可看。
-                   * 边框走 `borderCss()`，与 `OjBorderPicker` 的预览同一个函数——两套字符串迟早不一致。
-                   */
-                  style: {
-                    width: `${width}px`,
-                    minHeight: `${paperHeight}px`,
-                    fontFamily: findFont(FONT_OPTIONS, fontFamily.value)?.stack,
-                    fontSize: `${fontSize.value}px`,
-                    color: textColor.value,
-                    lineHeight: String(lineSpacing.value),
-                    border: borderCss(border.value),
-                    textAlign: alignment.value.horizontal,
-                  },
-                  // canvas 式用法：锚点只有坐标，没有元素（`OjContextMenu` 的 `x/y` 就是 clientX/clientY）
-                  onContextmenu: (event: MouseEvent) => {
-                    event.preventDefault()
-                    menuPoint.value = { x: event.clientX, y: event.clientY }
-                    menuOpen.value = true
-                  },
+            ],
+            label: i18n.t('oj.shell.pane.resize'),
+            'onUpdate:size': (id: string, size: number) => {
+              if (id === 'files') filesSize.value = size
+              else if (id === 'side') sideSize.value = size
+            },
+          }, {
+            files: () => h('aside', { class: 'oj-files-pane', 'aria-label': i18n.t('oj.shell.files.title') }, [
+              h('input', {
+                id: 'file-search',
+                class: 'oj-files-pane__search',
+                placeholder: i18n.t('oj.shell.files.search'),
+                value: fileQuery.value,
+                onInput: (event: Event) => {
+                  fileQuery.value = (event.target as HTMLInputElement).value
                 },
-                [
-                  h(OjWatermark, { text: i18n.t('oj.shell.watermark.sample'), visible: watermark.value }, () => [
-                    ...renderBlocks(doc.value, hits, current),
-                    h(OjCodeBlock, { language: 'ts', code: CODE }),
-                    stamped.value ? h(OjStamp, { text: i18n.t('oj.shell.stamp.sample') }) : null,
-                  ]),
-                ],
-              ),
+              }),
+              h(OjFileTree, {
+                nodes: visibleFiles,
+                openIds: shownOpen,
+                selectedId: selectedId.value,
+                emptyLabel: i18n.t('oj.shell.files.empty'),
+                onToggle: (id: string) => {
+                  openIds.value = toggleId(openIds.value, id)
+                },
+                onSelect: (id: string) => {
+                  selectedId.value = id
+                  // 点文件 = 打开它：标题栏跟着换名字，否则左边选了「会议记录」、标题还停在旧文件
+                  const file = findFile(FILES, id)
+                  if (file) {
+                    docName.value = file.name
+                    markDirty()
+                  }
+                },
+              }),
             ]),
-          ]),
-          h('aside', { class: 'oj-side' }, [
-            h(OjTabs, {
-              items: [
-                { id: 'ai', label: i18n.t('oj.shell.ai.title') },
-                { id: 'review', label: i18n.t('oj.shell.review.title') },
-              ],
-              modelValue: sidePane.value,
-              'onUpdate:modelValue': (next: string) => {
-                sidePane.value = next === 'review' ? 'review' : 'ai'
-              },
-            }),
-            sidePane.value === 'ai'
-              ? h(OjAiPanel, {
-                  title: i18n.t('oj.shell.ai.title'),
-                  placeholder: i18n.t('oj.shell.ai.placeholder'),
-                  sendLabel: i18n.t('oj.shell.ai.send'),
-                  notice: i18n.t('oj.shell.ai.notice'),
-                  messages: messages.value,
-                  onSubmit: (text: string) => {
-                    messages.value = [...messages.value, { role: 'user', text }]
+            doc: () => h('section', { class: 'oj-stage' }, [
+              h('div', { class: 'oj-stage__sheet' }, [
+                h('div'),
+                h(OjRuler, { length: width, zoom: zoom.value }),
+                h(OjRuler, { length: paperHeight, zoom: zoom.value, orientation: 'vertical' }),
+                h(
+                  'article',
+                  {
+                    class: 'oj-paper',
+                    id: 'paper',
+                    /**
+                     * 文档区把六条格式命令的结果**画出来**，否则"命令跑成功了"只有一行日志可看。
+                     * 边框走 `borderCss()`，与 `OjBorderPicker` 的预览同一个函数——两套字符串迟早不一致。
+                     */
+                    style: {
+                      width: `${width}px`,
+                      minHeight: `${paperHeight}px`,
+                      fontFamily: findFont(FONT_OPTIONS, fontFamily.value)?.stack,
+                      fontSize: `${fontSize.value}px`,
+                      color: textColor.value,
+                      lineHeight: String(lineSpacing.value),
+                      border: borderCss(border.value),
+                      textAlign: alignment.value.horizontal,
+                    },
+                    // canvas 式用法：锚点只有坐标，没有元素（`OjContextMenu` 的 `x/y` 就是 clientX/clientY）
+                    onContextmenu: (event: MouseEvent) => {
+                      event.preventDefault()
+                      menuPoint.value = { x: event.clientX, y: event.clientY }
+                      menuOpen.value = true
+                    },
                   },
-                })
-              : h('div', { class: 'oj-review-pane' }, [
-                  h(OjReviewPanel, {
-                    changes: changes.value,
-                    label: i18n.t('oj.review.title'),
-                    acceptLabel: i18n.t('oj.review.accept'),
-                    rejectLabel: i18n.t('oj.review.reject'),
-                    acceptAllLabel: i18n.t('oj.review.acceptAll'),
-                    rejectAllLabel: i18n.t('oj.review.rejectAll'),
-                    emptyLabel: i18n.t('oj.review.empty'),
-                    allKindsLabel: i18n.t('oj.review.allKinds'),
-                    kindLabels: kindLabels(),
-                    formatTime,
-                    onDecide: decideOne,
-                    'onDecide-all': decideVisible,
-                  }),
-                  ...threads.value.map((thread) =>
-                    h(OjCommentThread, {
-                      key: thread.id,
-                      thread,
+                  [
+                    h(OjWatermark, { text: i18n.t('oj.shell.watermark.sample'), visible: watermark.value }, () => [
+                      ...renderBlocks(doc.value, hits, current),
+                      h(OjCodeBlock, { language: 'ts', code: CODE }),
+                      stamped.value ? h(OjStamp, { text: i18n.t('oj.shell.stamp.sample') }) : null,
+                    ]),
+                  ],
+                ),
+              ]),
+            ]),
+            side: () => h('aside', { class: 'oj-side' }, [
+              h(OjTabs, {
+                items: [
+                  { id: 'ai', label: i18n.t('oj.shell.ai.title') },
+                  { id: 'review', label: i18n.t('oj.shell.review.title') },
+                ],
+                modelValue: sidePane.value,
+                'onUpdate:modelValue': (next: string) => {
+                  sidePane.value = next === 'review' ? 'review' : 'ai'
+                },
+              }),
+              sidePane.value === 'ai'
+                ? h(OjAiPanel, {
+                    title: i18n.t('oj.shell.ai.title'),
+                    placeholder: i18n.t('oj.shell.ai.placeholder'),
+                    sendLabel: i18n.t('oj.shell.ai.send'),
+                    notice: i18n.t('oj.shell.ai.notice'),
+                    messages: messages.value,
+                    onSubmit: (text: string) => {
+                      messages.value = [...messages.value, { role: 'user', text }]
+                    },
+                  })
+                : h('div', { class: 'oj-review-pane' }, [
+                    h(OjReviewPanel, {
+                      changes: changes.value,
+                      label: i18n.t('oj.review.title'),
+                      acceptLabel: i18n.t('oj.review.accept'),
+                      rejectLabel: i18n.t('oj.review.reject'),
+                      acceptAllLabel: i18n.t('oj.review.acceptAll'),
+                      rejectAllLabel: i18n.t('oj.review.rejectAll'),
+                      emptyLabel: i18n.t('oj.review.empty'),
+                      allKindsLabel: i18n.t('oj.review.allKinds'),
+                      kindLabels: kindLabels(),
                       formatTime,
-                      resolveLabel: i18n.t('oj.comment.resolve'),
-                      reopenLabel: i18n.t('oj.comment.reopen'),
-                      replyLabel: i18n.t('oj.comment.reply'),
-                      replyPlaceholder: i18n.t('oj.comment.replyPlaceholder'),
-                      onReply: (text: string) => {
-                        replyTo(thread.id, text)
-                      },
-                      'onToggle-resolved': (resolved: boolean) => {
-                        toggleThreadResolved(thread.id, resolved)
-                      },
+                      onDecide: decideOne,
+                      'onDecide-all': decideVisible,
                     }),
-                  ),
-                ]),
-          ]),
+                    ...threads.value.map((thread) =>
+                      h(OjCommentThread, {
+                        key: thread.id,
+                        thread,
+                        formatTime,
+                        resolveLabel: i18n.t('oj.comment.resolve'),
+                        reopenLabel: i18n.t('oj.comment.reopen'),
+                        replyLabel: i18n.t('oj.comment.reply'),
+                        replyPlaceholder: i18n.t('oj.comment.replyPlaceholder'),
+                        onReply: (text: string) => {
+                          replyTo(thread.id, text)
+                        },
+                        'onToggle-resolved': (resolved: boolean) => {
+                          toggleThreadResolved(thread.id, resolved)
+                        },
+                      }),
+                    ),
+                  ]),
+            ]),
+          }),
         ]),
         h('footer', { class: 'oj-shell__footer' }, [
           h('span', { class: 'oj-status', id: 'status' }, status.value),

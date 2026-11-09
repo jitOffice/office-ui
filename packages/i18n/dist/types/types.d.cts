@@ -128,6 +128,45 @@ export interface OjMessages {
             middle: string;
             bottom: string;
         };
+        /** 批注线程（`OjCommentThread`）。 */
+        comment: {
+            reply: string;
+            resolve: string;
+            reopen: string;
+            replyPlaceholder: string;
+        };
+        /** 修订列表（`OjReviewPanel`）。 */
+        review: {
+            title: string;
+            accept: string;
+            reject: string;
+            acceptAll: string;
+            rejectAll: string;
+            empty: string;
+            allKinds: string;
+            kind: {
+                insert: string;
+                delete: string;
+                format: string;
+            };
+        };
+        /** 协同头像（`OjPresenceAvatars`）。`more` 带 `{n}` 占位符。 */
+        presence: {
+            label: string;
+            more: string;
+            overflowTitle: string;
+        };
+        /** 标题栏文件名与保存态（`OjFileNameHeader`）。 */
+        fileName: {
+            saved: string;
+            saving: string;
+            unsaved: string;
+            rename: string;
+            favorite: string;
+            empty: string;
+            illegal: string;
+            reserved: string;
+        };
         shell: {
             tabs: {
                 start: string;
@@ -148,6 +187,11 @@ export interface OjMessages {
                 zoomOut: string;
                 zoomIn: string;
                 reset: string;
+            };
+            pane: {
+                files: string;
+                side: string;
+                resize: string;
             };
             files: {
                 title: string;
@@ -185,6 +229,9 @@ export interface OjMessages {
             };
             insert: {
                 image: string;
+            };
+            review: {
+                title: string;
             };
         };
     };

@@ -329,7 +329,7 @@ UMD 无法 `import './style.css'`（Rollup 会输出 JS 注入或丢弃）。提
 |---|---|---|
 | 单测 | Vitest + @vue/test-utils | 组件行覆盖 ≥ 85%；命令注册表与 `usePopper` ≥ 95%（这两个是全局故障源）。**2026-10-29 落地**：`packages/ui/vitest.config.ts`（happy-dom，收 `test/unit` 下的 `.spec.ts`），`test:unit` 进 `pull-request.yml` 的 build job。**覆盖率已接**（2026-10-30）：`@vitest/coverage-v8` 进 catalog，`test:unit` 自带 `--coverage`，阈值按目录分三档卡在 `vitest.config.ts`——`src/vue/**` 行 ≥85、`registry.ts` ≥95、`popper.ts` ≥95。补测后实测：组件行 92.88%（补测前 79.93% 不达标）、注册表 100%、`usePopper` 96.66%。**破坏验证**：把 85 抬到 99 立刻红，报错直接点名 glob 与实际值；恢复后转绿。注意这不是"追 90% 数字"——补的是弹层/树/框选/签名板这类**有真实分支**的组件，不是快照 |
 | 交互测试 | Playwright（真实浏览器） | Ribbon 键盘导航、IME 输入、拖拽选区、焦点陷阱——**这些在 jsdom 里测不出来** |
-| 视觉回归 | Playwright screenshot | `light/dark × comfortable/compact × zh/zh-TW/ja` 12 组，阈值 0.1%。`en` 不进这个积——它不覆写任何 token（01 §7），文案宽度另走"窄英/宽德不溢出"一组 |
+| 视觉回归 | Playwright screenshot | `light/dark × comfortable/compact × zh/zh-TW/ja` 12 组，阈值 0.1%。`en` 不进这个积——它不覆写任何 token（01 §7），文案宽度另走"窄英/宽德不溢出"一组。**2026-11-02 第一切片落地**：`packages/ui/test/visual/theme-matrix.spec.ts`，12 组 × 6 板块 = 72 张基线 + 三条轴的交叉不变量；**截图按板块切不按整板切**——整板 43 万像素的 0.1% 等于宽容 432 px，组件级色值退化实测只有 214–437 px 会溜过去，切块后同一处改动占 2%。基线仅 darwin 一套，linux 需在 runner 上生成（05 第二十一轮） |
 | 无障碍 | `@axe-core/playwright` | 0 violation（`color-contrast` 规则单独处理，见 01 号文档 §8） |
 | 体积 | size-limit | 全量 ESM gzip ≤ 90 KB；单组件 ≤ 6 KB；UMD ≤ 120 KB；CSS ≤ 16 KB。超标即 CI 失败并输出 diff。**2026-10-29 落地**：`.size-limit.jsonc` 四条（OjIcon 8 KB / 单图标 1 KB / 全量 90 KB / CSS 16 KB），实测 1.97 kB、836 B、7.5 kB、1.92 kB。两处必须记住：① size-limit 14 默认报 **brotli**，PRD 是 gzip 口径，每条都要显式 `gzip: true`（差值约 15%，混用等于门禁与规格各说各话）；② `import` + `ignore: ["vue"]` 缺一不可，否则量的是整个入口或 Vue 本身 |
 | 许可 | `license-checker --onlyAllow` | 仅 MIT/Apache-2.0/BSD/ISC/OFL。出现其他即失败 |

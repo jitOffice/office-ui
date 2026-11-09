@@ -1,10 +1,9 @@
-# OjSearchReplaceBar
+# `<oj-search-replace-bar>`
 
 > 本页由 `docs/.vitepress/scripts/component-docs.ts` 扫描源码生成，**请勿手改**。
 > 改组件后跑 `pnpm docs:gen`；忘记重跑会被 `pnpm lint:docs` 拦下。
 
-- 源码：`packages/ui/src/vue/search-bar.ts`
-- 样式块：`.oj-search`
+组件 `OjSearchReplaceBar` · 源码 `packages/ui/src/vue/search-bar.ts` · 样式块 `.oj-search`
 
 ## Props
 

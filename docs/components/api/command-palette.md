@@ -1,10 +1,9 @@
-# OjCommandPalette
+# `<oj-command-palette>`
 
 > 本页由 `docs/.vitepress/scripts/component-docs.ts` 扫描源码生成，**请勿手改**。
 > 改组件后跑 `pnpm docs:gen`；忘记重跑会被 `pnpm lint:docs` 拦下。
 
-- 源码：`packages/ui/src/vue/command-palette.ts`
-- 样式块：`.oj-palette`
+组件 `OjCommandPalette` · 源码 `packages/ui/src/vue/command-palette.ts` · 样式块 `.oj-palette`
 
 ## Props
 

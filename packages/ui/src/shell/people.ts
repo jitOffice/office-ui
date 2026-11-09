@@ -15,8 +15,15 @@ export interface OjPerson {
   readonly tone?: number
 }
 
-/** 头像色板档数。8 档配 `--oj-brand-*` / `--oj-text-*` 之外的一组中性命名色。 */
-export const AVATAR_TONES = 8
+/**
+ * 头像色板档数：4 档（品牌 / 成功 / 警告 / 危险四组"浅底 + 同色字"）。
+ *
+ * 不按色阶（`--oj-brand-3..9`）取 8 档：色阶在暗色主题里是**反向**的
+ * （浅色下 brand-3 是浅蓝、暗色下 brand-3 是深蓝），"浅底 + 深字"的配对会整体翻转，
+ * 于是同一套规则在暗色下变成"深底 + 深字"。用语义色（`--oj-bg-*-subtle` / `--oj-text-*`）
+ * 让主题自己保证对比度，代价是只有 4 档——4 档足够区分同桌的几个人。
+ */
+export const AVATAR_TONES = 4
 
 /**
  * 头像上的首字母。
@@ -52,7 +59,10 @@ export function avatarTone(person: OjPerson): number {
   }
   let hash = 5381
   for (let index = 0; index < person.id.length; index += 1) {
-    hash = ((hash << 5) + hash + person.id.charCodeAt(index)) % 2147483647
+    // `>>> 0` 每次归一到 32 位无符号：`hash << 5` 是**有符号**位移，
+    // 一旦溢出就变负数，而 `% 4` 会把负数原样留下（实测 `u-zhang` 得到 `-1`，
+    // 于是 `data-tone="-1"` 匹配不到任何档，头像退化成无色）。
+    hash = ((hash << 5) + hash + person.id.charCodeAt(index)) >>> 0
   }
   return hash % AVATAR_TONES
 }

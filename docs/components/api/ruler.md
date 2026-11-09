@@ -1,10 +1,18 @@
-# OjRuler
+# `<oj-ruler>`
 
 > 本页由 `docs/.vitepress/scripts/component-docs.ts` 扫描源码生成，**请勿手改**。
 > 改组件后跑 `pnpm docs:gen`；忘记重跑会被 `pnpm lint:docs` 拦下。
 
-- 源码：`packages/ui/src/vue/ruler.ts`
-- 样式块：`.oj-ruler`
+组件 `OjRuler` · 源码 `packages/ui/src/vue/ruler.ts` · 样式块 `.oj-ruler`
+
+## 示例
+
+<OjPlayground :code="example" :height="200" />
+
+<script setup>
+import { EXAMPLES } from '../../.vitepress/theme/examples.ts'
+const example = EXAMPLES['OjRuler'] ?? ''
+</script>
 
 ## Props
 

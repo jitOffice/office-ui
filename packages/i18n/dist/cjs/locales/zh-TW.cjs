@@ -112,6 +112,41 @@ var zhTW = {
 			middle: "垂直置中",
 			bottom: "靠下對齊"
 		},
+		comment: {
+			reply: "回覆",
+			resolve: "解決",
+			reopen: "重新開啟",
+			replyPlaceholder: "回覆這則註解…"
+		},
+		review: {
+			title: "修訂",
+			accept: "接受",
+			reject: "拒絕",
+			acceptAll: "全部接受",
+			rejectAll: "全部拒絕",
+			empty: "沒有待處理的修訂",
+			allKinds: "全部",
+			kind: {
+				insert: "插入",
+				delete: "刪除",
+				format: "格式"
+			}
+		},
+		presence: {
+			label: "目前線上的協作者",
+			more: "還有 {n} 人",
+			overflowTitle: "檢視全部協作者"
+		},
+		fileName: {
+			saved: "已儲存",
+			saving: "儲存中…",
+			unsaved: "未儲存",
+			rename: "重新命名",
+			favorite: "收藏",
+			empty: "檔名不能為空",
+			illegal: "不能包含 \\ / : * ? \" < > |",
+			reserved: "這是系統保留名稱"
+		},
 		shell: {
 			tabs: {
 				start: "開始",
@@ -132,6 +167,11 @@ var zhTW = {
 				zoomOut: "縮小",
 				zoomIn: "放大",
 				reset: "100%"
+			},
+			pane: {
+				files: "檔案欄寬度",
+				side: "側欄寬度",
+				resize: "調整分欄寬度"
 			},
 			files: {
 				title: "檔案",
@@ -163,7 +203,8 @@ var zhTW = {
 				open: "印章"
 			},
 			status: { kernel: "圖片、連結和正文編輯需要文件核心，目前的倉庫不包含它。" },
-			insert: { image: "圖片" }
+			insert: { image: "圖片" },
+			review: { title: "審閱" }
 		}
 	} }
 };

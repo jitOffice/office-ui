@@ -183,6 +183,7 @@ export interface OjMessages {
         replaceAll: string
       }
       zoom: { zoomOut: string; zoomIn: string; reset: string }
+      pane: { files: string; side: string; resize: string }
       files: { title: string; search: string; empty: string }
       dialog: { insertTitle: string; rows: string; cols: string }
       paper: { untitled: string }

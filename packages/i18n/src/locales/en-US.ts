@@ -161,6 +161,7 @@ const enUS: OjLocale = {
           replaceAll: 'Replace all',
         },
         zoom: { zoomOut: 'Zoom out', zoomIn: 'Zoom in', reset: '100%' },
+        pane: { files: 'File pane width', side: 'Side pane width', resize: 'Resize panes' },
         files: { title: 'Files', search: 'Search files', empty: 'No matching files' },
         dialog: { insertTitle: 'Insert table', rows: 'Rows', cols: 'Columns' },
         paper: { untitled: 'Untitled document' },

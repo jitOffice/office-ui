@@ -1,6 +1,6 @@
-# OjIcon
+# `<oj-icon>`
 
-办公图标：31 枚自绘 SVG，继承 `currentColor`，三种消费形态（Vue 组件 / sprite `<use>` / JS 常量）。
+组件 `OjIcon` · 办公图标：31 枚自绘 SVG，继承 `currentColor`，三种消费形态（Vue 组件 / sprite `<use>` / JS 常量）。
 
 ## 何时使用
 

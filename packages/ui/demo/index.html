@@ -44,18 +44,39 @@
         padding: 0 var(--oj-space-2);
       }
 
-      /* demo 专属：右栏改成"助手 / 审阅"两页，审阅页里放修订列表 + 批注线程 */
+      /* demo 专属：右栏改成"助手 / 审阅"两页，审阅页里放修订列表 + 批注线程。
+         宽度由 `OjPaneGroup` 的栏位给，这里只负责撑满栏位（`flex: 1` + `min-width: 0`）。 */
       .oj-side {
         display: flex;
+        flex: 1;
         flex-direction: column;
+        min-width: 0;
         min-height: 0;
         border-left: 1px solid var(--oj-border-2);
         background: var(--oj-bg-container);
       }
 
-      .oj-shell__file {
-        color: var(--oj-text-3);
-        font-size: var(--oj-fs-12);
+      /* demo 专属：查找替换条单独占一行，别和功能区的组抢宽度 */
+      .oj-shell__toolbar .oj-search {
+        flex: 1 1 100%;
+      }
+
+      /* 分组之间要有一条竖线：Office 的功能区靠它把"字体 / 段落 / 插入"分开，
+         没有分隔线时一排按钮读起来像一长串无关的开关 */
+      .oj-shell__toolbar > .oj-format {
+        margin-right: var(--oj-space-1);
+        padding-right: var(--oj-space-3);
+        border-right: 1px solid var(--oj-border-2);
+      }
+
+      .oj-shell__toolbar > .oj-ribbon-group + .oj-ribbon-group {
+        padding-left: var(--oj-space-3);
+        border-left: 1px solid var(--oj-border-2);
+      }
+
+      .oj-side .oj-tabs {
+        padding: var(--oj-space-2) var(--oj-space-3);
+        border-bottom: 1px solid var(--oj-border-2);
       }
 
       .oj-review-pane {

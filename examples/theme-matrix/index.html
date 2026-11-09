@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="zh-CN" data-oj-theme="light" data-oj-density="comfortable">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>office-ui · 主题矩阵</title>
+    <!--
+      02 §7 / 01 §8 的视觉回归对象：`light/dark × comfortable/compact × zh-CN/zh-TW/ja` 12 组。
+
+      这个页面刻意做三件事：
+      1. **纯静态**：两个 <link> + 两个 <script>，不起 dev server。主题/密度/语言不是编译期参数，
+         而是 `<html>` 上的三个属性，截图前由用例改——同一个页面就是 12 组，不需要 12 份产物。
+      2. **走 hydrate()**：板子上的组件全用 `data-oj` 声明，页面自己没有一行 createApp。
+         顺带把 §4.3 从"两个图标"扩到"四个真组件"（tabs / 框选 / 数字框 / 状态栏）。
+      3. **锁的是别处锁不住的东西**：密度档位只有真排版引擎里才看得见（compact 把 `--oj-fs-14`
+         压到 13px、控件高度压到 28px），语言档位同理（ja 有 letter-spacing 与行高，
+         zh-TW 只换字体族）。这些在 `node --test` 里全是"CSS 文本里有这条声明"，
+         而"这条声明有没有真的生效"只有截图能答。
+
+      不用 prod 构建：与 examples/no-bundler 同一条理由——prod 吞警告，而模板编译缺失正是
+      这个页面最容易踩的坑（这里只有属性、没有 template 字符串，但 UMD 仍需 Vue 运行时）。
+    -->
+    <link rel="stylesheet" href="../../packages/tokens/dist/index.css" />
+    <link rel="stylesheet" href="../../packages/ui/dist/styles/office-ui.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--oj-bg-page);
+        color: var(--oj-text-1);
+        font: 14px/1.5715 var(--oj-font-sans);
+      }
+
+      /* 板子固定宽度：截图宽度由内容决定的话，density/语言改字号就会改宽度，
+         12 张基线连尺寸都对不齐，diff 全是噪声。 */
+      .board {
+        box-sizing: border-box;
+        width: 640px;
+        padding: 16px;
+      }
+
+      .board__title {
+        margin: 0 0 8px;
+        font-size: var(--oj-fs-16);
+        font-weight: 600;
+      }
+
+      /* 排版样本：整段是"中日韩 ↔ 拉丁"混排，ja 档位的 text-autospace / 行高 / 字距
+         都会改变它的折行位置——这是 12 组里唯一"字距也能被看见"的地方。 */
+      .board__specimen {
+        margin: 0 0 16px;
+        font-size: var(--oj-fs-14);
+        line-height: var(--oj-lh-normal);
+        letter-spacing: var(--oj-letter-spacing);
+        color: var(--oj-text-2);
+      }
+
+      .board__row {
+        display: flex;
+        align-items: center;
+        gap: var(--oj-space-1);
+        margin-bottom: 12px;
+        padding: var(--oj-space-2);
+        background: var(--oj-bg-container);
+        border: 1px solid var(--oj-border-1);
+        border-radius: var(--oj-radius-md);
+      }
+
+      .board__cell {
+        margin-bottom: 12px;
+        padding: var(--oj-space-2);
+        background: var(--oj-bg-container);
+        border: 1px solid var(--oj-border-1);
+        border-radius: var(--oj-radius-md);
+      }
+
+      /* 水合后的占位元素本身已经空了：实例是它的**兄弟**节点（create.ts 里 `anchor.after(el)`）。
+         不隐藏就是一堆 0 高度的空 div 把 flex/grid 的间距撑开一倍。 */
+      [data-oj-hydrated] {
+        display: none;
+      }
+
+      /* 状态栏默认是 `footer` 贴底的一条，板子里它是普通一块 */
+      .board__cell .oj-status-bar {
+        position: static;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="board" data-testid="board">
+      <h1 class="board__title">主题矩阵</h1>
+      <p class="board__specimen" data-testid="specimen">
+        排版样本：Word 文档 01，中日韩 与 Latin 混排，カタカナ ひらがな。字号 14，行距 normal。
+      </p>
+
+      <section class="board__row" data-testid="buttons">
+        <button type="button" class="oj-button" data-testid="btn-plain">加粗</button>
+        <button type="button" class="oj-button" data-testid="btn-active" data-active>斜体</button>
+        <button type="button" class="oj-button" data-size="mini" data-testid="btn-mini">小号</button>
+        <button type="button" class="oj-button" aria-disabled="true" data-testid="btn-disabled">
+          禁用
+        </button>
+        <!-- 命令式 API 的锚点：hydrate 与 create 在同一页上互不干扰，各自独立实例 -->
+        <button type="button" class="oj-button" id="make-dialog" data-testid="make-dialog">
+          对话框
+        </button>
+      </section>
+
+      <section class="board__row" data-testid="icons">
+        <span data-oj="icon" data-oj-prop-name="oj-format-bold" data-oj-prop-size="16"></span>
+        <span data-oj="icon" data-oj-prop-name="oj-format-italic" data-oj-prop-size="16"></span>
+        <span data-oj="icon" data-oj-prop-name="oj-horizontal-rule" data-oj-prop-size="16"></span>
+        <span data-oj="icon" data-oj-prop-name="oj-insert-table" data-oj-prop-size="16"></span>
+      </section>
+
+      <div class="board__cell" data-testid="tabs-cell">
+        <div
+          data-oj="tabs"
+          data-testid="tabs"
+          data-oj-props='{"items":[{"id":"home","label":"开始"},{"id":"insert","label":"插入"},{"id":"review","label":"审阅"}],"modelValue":"insert"}'
+        ></div>
+      </div>
+
+      <div class="board__cell" data-testid="grid-cell">
+        <div
+          data-oj="table-grid-picker"
+          data-testid="grid"
+          data-oj-prop-rows="6"
+          data-oj-prop-cols="8"
+        ></div>
+      </div>
+
+      <div class="board__cell" data-testid="number-cell">
+        <div
+          data-oj="number-field"
+          data-testid="number"
+          data-oj-props='{"modelValue":12,"min":1,"max":72,"label":"磅值","decreaseLabel":"减小字号","increaseLabel":"增大字号","suffix":"pt"}'
+        ></div>
+      </div>
+
+      <div class="board__cell" data-testid="status-cell">
+        <div
+          data-oj="status-bar"
+          data-testid="status"
+          data-oj-props='{"page":"第 1 页，共 3 页","words":"1,204 字","language":"中文（中国）","zoom":100}'
+        ></div>
+      </div>
+    </main>
+
+    <script src="../../packages/ui/node_modules/vue/dist/vue.global.js"></script>
+    <script src="../../packages/ui/dist/umd/office-ui.js"></script>
+    <script>
+      // 一行扫描：上面 8 个 `[data-oj]` 全变成组件实例。
+      // 这个数只给人看（手工打开时控制台里能读到）；用例自己数 `[data-oj-instance]`，
+      // 因为它要的是"DOM 里真的有 8 个"，而 hydrate() 的返回值是"这次扫了几个"。
+      window.__ojMounted = OfficeUI.hydrate().length
+
+      // 命令式那条路留一个锚点给用例点，验证 `create` 与页面主题/密度同时生效
+      let dialog
+      document.querySelector('#make-dialog').addEventListener('click', () => {
+        dialog = OfficeUI.create('oj-dialog', {
+          anchor: '#make-dialog',
+          props: { open: true, title: '对话框标题', confirmLabel: '确定', cancelLabel: '取消' },
+          on: {
+            'update:open': (open) => {
+              if (!open) dialog.destroy()
+            },
+          },
+        })
+      })
+    </script>
+  </body>
+</html>

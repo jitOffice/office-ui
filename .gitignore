@@ -172,6 +172,10 @@ playwright-report/
 third-party-licenses.json
 licenses-report/
 
+# VitePress dev 的配置热更新临时文件（改 md / config 时随时冒出来，
+# 名字带时间戳，每次都不一样，曾一次冒出四个：config.ts.timestamp-<ts>-<hash>.mjs）
+docs/.vitepress/config.ts.timestamp-*
+
 # 编辑器与系统垃圾
 .DS_Store
 Thumbs.db

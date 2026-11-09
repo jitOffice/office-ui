@@ -111,6 +111,41 @@
 				middle: "上下中央",
 				bottom: "下揃え"
 			},
+			comment: {
+				reply: "返信",
+				resolve: "解決",
+				reopen: "再開",
+				replyPlaceholder: "このコメントに返信…"
+			},
+			review: {
+				title: "変更履歴",
+				accept: "承諾",
+				reject: "拒否",
+				acceptAll: "すべて承諾",
+				rejectAll: "すべて拒否",
+				empty: "未処理の変更履歴はありません",
+				allKinds: "すべて",
+				kind: {
+					insert: "挿入",
+					delete: "削除",
+					format: "書式"
+				}
+			},
+			presence: {
+				label: "オンラインの共同編集者",
+				more: "他 {n} 人",
+				overflowTitle: "共同編集者をすべて表示"
+			},
+			fileName: {
+				saved: "保存済み",
+				saving: "保存中…",
+				unsaved: "未保存",
+				rename: "名前を変更",
+				favorite: "お気に入り",
+				empty: "ファイル名を入力してください",
+				illegal: "次の文字は使えません: \\ / : * ? \" < > |",
+				reserved: "予約名です"
+			},
 			shell: {
 				tabs: {
 					start: "ホーム",
@@ -131,6 +166,11 @@
 					zoomOut: "縮小",
 					zoomIn: "拡大",
 					reset: "100%"
+				},
+				pane: {
+					files: "ファイル欄の幅",
+					side: "サイド欄の幅",
+					resize: "分割幅を調整"
 				},
 				files: {
 					title: "ファイル",
@@ -162,7 +202,8 @@
 					open: "印鑑"
 				},
 				status: { kernel: "画像、リンク、本文の編集には文書カーネルが必要です。このリポジトリには含まれていません。" },
-				insert: { image: "画像" }
+				insert: { image: "画像" },
+				review: { title: "校閲" }
 			}
 		} }
 	};

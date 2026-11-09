@@ -42,6 +42,19 @@ import { OjStamp } from "./stamp.js";
 import { OjWatermark } from "./watermark.js";
 import { OjAiPanel } from "./ai-panel.js";
 import { OjCodeBlock } from "./code-block.js";
+import { OjCommentThread } from "./comment-thread.js";
+import { OjReviewPanel } from "./review-panel.js";
+import { OjPresenceAvatars } from "./presence-avatars.js";
+import { OjFileNameHeader } from "./file-name-header.js";
+import { OjSplitter } from "./splitter.js";
+import { OjPaneGroup } from "./pane-group.js";
+import { OjVirtualList } from "./virtual-list.js";
+import { OjDockPanel } from "./dock-panel.js";
+import { OjUploadProgress } from "./upload-progress.js";
+import { OjDragContext } from "./drag-context.js";
+import { OjShareDialog } from "./share-dialog.js";
+import { OjDropZone } from "./drop-zone.js";
+import { OjVersionHistory } from "./version-history.js";
 //#region src/vue/registry.ts
 /**
 * 名称 → 组件表（02 §4.2 / §4.3 的地基）。
@@ -61,12 +74,19 @@ var OJ_COMPONENTS = {
 	"oj-gallery": OjGallery,
 	"oj-style-gallery": OjStyleGallery,
 	"oj-code-block": OjCodeBlock,
+	"oj-comment-thread": OjCommentThread,
+	"oj-drop-zone": OjDropZone,
+	"oj-file-name-header": OjFileNameHeader,
+	"oj-presence-avatars": OjPresenceAvatars,
+	"oj-review-panel": OjReviewPanel,
 	"oj-color-picker": OjColorPicker,
 	"oj-command-button": OjCommandButton,
 	"oj-command-launcher": OjCommandLauncher,
 	"oj-command-palette": OjCommandPalette,
 	"oj-context-menu": OjContextMenu,
 	"oj-dialog": OjDialog,
+	"oj-dock-panel": OjDockPanel,
+	"oj-drag-context": OjDragContext,
 	"oj-dropdown": OjDropdown,
 	"oj-dropdown-button": OjDropdownButton,
 	"oj-file-tree": OjFileTree,
@@ -74,6 +94,7 @@ var OJ_COMPONENTS = {
 	"oj-font-size-field": OjFontSizeField,
 	"oj-line-spacing-picker": OjLineSpacingPicker,
 	"oj-number-field": OjNumberField,
+	"oj-pane-group": OjPaneGroup,
 	"oj-hotkey": OjHotkey,
 	"oj-icon": OjIcon,
 	"oj-locale-provider": OjLocaleProvider,
@@ -86,7 +107,9 @@ var OJ_COMPONENTS = {
 	"oj-ribbon-tab": OjRibbonTab,
 	"oj-ruler": OjRuler,
 	"oj-search-replace-bar": OjSearchReplaceBar,
+	"oj-share-dialog": OjShareDialog,
 	"oj-signature-pad": OjSignaturePad,
+	"oj-splitter": OjSplitter,
 	"oj-split-button": OjSplitButton,
 	"oj-stamp": OjStamp,
 	"oj-symbol-picker": OjSymbolPicker,
@@ -95,6 +118,9 @@ var OJ_COMPONENTS = {
 	"oj-tabs": OjTabs,
 	"oj-toggle-button": OjToggleButton,
 	"oj-toolbar": OjToolbar,
+	"oj-upload-progress": OjUploadProgress,
+	"oj-version-history": OjVersionHistory,
+	"oj-virtual-list": OjVirtualList,
 	"oj-tooltip": OjTooltip,
 	"oj-trigger": OjTrigger,
 	"oj-watermark": OjWatermark,

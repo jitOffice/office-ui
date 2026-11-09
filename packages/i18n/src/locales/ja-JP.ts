@@ -163,6 +163,7 @@ const jaJP: OjLocale = {
           replaceAll: 'すべて置換',
         },
         zoom: { zoomOut: '縮小', zoomIn: '拡大', reset: '100%' },
+        pane: { files: 'ファイル欄の幅', side: 'サイド欄の幅', resize: '分割幅を調整' },
         files: { title: 'ファイル', search: 'ファイルを検索', empty: '一致するファイルがありません' },
         dialog: { insertTitle: '表の挿入', rows: '行', cols: '列' },
         paper: { untitled: '無題の文書' },

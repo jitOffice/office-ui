@@ -21,9 +21,20 @@ const errors = ref<string[]>([])
 const frameHeight = ref(props.height)
 const pending = ref(true)
 
+/**
+ * 沙箱读不到宿主的 `<html class="dark">`（不同源），主题只能由宿主递进去。
+ * 写的是 `data-oj-theme`——tokens 认的那个属性，不另发明一个开关。
+ */
+function currentTheme(): 'dark' | 'light' {
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
 function run(): void {
   errors.value = []
-  frame.value?.contentWindow?.postMessage({ type: 'oj-playground:run', code: source.value }, '*')
+  frame.value?.contentWindow?.postMessage(
+    { type: 'oj-playground:run', code: source.value, theme: currentTheme() },
+    '*',
+  )
 }
 
 function onMessage(event: MessageEvent): void {
@@ -45,8 +56,25 @@ function onMessage(event: MessageEvent): void {
   if (data.type === 'oj-playground:error') errors.value = [...errors.value, String(data.message ?? '')]
 }
 
-onMounted(() => window.addEventListener('message', onMessage))
-onBeforeUnmount(() => window.removeEventListener('message', onMessage))
+// 暗色开关只改 `<html class="dark">`，没有事件可用，只能观察属性
+let themeWatcher: MutationObserver | null = null
+
+onMounted(() => {
+  window.addEventListener('message', onMessage)
+  themeWatcher = new MutationObserver(() => {
+    frame.value?.contentWindow?.postMessage(
+      { type: 'oj-playground:theme', theme: currentTheme() },
+      '*',
+    )
+  })
+  themeWatcher.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('message', onMessage)
+  themeWatcher?.disconnect()
+  themeWatcher = null
+})
 watch(
   () => props.code,
   (next) => {

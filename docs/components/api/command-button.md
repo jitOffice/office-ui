@@ -1,10 +1,9 @@
-# OjCommandButton
+# `<oj-command-button>`
 
 > 本页由 `docs/.vitepress/scripts/component-docs.ts` 扫描源码生成，**请勿手改**。
 > 改组件后跑 `pnpm docs:gen`；忘记重跑会被 `pnpm lint:docs` 拦下。
 
-- 源码：`packages/ui/src/vue/command-button.ts`
-- 样式块：`.oj-button`
+组件 `OjCommandButton` · 源码 `packages/ui/src/vue/command-button.ts` · 样式块 `.oj-button`
 
 ## Props
 

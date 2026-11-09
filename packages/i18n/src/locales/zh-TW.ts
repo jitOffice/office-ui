@@ -159,6 +159,7 @@ const zhTW: OjLocale = {
           replaceAll: '全部取代',
         },
         zoom: { zoomOut: '縮小', zoomIn: '放大', reset: '100%' },
+        pane: { files: '檔案欄寬度', side: '側欄寬度', resize: '調整分欄寬度' },
         files: { title: '檔案', search: '搜尋檔案', empty: '沒有相符的檔案' },
         dialog: { insertTitle: '插入表格', rows: '列數', cols: '欄數' },
         paper: { untitled: '未命名文件' },

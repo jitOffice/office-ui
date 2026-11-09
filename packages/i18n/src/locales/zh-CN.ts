@@ -158,6 +158,7 @@ const zhCN: OjLocale = {
           replaceAll: '全部替换',
         },
         zoom: { zoomOut: '缩小', zoomIn: '放大', reset: '100%' },
+        pane: { files: '文件栏宽度', side: '侧栏宽度', resize: '调整分栏宽度' },
         files: { title: '文件', search: '搜索文件', empty: '没有匹配的文件' },
         dialog: { insertTitle: '插入表格', rows: '行数', cols: '列数' },
         paper: { untitled: '未命名文档' },

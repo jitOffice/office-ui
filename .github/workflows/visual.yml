@@ -35,7 +35,13 @@ jobs:
       # 三个包各有自己的用例集，turbo 会把 `build` 作为前置跑掉（turbo.json 里
       # `test:visual` 声明了 `dependsOn: ["build"]`）：
       #   tokens —— 排版（01 §7 那批数字，被测对象是 dist/index.css）
-      #   ui     —— 无构建器页面（05 §2 DoD #1，被测对象是 examples/ 下的静态页 + dist/umd）
+      #   ui     —— 无构建器页面（05 §2 DoD #1）+ 主题矩阵 12 组（02 §7，被测对象是 examples/ 下的静态页 + dist/umd）
       #   icons  —— sprite 的 <use> 可渲染（05 C1 验收，被测对象是 dist/sprite.svg）
+      #
+      # ⚠ 主题矩阵的像素基线按平台存（Playwright 自动加 `-linux` 后缀）。仓库里目前只有 darwin 一套，
+      #   所以这里第一次跑只会在 runner 上**写**基线并放行，报告里带 `baseline-missing` 注解。
+      #   要让它成为真门禁：把这个 job 固定到 `mcr.microsoft.com/playwright:v1.64.0-noble`
+      #   （基线环境 = CI 环境），容器内跑一次 `--update-snapshots`，把生成的 `*-linux.png` 提交回来。
+      #   2026-11-03 负责人拍板**暂不做**（不碰 CI 架构），理由与代价见 `prd/05` 第二十一轮。
       # 三者都刻意不起 dev server：直连产物才是用户真实的打开方式。
       - run: pnpm exec turbo run test:visual

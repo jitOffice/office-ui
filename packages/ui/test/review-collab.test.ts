@@ -56,6 +56,12 @@ test('头像色档：同一 id 恒定、显式 tone 优先、负数回绕', () =
   // 前缀相同、尾号不同的 id 必须散开：按首字符取模会全撞到同一档
   const tones = new Set([1, 2, 3, 4, 5, 6, 7, 8].map((n) => avatarTone({ id: `user-${n}`, name: `U${n}` })))
   assert.ok(tones.size >= 3, `期望散开，实际 ${[...tones].join(',')}`)
+  // 哈希里用了有符号位移，溢出后 `%` 会留下负数（`u-zhang` 曾得到 -1，头像于是无色）。
+  // 这里把一批 id 全扫一遍，负档不可能靠"看着还行"发现。
+  for (const id of ['u-ada', 'u-zhang', 'u-li', 'u-wang', 'u-sato', 'a', 'zzzzzz', 'user-42', '🎯']) {
+    const tone = avatarTone({ id, name: id })
+    assert.ok(tone >= 0 && tone < AVATAR_TONES, `${id} 得到非法档位 ${tone}`)
+  }
 })
 
 test('头像堆叠：为"更多"按钮留一格，max=0 表示这个位置放不下', () => {

@@ -42,6 +42,19 @@ const require_stamp = require("./stamp.cjs");
 const require_watermark = require("./watermark.cjs");
 const require_ai_panel = require("./ai-panel.cjs");
 const require_code_block = require("./code-block.cjs");
+const require_comment_thread = require("./comment-thread.cjs");
+const require_review_panel = require("./review-panel.cjs");
+const require_presence_avatars = require("./presence-avatars.cjs");
+const require_file_name_header = require("./file-name-header.cjs");
+const require_splitter = require("./splitter.cjs");
+const require_pane_group = require("./pane-group.cjs");
+const require_virtual_list = require("./virtual-list.cjs");
+const require_dock_panel = require("./dock-panel.cjs");
+const require_upload_progress = require("./upload-progress.cjs");
+const require_drag_context = require("./drag-context.cjs");
+const require_share_dialog = require("./share-dialog.cjs");
+const require_drop_zone = require("./drop-zone.cjs");
+const require_version_history = require("./version-history.cjs");
 //#region src/vue/registry.ts
 /**
 * 名称 → 组件表（02 §4.2 / §4.3 的地基）。
@@ -61,12 +74,19 @@ var OJ_COMPONENTS = {
 	"oj-gallery": require_gallery.OjGallery,
 	"oj-style-gallery": require_style_gallery.OjStyleGallery,
 	"oj-code-block": require_code_block.OjCodeBlock,
+	"oj-comment-thread": require_comment_thread.OjCommentThread,
+	"oj-drop-zone": require_drop_zone.OjDropZone,
+	"oj-file-name-header": require_file_name_header.OjFileNameHeader,
+	"oj-presence-avatars": require_presence_avatars.OjPresenceAvatars,
+	"oj-review-panel": require_review_panel.OjReviewPanel,
 	"oj-color-picker": require_color_picker.OjColorPicker,
 	"oj-command-button": require_command_button.OjCommandButton,
 	"oj-command-launcher": require_command_launcher.OjCommandLauncher,
 	"oj-command-palette": require_command_palette.OjCommandPalette,
 	"oj-context-menu": require_context_menu.OjContextMenu,
 	"oj-dialog": require_dialog.OjDialog,
+	"oj-dock-panel": require_dock_panel.OjDockPanel,
+	"oj-drag-context": require_drag_context.OjDragContext,
 	"oj-dropdown": require_dropdown.OjDropdown,
 	"oj-dropdown-button": require_dropdown_button.OjDropdownButton,
 	"oj-file-tree": require_file_tree.OjFileTree,
@@ -74,6 +94,7 @@ var OJ_COMPONENTS = {
 	"oj-font-size-field": require_font_size_field.OjFontSizeField,
 	"oj-line-spacing-picker": require_line_spacing_picker.OjLineSpacingPicker,
 	"oj-number-field": require_number_field.OjNumberField,
+	"oj-pane-group": require_pane_group.OjPaneGroup,
 	"oj-hotkey": require_hotkey.OjHotkey,
 	"oj-icon": require_icon.OjIcon,
 	"oj-locale-provider": require_locale.OjLocaleProvider,
@@ -86,7 +107,9 @@ var OJ_COMPONENTS = {
 	"oj-ribbon-tab": require_ribbon_tab.OjRibbonTab,
 	"oj-ruler": require_ruler.OjRuler,
 	"oj-search-replace-bar": require_search_bar.OjSearchReplaceBar,
+	"oj-share-dialog": require_share_dialog.OjShareDialog,
 	"oj-signature-pad": require_signature_pad.OjSignaturePad,
+	"oj-splitter": require_splitter.OjSplitter,
 	"oj-split-button": require_split_button.OjSplitButton,
 	"oj-stamp": require_stamp.OjStamp,
 	"oj-symbol-picker": require_symbol_picker.OjSymbolPicker,
@@ -95,6 +118,9 @@ var OJ_COMPONENTS = {
 	"oj-tabs": require_tabs.OjTabs,
 	"oj-toggle-button": require_toggle_button.OjToggleButton,
 	"oj-toolbar": require_toolbar.OjToolbar,
+	"oj-upload-progress": require_upload_progress.OjUploadProgress,
+	"oj-version-history": require_version_history.OjVersionHistory,
+	"oj-virtual-list": require_virtual_list.OjVirtualList,
 	"oj-tooltip": require_tooltip.OjTooltip,
 	"oj-trigger": require_trigger.OjTrigger,
 	"oj-watermark": require_watermark.OjWatermark,

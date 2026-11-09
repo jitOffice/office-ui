@@ -111,6 +111,41 @@
 				middle: "垂直居中",
 				bottom: "底端对齐"
 			},
+			comment: {
+				reply: "回复",
+				resolve: "解决",
+				reopen: "重新打开",
+				replyPlaceholder: "回复这条批注…"
+			},
+			review: {
+				title: "修订",
+				accept: "接受",
+				reject: "拒绝",
+				acceptAll: "全部接受",
+				rejectAll: "全部拒绝",
+				empty: "没有待处理的修订",
+				allKinds: "全部",
+				kind: {
+					insert: "插入",
+					delete: "删除",
+					format: "格式"
+				}
+			},
+			presence: {
+				label: "当前在线的协作者",
+				more: "还有 {n} 人",
+				overflowTitle: "查看全部协作者"
+			},
+			fileName: {
+				saved: "已保存",
+				saving: "保存中…",
+				unsaved: "未保存",
+				rename: "重命名",
+				favorite: "收藏",
+				empty: "文件名不能为空",
+				illegal: "不能包含 \\ / : * ? \" < > |",
+				reserved: "这是系统保留名"
+			},
 			shell: {
 				tabs: {
 					start: "开始",
@@ -131,6 +166,11 @@
 					zoomOut: "缩小",
 					zoomIn: "放大",
 					reset: "100%"
+				},
+				pane: {
+					files: "文件栏宽度",
+					side: "侧栏宽度",
+					resize: "调整分栏宽度"
 				},
 				files: {
 					title: "文件",
@@ -162,7 +202,8 @@
 					open: "印章"
 				},
 				status: { kernel: "图片、链接和正文编辑需要文档内核，当前仓库不包含它。" },
-				insert: { image: "图片" }
+				insert: { image: "图片" },
+				review: { title: "审阅" }
 			}
 		} }
 	};

@@ -86,7 +86,10 @@ test('生成物自洽：每页都有标题、生成声明与源码路径', () =>
 
   const page = files.get('docs/components/api/command-menu.md') ?? files.get('docs/components/api/context-menu.md')
   assert.ok(page)
-  assert.ok(page.startsWith('# OjContextMenu'))
+  // 标题是**标签名**（使用者真正写的），类名在标题下那行小字里。
+  // 这条曾经断言的是 `# OjContextMenu`——标题换成标签名后立刻红，正好证明它守着这件事。
+  assert.ok(page.startsWith('# `<oj-context-menu>`'), page.slice(0, 40))
+  assert.ok(page.includes('组件 `OjContextMenu`'), '标题下必须还能查到类名')
   assert.ok(page.includes('请勿手改'))
   assert.ok(page.includes('packages/ui/src/vue/context-menu.ts'))
 })

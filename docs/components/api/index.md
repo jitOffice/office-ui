@@ -1,6 +1,6 @@
 # 组件 API 索引
 
-> 由源码扫描生成（44 个组件），请勿手改。
+> 由源码扫描生成（57 个组件），请勿手改。
 
 | 组件 |
 |---|
@@ -12,10 +12,15 @@
 | [OjCommandButton](/components/api/command-button) |
 | [OjCommandLauncher](/components/api/command-launcher) |
 | [OjCommandPalette](/components/api/command-palette) |
+| [OjCommentThread](/components/api/comment-thread) |
 | [OjContextMenu](/components/api/context-menu) |
 | [OjDialog](/components/api/dialog) |
+| [OjDockPanel](/components/api/dock-panel) |
+| [OjDragContext](/components/api/drag-context) |
+| [OjDropZone](/components/api/drop-zone) |
 | [OjDropdownButton](/components/api/dropdown-button) |
 | [OjDropdown](/components/api/dropdown) |
+| [OjFileNameHeader](/components/api/file-name-header) |
 | [OjFileTree](/components/api/file-tree) |
 | [OjFontPicker](/components/api/font-picker) |
 | [OjFontSizeField](/components/api/font-size-field) |
@@ -26,16 +31,21 @@
 | [OjLocaleSwitcher](/components/api/locale-switcher) |
 | [OjLocaleProvider](/components/api/locale-provider) |
 | [OjNumberField](/components/api/number-field) |
+| [OjPaneGroup](/components/api/pane-group) |
 | [OjPopper](/components/api/popper) |
 | [OjPortal](/components/api/portal) |
+| [OjPresenceAvatars](/components/api/presence-avatars) |
+| [OjReviewPanel](/components/api/review-panel) |
 | [OjRibbonGallery](/components/api/ribbon-gallery) |
 | [OjRibbonGroup](/components/api/ribbon-group) |
 | [OjRibbonTab](/components/api/ribbon-tab) |
 | [OjRibbon](/components/api/ribbon) |
 | [OjRuler](/components/api/ruler) |
 | [OjSearchReplaceBar](/components/api/search-replace-bar) |
+| [OjShareDialog](/components/api/share-dialog) |
 | [OjSignaturePad](/components/api/signature-pad) |
 | [OjSplitButton](/components/api/split-button) |
+| [OjSplitter](/components/api/splitter) |
 | [OjStamp](/components/api/stamp) |
 | [OjStatusBar](/components/api/status-bar) |
 | [OjStyleGallery](/components/api/style-gallery) |
@@ -46,5 +56,8 @@
 | [OjToolbar](/components/api/toolbar) |
 | [OjTooltip](/components/api/tooltip) |
 | [OjTrigger](/components/api/trigger) |
+| [OjUploadProgress](/components/api/upload-progress) |
+| [OjVersionHistory](/components/api/version-history) |
+| [OjVirtualList](/components/api/virtual-list) |
 | [OjWatermark](/components/api/watermark) |
 | [OjZoomControl](/components/api/zoom-control) |

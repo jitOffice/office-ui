@@ -511,7 +511,193 @@ provenance 靠它与构建来源对齐，此前一个包都没有。
 当前基线：**248 个零依赖用例 · 167 个 Vitest 用例 · 109 个 i18n key × 4 语**；
 `build:check` 四个包同源、`es-check es2018` 7 个文件通过、四道静态门禁全绿。
 
-**M0 八条 DoD 的现状**（哪条过了、哪条只是"产物有了但没验"）：
+**2026-10-31 第十七轮：M3 第一批——审阅与协同四件**
+
+M2 收尾后按 03 §6 进入 M3（外壳与协同，14 件）。本轮取**能拼出"合同审阅"右侧栏**的四件，
+每组一件行为层 + 一个受控组件：`OjCommentThread`（E）、`OjReviewPanel`（E）、
+`OjPresenceAvatars`（E）、`OjFileNameHeader`（F）。
+
+四条设计决定，都不是"写起来顺手"而是"反过来会出事"：
+
+- **受控是硬约束**。批注要落盘、要协同同步，组件内部藏一份状态就会与真值分叉——所以回复走 `reply`、
+  解决态走 `toggle-resolved`、修订决策走 `decide`/`decide-all`、收藏走 `update:favored`。用例里专门断言
+  "点完之后组件自己没变"。
+- **批量决策 = 当前筛选结果**。用户在"只看张三"下点"全部接受"，期望的是张三那几条；
+  把别人的一起处理是数据事故。面板把 `kind` 随事件带出去，宿主用同一个 `filter` 复算（`decideAll`）。
+- **头像的颜色与首字母必须可推导**。一旦允许外部传色板，同一人在批注区与标题栏就会有两种颜色，
+  而这类不一致没人会当 bug 报，只觉得"乱"。所以 `avatarTone(id)` 用 djb2 派生 8 档
+  （按首字符取模会让 `user-1`/`user-2`… 全撞一档，用例里钉了这条）。
+  中日韩名字取**首字**：取末字会让"张伟 / 王伟"在头像上撞字；名字中间带空格（`王 伟`）也只取一字。
+- **文件名按 Windows 最严规则拦**。macOS/Linux 只拦 `/`，但跨平台文档库里建出来的名字必须在每个平台都能落地，
+  所以 `\ : * ? " < > |` 全拦，`CON.txt` 也算保留名。非法名**不退出编辑态**——退出去等于把用户打的字吞了。
+
+真浏览器（Chrome 151）逐条实测，控制台零错误：
+
+| 操作 | 结果 |
+|---|---|
+| 首屏 | 文件名「产品说明」· 已保存 · 3 个头像 + 「还有 2 人」 |
+| 重命名回车 | 标题立刻变「合同审核说明」，保存态 `未保存 → 已保存`（约 1s） |
+| 收藏 | `aria-pressed="true"` |
+| 输入 `a/b` 回车 | 输入框仍在、`aria-invalid`、原因「不能包含 \ / : * ? " < > |」 |
+| 审阅页 | 3 条修订；筛选「插入」→ 1 条；全部接受 → 0 条（别人的两条没被动） |
+| 批注回复 | 回复数 0 → 1，输入框清空 |
+| 批注解决 | `data-resolved` 出现 |
+
+组件只是壳，**算法全在 `shell/` 里**：`commentCounts`/`nextOpenThread`（到末尾不环绕）、
+`filterChanges`/`decideAll`/`changeAuthors`、`stackPeople`（留一格给"更多"、`max=0` 表示放不下）、
+`fileNameProblem`/`renameFile`（未改动视为成功）/`isDirty`（`saving` 也算脏）。
+
+新增 **12 例零依赖用例**（`test/review-collab.test.ts`）与 **11 例 Vitest**（`test/unit/review-collab.spec.ts`），
+四语补 26 个 key。当前基线：**260 个零依赖用例 · 178 个 Vitest 用例 · 135 个 i18n key × 4 语 · 49 份组件文档**；
+`build:check` 四包同源、`es-check es2018` 通过、七道静态门禁全绿、`size` 未超（全量 ESM 13.95 kB / 90 kB，
+组件样式 4.7 kB / 16 kB）。
+
+**同日补记：拿真实截图过一遍，改了三处"能跑但难看"**
+
+单测与门禁全绿不等于能用。按截图逐个区域过了一遍，发现三类问题，都属于"跑得通、但用户会以为坏了"：
+
+1. **审阅条目在 320px 侧栏里被压成竖排文字**。原因是三块（头像 / 正文 / 决策按钮）挤在一个 `flex` 行里，
+   `接受 拒绝` 占住宽度后正文只剩几十像素，中文于是**一个字一行**。改成 `grid` 两行布局
+   （头像+正文一行、决策按钮独占一行靠右），正文从 60px 恢复到 241px。
+   同时给「种类 / 作者 / 时间」加 `white-space: nowrap`：它们各自是一个"原子"，要整块换行而不是拆词。
+2. **头像有一档是 `data-tone="-1"`，整个头像没有底色**。`avatarTone()` 用 djb2 哈希，
+   但 `hash << 5` 是**有符号**位移，溢出变负数后 `% 4` 会把负数原样留下（实测 `u-zhang` = -1，
+   匹配不到任何一档 → 无色的"张"）。修法是每步 `>>> 0` 归一到无符号；用例补了一条扫一批 id 的断言。
+   另外把 8 档色阶换成 **4 档语义色**（`--oj-bg-*-subtle` + `--oj-text-*`）：色阶在暗色主题里是反的，
+   同一套"浅底深字"规则会翻转成"深底深字"。
+3. **功能区的三个组只剩三个 `»`**：`OjRibbonGroup` 在无宽度约束的 `flex` 父级里会塌成 20px 且永不恢复
+   （见 03 §8.2 新增的那条）。demo 改成每组给 `available: 240`，并把查找替换条压到第二行、
+   组间补竖分隔线。
+
+结论写进 05 的这一条：**"能跑"的验收线是行为，"能用"的验收线是截图**。这三处里只有第 2 条能被单测抓到
+（而且是因为补了断言），另外两处必须靠渲染出来看。
+
+**2026-11-01 第十八轮：M3 第二批——分栏与拖放导入**
+
+第十七轮之后 M3 还剩 8 件，其中布局类是"合同审阅 preset"的硬前提。本轮取五件：
+`OjSplitter` 与 `OjPaneGroup`（D 组：一根分隔条 + 声明式多栏容器）、`OjVirtualList`（D 组：变高虚拟列表）、
+`OjDockPanel`（D 组：可停靠/浮动/收起的面板）、`OjDropZone`（F 组，整页遮罩 + 类型校验 +
+多文件 + 粘贴图片）。仍然沿用"行为层在 `shell/`、组件只接线"的分法。
+
+七条决定，每条都是"反过来会出具体事故"：
+
+- **`size` 描述的是被调那一栏，方向由 `pane: 'before' | 'after'` 声明**。同一根条子既可能表示
+  "左栏收起"也可能表示"右栏展开"，两种语义都不声明等于永远说不清往哪拖。三栏布局里两根条子的
+  方向恰好相反（左条子调大纲、右条子调批注），所以这个 prop 不是可选装饰。
+- **多栏容器只调固定宽那一栏**（`paneSplitter()`）。可伸缩栏的尺寸是"剩下的空间"，没有独立数值可拖；
+  让它当被调对象就会"拖完弹回原处"。两侧都可伸缩时干脆不画条子——按比例分空间无法表达成单个尺寸。
+  栏位用**命名插槽**（`#<id>`），默认插槽会把同一段内容重复画进每一栏。
+- **折叠阈值取 `min / 2`，且键盘有单独的一条出口**。阈值等于 `min` 会把"想拖窄一点"判成折叠，
+  等于 0 则永远折叠不了。**键盘这条是测试抓出来的**：`stepPane` 走 `clampPane` 时
+  `min - 16` 会被夹回 `min`，于是侧栏用键盘**永远收不起来**，而拖拽能收——同一组件两条输入路径不一致。
+  现在在 `min` 上再按"变小"直接给 0，并用两例钉死（`200 → 0` 与 `0 → 200`）。
+- **拖放必须按 `DataTransfer.types` 分支**（03 §8.9）。文件、`text/html`、`text/plain` 是三种载荷；
+  不分分支的话，从网页拖一段文字进来会被判成"格式不支持的文件"，提示方向完全相反。
+  文本分支默认**关闭**（`textPayload`）：文档编辑器里拖选区内文字是最常见的拖拽，默认弹导入遮罩是灾难。
+- **遮罩用 `dragenter` / `dragleave` 计数**。只跟单个事件会让遮罩在子元素之间疯狂闪；
+  `relatedTarget === null`（离开窗口）时直接归零。遮罩本身 `pointer-events: none`，
+  `drop` 必须落到文档区而不是包裹层。
+- **变高列表的三条不变量**：① 测量只改被量那一行之后的偏移，前面的行纹丝不动（否则测量期会抖）；
+  ② 数据更新前记下"视口顶部那一行 + 偏移"，更新后还原（否则往顶部插一条新批注，用户眼前那行就跳走），
+  锚点行被删则保持原位置——猜一个位置只会让人从头找；③ **高度为 0 的视口也要渲染一行**，
+  否则首帧被折叠的侧栏里永远量不到行高，列表就永远只有估算值。
+- **停靠面板记住"上次停靠侧"，并且位置在拖动时夹取**。状态里只存 `side` 的话，从"停到左边"浮动出去
+  再点停靠会回到默认的右边，用户每次都得重新拖一次。浮动位置必须在**拖动过程中**夹回视口
+  （至少露出 48px 标题栏），松手才修正等于允许把面板拖出屏幕再眼睁睁看它跳回来。
+  收起只藏内容、标题栏留着——整个隐藏掉，用户就再也找不到展开入口。
+
+拒绝原因保持两条独立文案：`type`（格式不支持）与 `count`（一次只能传一个），同时命中时 `type` 优先——
+混成"导入失败"会让用户改错方向。
+
+**第二个被测试抓出来的 bug（`clampPane` 的 `max`）**：`OjSplitter` 的 `max` 默认是 `Infinity`，
+而 `clampPane` 用 `finiteOr(max, min)` 兜底，于是"不设上限"被当成"缺省 = min"，拖一下就弹回最小宽度。
+`OjPaneGroup` 的栏位大多不写 `max`，所以只有把它接进容器后才会暴露；组件级用例（显式 `max: 400`）
+一路是绿的。修法是把非有限的 `max` 当作不设上限，并补了 `{ min: 160 } → 3000` 的断言。
+
+新增 **23 例零依赖用例**（`test/shell-layout.test.ts` 11 例 + `test/virtual-list.test.ts` 6 例 +
+`test/dock.test.ts` 6 例）与 **27 例 Vitest**（`test/unit/shell-layout.spec.ts` 16 例 +
+`test/unit/virtual-list.spec.ts` 6 例 + `test/unit/dock-panel.spec.ts` 5 例）。
+当前基线：**283 个零依赖用例 · 205 个 Vitest 用例 · 55 份组件文档**；`i18n` key 未动（135 × 4 语）。
+**本轮未做真浏览器实测**：8px 命中区、遮罩卡片、虚拟滚动的实际帧率与浮动面板拖拽手感只有单测与样式门禁，
+截图与滚动验收留给下一轮。
+
+**2026-11-02 第十九轮：M3 收尾——共享 / 版本 / 上传 / 拖放协议**
+
+第十八轮之后 M3 还剩 4 件，本轮一次收完：`OjDragDropContext`、`OjShareDialog`、`OjVersionHistory`、
+`OjUploadProgress`。到这一轮为止 **M3 的 14 件全部交付**，M3 验收（合同审阅 preset）的组件基础齐了。
+
+四条决定：
+
+- **内部拖拽与外部拖入靠私有 MIME 标记区分**（`application/x-oj-drag`）。拖选区内文字同样带
+  `text/html`，只看标准类型永远分不开；猜"鼠标是不是在自己身上按下"更不可靠。协商阶段还有一条必须
+  接受的别扭规则：`accept.types` 里只有扩展名时**一律放行**，因为 dragenter 阶段拿不到文件名，
+  按扩展名拒绝会让遮罩根本不出现，用户也就再没法导入——细判留给 drop 时的 `selectDropped`。
+- **共享权限只算一次**：`resolveShare()` 是唯一真值。切范围时角色当场降级（链接不给"可编辑"），
+  确认按钮上抛的是归一化后的权限。否则"界面显示可评论、请求里发可编辑"这类事故必然出现，
+  而且没法在任何一个界面上看出来。
+- **恢复走三态状态机**（`idle → confirming → restoring`），确认条贴在被恢复的那一条下面。
+  用一个 `confirming: boolean` 说不清"要恢复哪一版"，用户只能凭记忆点确定。
+- **上传进度只增不减、失败保留断点**。暂停期间到达的分片回报直接丢弃（否则"已暂停"的数字还在涨）；
+  重试从 `loaded` 续传而不是清零；分片按字节对齐整片重发（分片 PUT 幂等，拼接半个分片更危险）。
+
+新增 **20 例零依赖用例**（`test/upload.test.ts` 7 + `test/drag-context.test.ts` 3 + `test/share.test.ts` 5 +
+`test/versions.test.ts` 5）与 **23 例 Vitest**（`test/unit/upload-progress.spec.ts` 5 +
+`test/unit/drag-context.spec.ts` 7 + `test/unit/share-dialog.spec.ts` 6 + `test/unit/version-history.spec.ts` 5）。
+当前基线：**303 个零依赖用例 · 228 个 Vitest 用例 · 59 份组件文档**；`i18n` key 未动（135 × 4 语）。
+**仍未做真浏览器实测**：59 个组件的交互目前只有单测 + 样式/契约门禁，视觉回归 12 组基线仍是 M0 唯一缺口。
+
+**2026-11-02 第二十轮：M3 验收落到 demo——三栏换成 `OjPaneGroup`**
+
+第十九轮把 14 件组件交齐，但 demo 的三栏还是写死的 `grid-template-columns: 220px minmax(0,1fr) 320px`，
+没有一处用到新交的分栏。本轮把它换掉，M3 验收那条"左大纲 + 中文档 + 右批注"才真的成立：
+
+- **左文件栏 160–360px（可收起）、中文档 `flexible`（min 480）、右审阅栏 260–520px（可收起）**。
+  中文档不存尺寸——它的宽度就是"剩下的空间"；`paneSplitter()` 因此只给两侧固定栏挂条子，
+  拖中文档两侧任何一根，动的都是固定栏。
+- **收起走双击分隔条或聚焦后 Enter**，展开同理；收起态宽度为 0，条子仍在，所以收得回。
+- **栏宽由宿主 `ref` 回写**（`onUpdate:size` 带栏位 id），没有第二份状态。
+- 顺带补了 `oj.shell.pane` 三个 key × 4 语（文件栏宽度 / 侧栏宽度 / 调整分栏宽度），
+  i18n 从 135 涨到 **138 个 key × 4 语**；`dist` 与 `keys.ts` 已重建。
+
+验证方式：`tsc` 通过 + `vite build`（demo）130 modules 打包成功；`lint:contracts` /
+`lint:styles` / `lint:css-magic` / `build:check` / `size` 全绿。**仍未做真浏览器截图**：
+DoD 第 7 条（视觉回归 12 组）继续挂着，需要 Playwright 截图基线，与 B5 同一条线。
+
+**2026-11-02 第二十一轮：视觉回归 12 组第一切片——DoD 第 7 条收口**
+
+`light/dark × comfortable/compact × zh-CN/zh-TW/ja` 这一组此前一直是"有人提、没人跑"：
+被测页面不存在，所以连"跑起来会不会红"都无从谈起。本轮补的是页面 + 用例 + 基线三件。
+
+- **页面** `examples/theme-matrix/index.html`：纯静态（两个 `<link>` + 两个 `<script>`），
+  板子上的组件全用 `data-oj` 声明，页面没有一行 `createApp`——12 组不是 12 份产物，
+  而是同一个页面上的三个属性（`data-oj-theme` / `data-oj-density` / `lang`），用例改完属性再截图。
+- **交叉不变量**（1 条用例，只读计算值）：颜色只许随主题变、尺寸只许随密度变、排版只许随语言变。
+  这条用例的前身写了"字号只随语言变"，第一次跑就红（期望 14、实际 13）——`compact` 也压 `--oj-fs-14`，
+  两条轴在字号上重合，是把不变量写错了，不是产物错了。改成"全局只比方向、不跨轴比绝对值"后转绿。
+- **像素基线**：12 组 × 6 个板块 = **72 张**（372 KB，`test/visual/theme-matrix.spec.ts-snapshots/`，
+  阈值为 PRD 的 0.1%）。**按板块切而不截整板**是量出来的：整板 640×676 ≈ 43 万像素，
+  0.1% 等于允许 432 px 不同；而把 `.oj-status-bar` 的颜色写死成 `#151515` 只差 **214–437 px**，
+  一半档位正好从阈值底下溜过去。切成 608×48 的状态栏那块之后，同一处改动是 **2%**，二十倍余量。
+- **四次故意破坏**（都已恢复）：删掉 `html[data-oj-density="compact"]` 整块 → 6 条 compact 截图红 +
+  不变量点名"compact 没把控件压矮"；删掉 ja 的 `--oj-letter-spacing` → 4 条 ja 截图红（0.26px/字真的画得出来）；
+  把暗色选择器改成永不命中 → 6 条 dark 截图红；状态栏写死 `#151515` → 12 条 `status-cell` 截图红而其余板块不动。
+- **顺带补齐无构建器那两条契约**：`hydrate()` 的幂等（重复执行必须返回 0，否则叠出第二份图标）、
+  `create()` 的 `anchor.after()` 位置（实例是锚点的**兄弟**，塞进按钮会把文字顶走）与
+  `update:open=false` → `destroy()` 之后 DOM 与实例都要消失。
+
+**遗留**：基线只有 darwin 一套（唯一能真跑浏览器的机器）。配置里 `updateSnapshots: 'missing'`
+让 linux runner 第一次跑时写基线并放行——那不是门禁，只是引导；用例会把缺基线写进报告注解
+（`baseline-missing`），别把 "17 passed" 读成"12 组都真的比过了"。linux 那套需要在 runner 上
+`--update-snapshots` 跑一次再提交。
+
+**2026-11-03 负责人拍板：暂不改 CI 架构。** 备选方案是给 `visual.yml` 的 visual job 固定
+`mcr.microsoft.com/playwright:v1.64.0-noble`（镜像 manifest 已探测可达，本机 docker 29.6.1 在用），
+容器内 `--update-snapshots` 生成 `-linux` 基线后，基线环境与 CI 环境对齐，像素腿才成为真门禁；
+代价是 CI 用上容器 + 约 2GB 镜像，收益只落在"像素腿从引导变成门禁"这一条上。本轮按"不碰 CI"处理：
+**darwin 基线是本地门禁，CI 上的像素腿仍是引导**。因此 DoD #7 的跨平台那半仍然欠着——
+但它是"有明确解法、只差拍板执行"的待办，不再是未知项。
+
+**M0 八条 DoD 的现状**（哪条过了、哪条只是“产物有了但没验”）：
 
 | # | DoD | 状态 |
 |---|---|---|
@@ -567,7 +753,7 @@ CI 里必须自己 `playwright install chromium`，否则这三条只能靠通�
 | i18n 运行时（**计划外**，见下方偏差 6） | 完成 | `packages/i18n`，30 用例（24 例走 `src` + 6 例 `artifacts.test.ts` 走 `dist`）；41 个 key × 四语一致、消息文法、`Intl` 封装、`subscribe` 运行时，零框架依赖 |
 | D1 命令注册表 | 完成 | `packages/shared/src/commands/`，19 用例（15 例走 `src` + 4 例 `artifacts.test.ts` 走 `dist`），含四条事故来源验收 |
 | B4 中英日排版档 | 完成 | tokens 生成器：语言变量覆写层 + `resetSection()` 元素级排版层；`typography.test.ts` 6 例；计算样式在 Chromium 150 实测命中。**`line-break: strict` 与 `text-autospace: normal` 都实测生效**（后者每处中日韩↔拉丁边界插入 0.25em，16px 样本 +8.000px；该内核 UA 默认值就是 `no-autospace`，所以删不得）。两条此前都因**量法错误**被误判为"量不出效果"，教训见 01 §7 |
-| B5 视觉基线 | **部分落地**（第一切片已实跑通过） | 已落 `packages/tokens/test/visual/typography.spec.ts` 三条用例（真解析器下四个声明的计算值、`text-autospace` 的 8px 差值、`line-break` 的行末违禁字符集），`turbo run test:visual` 已声明且 `cache: false`。页面侧逻辑此前在手工会话里跑通（`<link>` 直连 `dist/index.css`，读数 `8.000px`、`auto`=`ゥ止スト`、`strict`=`の末テト`，见 01 §7），本轮由 runner **真跑并全绿两次**：`OJ_BROWSER_CHANNEL=chrome`（151.0.7922.175）与 `=msedge`（154.0.4258.62）各 3 passed。第一次真跑立刻暴露一个假锁——两条行为用例在盒子上内联设值，读的是 UA 而不是产物，把 `line-break` 改成 `auto` 它们照样绿；改成"不声明、从 body 继承"后，`line-break` 与 `text-autospace` 各破坏一次（改值、整条删掉），红绿两条分支都实测过。剩下的仍是像素级项目：`text-spacing-trim` 的标点压缩（盒子坐标看不见，只能截图比对）、字体族首选项与行高 |
+| B5 视觉基线 | **落地**（2026-11-02 补齐 12 组矩阵；基线仅 darwin 一套） | 已落 `packages/tokens/test/visual/typography.spec.ts` 三条用例（真解析器下四个声明的计算值、`text-autospace` 的 8px 差值、`line-break` 的行末违禁字符集），`turbo run test:visual` 已声明且 `cache: false`。页面侧逻辑此前在手工会话里跑通（`<link>` 直连 `dist/index.css`，读数 `8.000px`、`auto`=`ゥ止スト`、`strict`=`の末テト`，见 01 §7），本轮由 runner **真跑并全绿两次**：`OJ_BROWSER_CHANNEL=chrome`（151.0.7922.175）与 `=msedge`（154.0.4258.62）各 3 passed。第一次真跑立刻暴露一个假锁——两条行为用例在盒子上内联设值，读的是 UA 而不是产物，把 `line-break` 改成 `auto` 它们照样绿；改成"不声明、从 body 继承"后，`line-break` 与 `text-autospace` 各破坏一次（改值、整条删掉），红绿两条分支都实测过。剩下的仍是像素级项目：`text-spacing-trim` 的标点压缩（盒子坐标看不见，只能截图比对）、字体族首选项与行高。**2026-11-02 补齐**：12 组矩阵那半边由 `packages/ui/test/visual/theme-matrix.spec.ts` 接手（72 张像素基线 + 三条轴的交叉不变量，细节见第二十一轮），`turbo run test:visual` 真跑 **9 个任务全绿**（tokens 3 + ui 17 + icons 3）。**仍欠**：基线只有 darwin 一套 |
 | A2 构建管线（两趟） | **基本落地**（三个发布包都有 ESM/CJS/types；`ui` 另有两条 UMD） | 新增 `internal/build`（`@jitoffice/internal-build`，private）：`specs.ts` 声明每包的入口与 UMD 目标，`jobs.ts` 把一趟展开成 **ESM / CJS / types / UMD** 四条产出链，`build.ts` 串行跑（并行会两趟抢同一个 outDir），`--check` 重建进临时目录与入库 `dist` 逐字节比对。`packages/shared`、`packages/i18n` 的 `exports` 已从 `./src/*.ts` 改指 `dist/*`（`types`/`import`/`require` 三条件），i18n 另加 `unpkg`/`jsdelivr` 与四条 `./locales/*` 子路径；两包 `dist` **入库**（`.gitignore` 的反忽略从 tokens 一包扩到 `packages/*/dist/**`）。三个发布包的 `main`/`module`/`types` 现在逐字等于各自 `exports["."]` 的条件目标——`packages/tokens` 此前**一个都没写**，是新增的门禁 12 抓出来的，见偏差 16。**实测到的**：`preserveModules` 两条链都保留模块结构（深路径 `require('dist/cjs/commands/registry.cjs')` 有用例锁）；兼容线真的降了级（源码里 `?.`/`??` 遍布，`dist/umd`+`dist/locale` 里 0 处，`dist/es` 保留 4 处；`es-check es2018` 扫 5 个文件通过）；UMD 三种加载形态（CJS/AMD/全局）与"没有 require 也没有 define 的空 `node:vm` 里靠全局跑通一次日文取值"都有用例；构建确定（`--check` 绿 + 同一份源码在仓库根 / `internal/build` / 包目录三种 cwd 下产出的四棵树逐字节相同）。**踩到并钉死的四条 vite/rolldown 行为**见偏差 14、15。**2026-10-26 补上**：`ui` 的两条 UMD（`vue` 外部化成全局 `Vue`、`es-check es2018` 通过、框架无关入口 0 处 `vue`）、`dist/styles/office-ui.css` 与 `office-ui.layered.css` 双产物、`unpkg`/`jsdelivr` 两个 CDN 字段。仍未做：`packages/ui` 的 SFC 链（现有组件是 `h()` 写的 `.ts`，`vue-tsc` 与 `@vitejs/plugin-vue` 都没用上）、`attw` 双解析。02 §2.1 的"样式入口单独一趟"在这套结构里**不适用**：ADR-0003 决定只有一份 CSS，没有逐组件样式入口可被摇掉，取而代之的是契约 13（样式变量必须命中 token 表）。 |
 | A3 CI 流水线 | **部分落地**（2026-10-26） | `.github/workflows/pull-request.yml`：`verify`（零依赖，**不 install**）与 `build`（typecheck → test:unit → build → build:check → size）两条 job，末尾用 `git status --porcelain` 卡住"改了源码忘记提交生成物"。`visual.yml` 定时 + 手动跑 B5 排版回归。**已接入**：size-limit 体积（2026-10-29，四条 gzip 阈值进 `build` job，拒绝的阈值都实测破坏过）；tarball 产物（`lint:package`）、attw 四模式类型出口（`lint:types`）、生产依赖许可白名单（`lint:license`）三条于 2026-10-30 接入 `build` job，各自故意破坏过一次（改坏 `require.types` → `Masquerading as ESM`；从白名单删 `MIT` → 报出 `vue` 违规），恢复后转绿；产物外链扫描（`lint:artifact-offline`）同日接入 `build` job，破坏方式是往 `packages/tokens/dist/index.css` 追加一句 google fonts 的 `url()` → 报出 `index.css:316` 并退出 1，恢复后转绿；覆盖率阈值随 `test:unit --coverage` 进 `build` job（组件行 92.88% ≥ 85、注册表 100% ≥ 95、`usePopper` 96.66% ≥ 95，阈值抬到 99 实测会红）。同日还接入：字号/时延魔法数（`lint:css-magic`，自研零依赖，破坏方式是把一处 `var(--oj-fs-12)` 改回 `12px` 并给 `.oj-icon` 加 `transition: 150ms` → 报出 `style.css:43` / `style.css:91`，恢复后转绿；另验了"例外腐烂"：把 `.oj-ruler` 的 10px 换成 token 后门禁报"登记已不存在"）。**未守**：只剩**间距/圆角**的魔法数——不是缺依赖，而是 token 标度（4/8/12/16/20/24/32/40、4/6/8/12/20/9999）覆盖不了样式表里真实的 2px / 7px / 28px / 56px，得先定标度。`docs.yml` 于 2026-10-30 落地（文档站构建 + 生成物 `--check` + 构建产物离线扫描 + artifact，**不做在线部署**：托管目标未定，内网自托管优先）。**未验证**：本机没有 Actions runner，Workflow 只做过 YAML 解析与命令存在性校验（`docs.yml` 的四步在本地逐步真跑过：`install --frozen-lockfile` / `lint:docs` / `docs build` 9.85s / `lint:docs-offline` 564 KB 产物无外链），"故意破坏让 CI 红"这条验收仍未实跑。 |
 | C1 图标构建管线 | **完成**（2026-10-29） | `packages/icons` 落地：`svg/*.svg` 是唯一手写源（31 枚，从 ui 的内联表一次性抽出），`scripts/generate.ts` 产出四份生成物——`src/generated/icons.ts`（常量，含 `viewBox`/`attrs`/`body`/`markup`，供 canvas 与无 DOM 环境）、`src/generated/vue.ts`（每枚图标一个具名组件，`preserveModules` 保证可单摇）、`generated/sprite.svg`（`<symbol>` 集合）、`generated/manifest.json`（去掉 `markup` 的机器可读清单，同一份数据不存两遍）。生成器内置四条硬规矩：必须有 `viewBox`、根元素不许写 `width`/`height`、不许出现 `<image>`/`<filter>`/`<script`/外链、必须继承 `currentColor`。**产物入库**并由用例守新鲜度；sprite/manifest 走 `specs.ts` 的 `assets` 复制进 dist（不直接写 dist，否则 `--check` 会报"已入库但构建不再产出"）。**验收**：sprite 的 31 个 `<symbol>` 在 Chrome 151 里逐个 `<use>` 引用并量到非零 `getBBox()`，且"引用不存在的 id 得到 0"作为对照 —— 只断言"没报错"是无效的。**2026-10-30 补齐余项**：`IconRegistry` 已落地（`registerIcon`/`registerIcons`/`unregisterIcon`/`registeredIconNames`/`resetRegisteredIcons`，根入口导出、框架无关），查表是注册表优先；注册期拒绝 `oj-*` 前缀、非 kebab-case、缺 `viewBox`、多根 `<svg>`、内联事件/`<script>`/`javascript:`/`<foreignObject>`/外链，`registerIcons` 原子写入，同名允许覆盖。零依赖用例 7 条 + 组件层 1 条（注册后 `OjIcon` 真能渲染出来）。单图标 ≤1 KB 的 size-limit 断言此前已在 `.size-limit.jsonc`（四条），`OjIcon` tree-shaken 实测 2.02 kB / 上限 8 kB，注册表只加了约 50 B gzip。 |

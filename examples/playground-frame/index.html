@@ -51,6 +51,20 @@
       }
 
       /**
+       * 主题跟随宿主（文档站暗色时示例不能是一块白）。
+       *
+       * 沙箱是同源隔离的（`allow-scripts` 但**不给** `allow-same-origin`），读不到宿主的
+       * `<html class="dark">`，所以主题只能由宿主用 `postMessage` 递进来。
+       * 写的是 `data-oj-theme`——正是 tokens 里 `html[data-oj-theme="dark"]` 认的那个属性，
+       * 与无构建器页面用的是同一条链路，不额外发明开关。
+       */
+      function applyTheme(theme) {
+        if (theme === 'dark' || theme === 'light') {
+          document.documentElement.setAttribute('data-oj-theme', theme)
+        }
+      }
+
+      /**
        * demo 源码是**组件选项对象字面量**：`{ template: '…', setup() {…} }`。
        * 用 `new Function` 求值：沙箱里没有打包器，也不需要模块图。
        */
@@ -88,7 +102,15 @@
 
       window.addEventListener('message', function (event) {
         const data = event.data
-        if (!data || data.type !== 'oj-playground:run' || typeof data.code !== 'string') return
+        if (!data || typeof data.type !== 'string') return
+        // 暗色开关只在 `<html>` 上换 class，不重新挂载——重挂会丢用户正在改的示例状态
+        if (data.type === 'oj-playground:theme') {
+          applyTheme(data.theme)
+          requestAnimationFrame(reportHeight)
+          return
+        }
+        if (data.type !== 'oj-playground:run' || typeof data.code !== 'string') return
+        applyTheme(data.theme)
         mount(data.code)
       })
 

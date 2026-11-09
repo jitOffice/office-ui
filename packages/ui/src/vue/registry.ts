@@ -7,6 +7,7 @@ import { OjGallery } from './gallery.ts'
 import { OjStyleGallery } from './style-gallery.ts'
 import { OjCodeBlock } from './code-block.ts'
 import { OjCommentThread } from './comment-thread.ts'
+import { OjDropZone } from './drop-zone.ts'
 import { OjFileNameHeader } from './file-name-header.ts'
 import { OjPresenceAvatars } from './presence-avatars.ts'
 import { OjReviewPanel } from './review-panel.ts'
@@ -18,12 +19,15 @@ import { OjCommandLauncher } from './command-launcher.ts'
 import { OjCommandPalette } from './command-palette.ts'
 import { OjContextMenu } from './context-menu.ts'
 import { OjDialog } from './dialog.ts'
+import { OjDockPanel } from './dock-panel.ts'
+import { OjDragContext } from './drag-context.ts'
 import { OjDropdown } from './dropdown.ts'
 import { OjDropdownButton } from './dropdown-button.ts'
 import { OjFileTree } from './file-tree.ts'
 import { OjFontSizeField } from './font-size-field.ts'
 import { OjLineSpacingPicker } from './line-spacing-picker.ts'
 import { OjNumberField } from './number-field.ts'
+import { OjPaneGroup } from './pane-group.ts'
 import { OjHotkey } from './hotkey.ts'
 import { OjIcon } from './icon.ts'
 import { OjLocaleProvider } from './locale.ts'
@@ -36,13 +40,18 @@ import { OjRibbonGroup } from './ribbon-group.ts'
 import { OjRibbonTab } from './ribbon-tab.ts'
 import { OjRuler } from './ruler.ts'
 import { OjSearchReplaceBar } from './search-bar.ts'
+import { OjShareDialog } from './share-dialog.ts'
 import { OjSignaturePad } from './signature-pad.ts'
+import { OjSplitter } from './splitter.ts'
 import { OjSplitButton } from './split-button.ts'
 import { OjStamp } from './stamp.ts'
 import { OjStatusBar } from './status-bar.ts'
 import { OjTableGridPicker } from './table-grid-picker.ts'
 import { OjTabs } from './tabs.ts'
 import { OjToggleButton } from './toggle-button.ts'
+import { OjUploadProgress } from './upload-progress.ts'
+import { OjVersionHistory } from './version-history.ts'
+import { OjVirtualList } from './virtual-list.ts'
 import { OjToolbar } from './toolbar.ts'
 import { OjTooltip } from './tooltip.ts'
 import { OjTrigger } from './trigger.ts'
@@ -68,6 +77,7 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-style-gallery': OjStyleGallery,
   'oj-code-block': OjCodeBlock,
   'oj-comment-thread': OjCommentThread,
+  'oj-drop-zone': OjDropZone,
   'oj-file-name-header': OjFileNameHeader,
   'oj-presence-avatars': OjPresenceAvatars,
   'oj-review-panel': OjReviewPanel,
@@ -77,6 +87,8 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-command-palette': OjCommandPalette,
   'oj-context-menu': OjContextMenu,
   'oj-dialog': OjDialog,
+  'oj-dock-panel': OjDockPanel,
+  'oj-drag-context': OjDragContext,
   'oj-dropdown': OjDropdown,
   'oj-dropdown-button': OjDropdownButton,
   'oj-file-tree': OjFileTree,
@@ -84,6 +96,7 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-font-size-field': OjFontSizeField,
   'oj-line-spacing-picker': OjLineSpacingPicker,
   'oj-number-field': OjNumberField,
+  'oj-pane-group': OjPaneGroup,
   'oj-hotkey': OjHotkey,
   'oj-icon': OjIcon,
   'oj-locale-provider': OjLocaleProvider,
@@ -96,7 +109,9 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-ribbon-tab': OjRibbonTab,
   'oj-ruler': OjRuler,
   'oj-search-replace-bar': OjSearchReplaceBar,
+  'oj-share-dialog': OjShareDialog,
   'oj-signature-pad': OjSignaturePad,
+  'oj-splitter': OjSplitter,
   'oj-split-button': OjSplitButton,
   'oj-stamp': OjStamp,
   'oj-symbol-picker': OjSymbolPicker,
@@ -105,6 +120,9 @@ export const OJ_COMPONENTS: Readonly<Record<string, Component>> = {
   'oj-tabs': OjTabs,
   'oj-toggle-button': OjToggleButton,
   'oj-toolbar': OjToolbar,
+  'oj-upload-progress': OjUploadProgress,
+  'oj-version-history': OjVersionHistory,
+  'oj-virtual-list': OjVirtualList,
   'oj-tooltip': OjTooltip,
   'oj-trigger': OjTrigger,
   'oj-watermark': OjWatermark,

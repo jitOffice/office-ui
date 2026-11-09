@@ -1763,6 +1763,1048 @@
 		return Number.isFinite(value) ? value : void 0;
 	}
 	//#endregion
+	//#region src/shell/people.ts
+	/**
+	* 头像色板档数：4 档（品牌 / 成功 / 警告 / 危险四组"浅底 + 同色字"）。
+	*
+	* 不按色阶（`--oj-brand-3..9`）取 8 档：色阶在暗色主题里是**反向**的
+	* （浅色下 brand-3 是浅蓝、暗色下 brand-3 是深蓝），"浅底 + 深字"的配对会整体翻转，
+	* 于是同一套规则在暗色下变成"深底 + 深字"。用语义色（`--oj-bg-*-subtle` / `--oj-text-*`）
+	* 让主题自己保证对比度，代价是只有 4 档——4 档足够区分同桌的几个人。
+	*/
+	var AVATAR_TONES = 4;
+	/**
+	* 头像上的首字母。
+	*
+	* 拉丁名取首尾两词首字母（`Ada Lovelace` → `AL`），单字取首字符，中日韩整名取**首字**——
+	* 取末字会让"张伟 / 王伟"这类名字在头像上撞成同一个字。
+	*
+	* 中日韩名字中间带空格（`王 伟`）时仍只取一个字：这类空格是排版习惯，不是"两个词"，
+	* 取两个字符在圆形头像里会挤成一团。
+	*
+	* 用 `[...name]` 而不是 `name[0]`：emoji 与部分 CJK 扩展字是代理对，按 UTF-16 切会切出半个字符。
+	*/
+	var CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/;
+	function initialsOf(name) {
+		var _, _2;
+		const parts = name.trim().split(/\s+/).filter((part) => part.length > 0);
+		if (parts.length === 0) return "";
+		const first = (_ = [...parts[0]][0]) !== null && _ !== void 0 ? _ : "";
+		if (parts.length === 1 || CJK.test(first)) return first.toUpperCase();
+		return (first + ((_2 = [...parts[parts.length - 1]][0]) !== null && _2 !== void 0 ? _2 : "")).toUpperCase();
+	}
+	/**
+	* 色板序号：稳定哈希，同一 `id` 永远同一档。
+	*
+	* 不用 `charCodeAt(0)` 取模：`user-1`/`user-2`… 这类 id 的首字符全一样，会全部撞到同一档；
+	* djb2 变体对"前缀相同、尾号不同"的 id 分布足够散。
+	*/
+	function avatarTone(person) {
+		if (person.tone !== void 0 && Number.isInteger(person.tone)) return (person.tone % 4 + 4) % 4;
+		let hash = 5381;
+		for (let index = 0; index < person.id.length; index += 1) hash = (hash << 5) + hash + person.id.charCodeAt(index) >>> 0;
+		return hash % 4;
+	}
+	/**
+	* 头像堆叠：超过 `max` 个就折叠，**折叠数不含"更多"按钮自身**（按钮显示 `overflow` 个人）。
+	*
+	* `max` 为 0 时返回空 + 全折叠：调用方据此在窄侧栏里把整组隐藏掉，而不是渲染一个 `+5` 再也没地方展开。
+	* `max` 非整数或负数按 0 处理——`max` 常常来自"容器宽度算出来的档数"，算错时应该什么都不画，而不是画非整数个。
+	*/
+	function stackPeople(people, max) {
+		const limit = Number.isFinite(max) && max > 0 ? Math.floor(max) : 0;
+		if (limit === 0) return {
+			visible: [],
+			overflow: people.length
+		};
+		if (people.length <= limit) return {
+			visible: [...people],
+			overflow: 0
+		};
+		const shown = Math.max(limit - 1, 0);
+		return {
+			visible: people.slice(0, shown),
+			overflow: people.length - shown
+		};
+	}
+	//#endregion
+	//#region src/shell/comments.ts
+	/**
+	* 追加回复。**不改变解决状态**：已解决的线程收到回复仍是已解决，
+	* 想重开得显式点"重新打开"——反过来（自动重开）会让"我回复一句确认"变成一次状态回退。
+	*
+	* 空文本直接返回原对象（引用不变）：上游 `watch` 不会因为一次空提交重渲染。
+	*/
+	function addReply(thread, reply) {
+		if (reply.text.trim().length === 0) return thread;
+		return {
+			...thread,
+			replies: [...thread.replies, reply]
+		};
+	}
+	/** 切换解决状态。传 `resolved` 而不是"翻转"，因为协同下两次点击可能基于同一个旧状态。 */
+	function setResolved(thread, resolved) {
+		if (thread.resolved === resolved) return thread;
+		return {
+			...thread,
+			resolved
+		};
+	}
+	function commentCounts(threads) {
+		let open = 0;
+		let replies = 0;
+		for (const thread of threads) {
+			if (!thread.resolved) open += 1;
+			replies += thread.replies.length;
+		}
+		return {
+			total: threads.length,
+			open,
+			resolved: threads.length - open,
+			replies
+		};
+	}
+	/** 侧栏筛选。不认识的取值按 `all` 处理：筛选器是 UI 状态，不该因为一个脏值让列表整个空掉。 */
+	function filterThreads(threads, filter) {
+		if (filter === "open") return threads.filter((thread) => !thread.resolved);
+		if (filter === "resolved") return threads.filter((thread) => thread.resolved);
+		return [...threads];
+	}
+	/**
+	* 下一条未解决批注的 id（侧栏"下一个批注"按钮用）。
+	*
+	* 到末尾**不环绕**：环绕会让"已看完最后一条"变成"跳回第一条"，用户不知道看完了。
+	* 全部已解决时返回 `undefined`，让按钮自己灰掉。
+	*/
+	function nextOpenThread(threads, currentId, direction = 1) {
+		var _open$, _open, _open2;
+		const open = threads.filter((thread) => !thread.resolved);
+		if (open.length === 0) return void 0;
+		const index = open.findIndex((thread) => thread.id === currentId);
+		if (index === -1) return direction === 1 ? (_open$ = open[0]) === null || _open$ === void 0 ? void 0 : _open$.id : (_open = open[open.length - 1]) === null || _open === void 0 ? void 0 : _open.id;
+		return (_open2 = open[index + direction]) === null || _open2 === void 0 ? void 0 : _open2.id;
+	}
+	//#endregion
+	//#region src/shell/review.ts
+	var REVIEW_KINDS = [
+		"insert",
+		"delete",
+		"format"
+	];
+	function match(change, filter) {
+		var _filter$kind, _filter$authorId;
+		const kind = (_filter$kind = filter.kind) !== null && _filter$kind !== void 0 ? _filter$kind : "all";
+		const authorId = (_filter$authorId = filter.authorId) !== null && _filter$authorId !== void 0 ? _filter$authorId : "all";
+		if (kind !== "all" && change.kind !== kind) return false;
+		if (authorId !== "all" && change.author.id !== authorId) return false;
+		return true;
+	}
+	/** 按种类/作者筛选，保持原有顺序（顺序即文档位置，重排会让"下一个修订"跳着走）。 */
+	function filterChanges(changes, filter) {
+		return changes.filter((change) => match(change, filter));
+	}
+	/** 移除一条已决策的修订。找不到时返回原对象（引用不变，避免无意义重渲染）。 */
+	function decideChange(changes, id) {
+		const index = changes.findIndex((change) => change.id === id);
+		if (index === -1) return changes;
+		return [...changes.slice(0, index), ...changes.slice(index + 1)];
+	}
+	/**
+	* 批量决策：删除**当前筛选结果**里的全部修订。
+	*
+	* 语义按"当前所见"而不是"全部"：用户在"只看张三"的筛选下点"全部接受"，
+	* 期望的是把张三的这几条处理掉；连别人的一起处理是数据事故。
+	*/
+	function decideAll(changes, filter) {
+		return changes.filter((change) => !match(change, filter));
+	}
+	function reviewCounts(changes) {
+		const counts = {
+			total: changes.length,
+			insert: 0,
+			delete: 0,
+			format: 0
+		};
+		for (const change of changes) counts[change.kind] += 1;
+		return counts;
+	}
+	/** 列表里出现过的作者（按首次出现顺序），给筛选下拉用。 */
+	function changeAuthors(changes) {
+		const seen = /* @__PURE__ */ new Map();
+		for (const change of changes) if (!seen.has(change.author.id)) seen.set(change.author.id, change.author);
+		return [...seen.values()];
+	}
+	//#endregion
+	//#region src/shell/file-name.ts
+	/** Windows 保留字符（不含 `\0`，它在 JS 字符串里根本进不来）。 */
+	var ILLEGAL = /[\\/:*?"<>|]/;
+	/** Windows 保留设备名。大小写不敏感，且带扩展名也是保留的（`CON.txt` 同样建不出来）。 */
+	var RESERVED = /* @__PURE__ */ new Set([
+		"con",
+		"prn",
+		"aux",
+		"nul",
+		...Array.from({ length: 9 }, (_, index) => `com${index + 1}`),
+		...Array.from({ length: 9 }, (_, index) => `lpt${index + 1}`)
+	]);
+	/**
+	* 校验文件名。返回 `undefined` 表示可用。
+	*
+	* 首尾空白先裁掉再判空：`"  "` 是用户想清空名字的常见中间态，它必须报 `empty` 而不是"可用"。
+	* `.` 与 `..` 归到 `reserved`：它们在所有平台上都不是合法文件名，但也不是"空"。
+	*/
+	function fileNameProblem(name) {
+		var _trimmed$split$0$toLo, _trimmed$split$;
+		const trimmed = name.trim();
+		if (trimmed.length === 0) return "empty";
+		if (trimmed === "." || trimmed === "..") return "reserved";
+		if (ILLEGAL.test(trimmed)) return "illegal";
+		const stem = (_trimmed$split$0$toLo = (_trimmed$split$ = trimmed.split(".")[0]) === null || _trimmed$split$ === void 0 ? void 0 : _trimmed$split$.toLowerCase()) !== null && _trimmed$split$0$toLo !== void 0 ? _trimmed$split$0$toLo : "";
+		if (RESERVED.has(stem)) return "reserved";
+	}
+	/**
+	* 重命名结果。**与原值相同视为成功且返回原名**（不是"没变化所以失败"）：
+	* 用户回车确认一个没改的名字，界面应该退出编辑态，而不是弹错误。
+	*/
+	function renameFile(current, next) {
+		const trimmed = next.trim();
+		if (trimmed === current) return {
+			ok: true,
+			name: current
+		};
+		const problem = fileNameProblem(trimmed);
+		if (problem !== void 0) return {
+			ok: false,
+			problem
+		};
+		return {
+			ok: true,
+			name: trimmed
+		};
+	}
+	/**
+	* 保存态是否处于"还没落盘"的状态。
+	*
+	* 标题栏要据此显示小圆点/星号，而 `saving` 也算未落盘：显示成"已保存"再改回来，
+	* 用户会看到状态闪两下，误以为保存失败了两次。
+	*/
+	function isDirty(state) {
+		return state !== "saved";
+	}
+	//#endregion
+	//#region src/shell/splitter.ts
+	/** 键盘一次步进（px）。与 `--oj-space-4` 同量级，不是随手写的数。 */
+	var SPLITTER_STEP = 16;
+	function finiteOr(value, fallback) {
+		return value !== void 0 && Number.isFinite(value) ? value : fallback;
+	}
+	/**
+	* 夹进 `[min, max]`；`collapsible` 时低于 `min / 2` 归 0。
+	*
+	* 折叠阈值取 `min / 2` 而不是 0 或 min：阈值等于 min 时"想拖窄一点"会被判成折叠，
+	* 等于 0 时永远折叠不了（鼠标到 0 之前已经到 min）。一半是唯一能让两种意图都成立的界线。
+	*
+	* `max` 为 `Infinity`（或没给）表示**不设上限**，不能当成"缺省 = min"：
+	* 那样"右侧批注栏最宽不限"会被夹成最小宽度，拖一下就弹回去，看起来像拖拽坏了。
+	* `max` 小于 `min`（配置写反）时以 `min` 为准：宁可显示最小宽，也不要让栏宽变成 `NaN`。
+	*/
+	function clampPane(size, bounds) {
+		const min = Math.max(0, finiteOr(bounds.min, 0));
+		const limit = finiteOr(bounds.max, Number.POSITIVE_INFINITY);
+		const max = Number.isFinite(limit) ? Math.max(min, limit) : Number.POSITIVE_INFINITY;
+		const value = finiteOr(size, min);
+		if (bounds.collapsible === true && value < min / 2) return 0;
+		return Math.min(Math.max(value, min), max);
+	}
+	/**
+	* 拖拽中的新尺寸。`delta` 是"这一栏要变宽多少"（向右拖左侧栏变大即正）。
+	* 已经折叠（0）的栏在拖拽中不自动展开：展开走键盘或拖回 `min` 以上，避免手抖一下就弹回来。
+	*/
+	function resizePane(start, delta, bounds) {
+		const current = finiteOr(start, bounds.min);
+		if (current === 0) return 0;
+		return clampPane(current + finiteOr(delta, 0), bounds);
+	}
+	/**
+	* 键盘步进。折叠态下按"变大"直接回到 `min`（否则 `0 + 16` 会停在折叠区里出不来）。
+	*
+	* 反向的边界单独处理：已经在 `min` 上再按"变小"必须折叠到 0。走 `clampPane` 的话
+	* `min - 16` 大于 `min / 2`，会被夹回 `min`——键盘就**永远收不起侧栏**，
+	* 而拖拽能收，于是同一个组件的两条输入路径行为不一致。
+	*/
+	function stepPane(size, direction, bounds, step = 16) {
+		const min = Math.max(0, finiteOr(bounds.min, 0));
+		const current = finiteOr(size, min);
+		const amount = Math.abs(finiteOr(step, 16)) || 16;
+		if (current === 0) return direction === 1 ? clampPane(min, bounds) : 0;
+		const next = current + direction * amount;
+		if (direction === -1 && bounds.collapsible === true && next <= min) return 0;
+		return clampPane(next, bounds);
+	}
+	/** 折叠/展开切换。不可折叠时返回原尺寸——按钮仍可在，但点了没反应比"变成 0 就回不来"好。 */
+	function togglePane(size, bounds) {
+		if (bounds.collapsible !== true) return clampPane(size, bounds);
+		return finiteOr(size, bounds.min) === 0 ? clampPane(bounds.min, bounds) : 0;
+	}
+	/**
+	* 第 `index` 栏左侧那根分隔条归谁管。`index` 是"后一栏"的下标，所以从 1 开始。
+	*
+	* 规则：**总是调固定宽的那一栏**。可伸缩栏的尺寸是"剩下的空间"，没有独立数值可拖，
+	* 让它当被调对象只会出现"拖动后跳回原处"。两侧都固定时才调后一栏（与 `OjSplitter` 的默认一致）。
+	* 两侧都 `flexible` 时返回 `undefined`：它们按比例分空间，拖谁都表达不成单个尺寸。
+	*/
+	function paneSplitter(panes, index) {
+		if (index <= 0 || index >= panes.length) return void 0;
+		const before = panes[index - 1];
+		const after = panes[index];
+		if (before === void 0 || after === void 0) return void 0;
+		if (before.flexible === true && after.flexible === true) return void 0;
+		const controlledIsBefore = after.flexible === true;
+		const controlled = controlledIsBefore ? before : after;
+		if (controlled.resizable === false) return void 0;
+		return {
+			controlled: controlled.id,
+			side: controlledIsBefore ? "before" : "after"
+		};
+	}
+	//#endregion
+	//#region src/shell/virtual.ts
+	/** 非法尺寸一律当 0：`NaN` 混进前缀和会让整张表的偏移全部变成 `NaN`，且再也恢复不了。 */
+	function positive(value, fallback) {
+		if (value === void 0 || !Number.isFinite(value)) return Math.max(0, fallback);
+		return Math.max(0, value);
+	}
+	function createMetrics(items, estimateSize) {
+		const estimate = positive(estimateSize, 0);
+		const ids = [];
+		const sizes = [];
+		const offsets = [0];
+		for (const item of items) {
+			ids.push(item.id);
+			const size = positive(item.size, estimate);
+			sizes.push(size);
+			offsets.push(offsets[offsets.length - 1] + size);
+		}
+		return {
+			ids,
+			sizes,
+			offsets,
+			total: offsets[offsets.length - 1]
+		};
+	}
+	/**
+	* 量到真实高度后重建偏移。
+	*
+	* 只改 `index` 之后的偏移：前面的行与它们的滚动位置都不受影响，列表才不会在测量时抖动。
+	* 尺寸没变时返回原对象——`ResizeObserver` 会在同一帧里反复回调，引用变化会引发无意义的重渲染。
+	*/
+	function measureItem(metrics, index, size) {
+		const current = metrics.sizes[index];
+		if (current === void 0) return metrics;
+		const next = positive(size, current);
+		if (next === current) return metrics;
+		const delta = next - current;
+		const sizes = metrics.sizes.slice();
+		sizes[index] = next;
+		const offsets = metrics.offsets.slice();
+		for (let cursor = index + 1; cursor < offsets.length; cursor += 1) offsets[cursor] = offsets[cursor] + delta;
+		return {
+			ids: metrics.ids,
+			sizes,
+			offsets,
+			total: metrics.total + delta
+		};
+	}
+	/**
+	* 某个滚动位置落在第几行。
+	*
+	* 返回的是"顶部已滚过的那一行"，不是"完全可见的第一行"——两者在滚到一半时不同，
+	* 锚点与可视窗口用的都是前者。空列表返回 0，调用方靠 `ids.length` 判断空态。
+	*/
+	function indexAtOffset(metrics, offset) {
+		const count = metrics.ids.length;
+		if (count === 0) return 0;
+		const value = Number.isFinite(offset) ? offset : 0;
+		if (value <= 0) return 0;
+		if (value >= metrics.total) return count - 1;
+		let low = 0;
+		let high = count - 1;
+		while (low < high) {
+			const middle = Math.ceil((low + high) / 2);
+			if (metrics.offsets[middle] <= value) low = middle;
+			else high = middle - 1;
+		}
+		return low;
+	}
+	/**
+	* 需要渲染的窗口。
+	*
+	* `overscan` 是上下各多渲染的行数：滚动时先看到"白块"再蹦出内容，多半就是少了这一圈。
+	* 高度为 0 的视口仍然返回至少一行（见文件头第 3 条），否则永远量不到真实高度。
+	*/
+	function visibleRange(metrics, scrollOffset, viewportSize, overscan = 0) {
+		const count = metrics.ids.length;
+		if (count === 0) return {
+			start: 0,
+			end: 0,
+			padTop: 0,
+			padBottom: 0
+		};
+		const offset = Math.max(0, Number.isFinite(scrollOffset) ? scrollOffset : 0);
+		const viewport = Math.max(0, Number.isFinite(viewportSize) ? viewportSize : 0);
+		const buffer = Math.max(0, Math.floor(Number.isFinite(overscan) ? overscan : 0));
+		const start = Math.max(0, indexAtOffset(metrics, offset) - buffer);
+		const end = Math.min(count, indexAtOffset(metrics, offset + viewport) + 1 + buffer);
+		return {
+			start,
+			end: Math.max(start, end),
+			padTop: metrics.offsets[start],
+			padBottom: metrics.total - metrics.offsets[end]
+		};
+	}
+	/** 滚动位置夹进合法范围：内容比视口还短时只能停在 0。 */
+	function clampScrollOffset(offset, metrics, viewportSize) {
+		const viewport = Math.max(0, Number.isFinite(viewportSize) ? viewportSize : 0);
+		const max = Math.max(0, metrics.total - viewport);
+		return Math.min(Math.max(0, Number.isFinite(offset) ? offset : 0), max);
+	}
+	/** 记住"视口顶部是哪一行、被滚过去了多少"，供数据更新后还原。空列表没有锚点。 */
+	function anchorAt(metrics, scrollOffset) {
+		if (metrics.ids.length === 0) return void 0;
+		const offset = Math.max(0, Number.isFinite(scrollOffset) ? scrollOffset : 0);
+		const index = indexAtOffset(metrics, offset);
+		const id = metrics.ids[index];
+		if (id === void 0) return void 0;
+		return {
+			id,
+			delta: offset - metrics.offsets[index]
+		};
+	}
+	/**
+	* 数据更新后要还原到的滚动位置。
+	*
+	* 锚点行被删掉时返回 `undefined`——猜一个位置会让用户从"读第 3 条"跳到"第 1 条"，
+	* 保持当前滚动位置反而是唯一不突兀的选择。调用方负责再夹一次范围。
+	*/
+	function scrollTopForAnchor(metrics, anchor) {
+		const index = metrics.ids.indexOf(anchor.id);
+		if (index < 0) return void 0;
+		return metrics.offsets[index] + anchor.delta;
+	}
+	//#endregion
+	//#region src/shell/dock.ts
+	/**
+	* 可停靠面板的状态机（03 §3 D 组 `OjDockPanel`）。
+	*
+	* 面板只有四种位置，但状态里必须同时记住**上次停靠的那一侧**：从"停到左边"浮动出去，
+	* 再点"停靠"，用户期望回到左边，而不是被扔回默认的右边。少记这一个字段，
+	* 用户每次浮动完都得重新拖一次栏——而且他不会觉得是 bug，只会觉得这面板"难用"。
+	*
+	* 停靠尺寸**不在这里**：那是 `OjPaneGroup` 的栏位尺寸，由分隔条调。
+	* 这里只管"在哪、是否收起、浮动时占多大一块"。
+	*/
+	var DOCKED_SIDES = [
+		"left",
+		"right",
+		"bottom"
+	];
+	var FLOAT_DEFAULT_WIDTH = 320;
+	var FLOAT_DEFAULT_HEIGHT = 480;
+	var FLOAT_MIN_WIDTH = 240;
+	var FLOAT_MIN_HEIGHT = 160;
+	/**
+	* 浮动面板必须露在视口里的宽度。
+	*
+	* 取标题栏宽度而不是"整个面板可见"：面板可以大半移出屏幕，但抓得住的那一条必须留着，
+	* 否则鼠标一松手就再也拿不回来——这类"窗口飘走了"的 bug 只能靠约束位置来防。
+	*/
+	var FLOAT_GRAB_STRIP = 48;
+	function finite(value, fallback) {
+		return value !== void 0 && Number.isFinite(value) ? value : fallback;
+	}
+	function between(value, min, max) {
+		return Math.min(Math.max(value, min), max);
+	}
+	/** 初始状态。`side` 为 `floating` 时 `docked` 落到 `right`（没有更好的默认值）。 */
+	function createDockState(options = {}) {
+		var _options$side, _options$float;
+		const side = (_options$side = options.side) !== null && _options$side !== void 0 ? _options$side : "right";
+		const float = (_options$float = options.float) !== null && _options$float !== void 0 ? _options$float : {};
+		return {
+			side,
+			docked: side === "floating" ? "right" : side,
+			collapsed: options.collapsed === true,
+			float: {
+				x: finite(float.x, 0),
+				y: finite(float.y, 0),
+				width: Math.max(1, finite(float.width, 320)),
+				height: Math.max(1, finite(float.height, 480))
+			}
+		};
+	}
+	function isFloating(state) {
+		return state.side === "floating";
+	}
+	/** 收起只是不画内容，标题栏必须留着——否则收起的面板就再也点不开了。 */
+	function toggleCollapsed(state) {
+		return {
+			...state,
+			collapsed: !state.collapsed
+		};
+	}
+	/** 停靠到某一侧。已经停在该侧时返回原对象，避免宿主收到无变化的更新。 */
+	function dockTo(state, side) {
+		if (state.side === side && state.docked === side) return state;
+		return {
+			...state,
+			side,
+			docked: side
+		};
+	}
+	/** 浮出。保留 `docked`，`float` 矩形也原样带回。 */
+	function undock(state) {
+		if (state.side === "floating") return state;
+		return {
+			...state,
+			side: "floating"
+		};
+	}
+	/** 回到上次停靠的那一侧（不是默认那一侧）。 */
+	function redock(state) {
+		if (state.side !== "floating") return state;
+		return {
+			...state,
+			side: state.docked
+		};
+	}
+	/**
+	* 把浮动矩形夹回"抓得住"的范围。
+	*
+	* 横向允许左边缘移出到只剩一条标题栏（`FLOAT_GRAB_STRIP`），纵向不允许上边缘出界：
+	* 标题栏被顶到视口上方时连拖动入口都没有了。
+	*/
+	function clampFloatRect(rect, viewport) {
+		const width = Math.max(1, finite(rect.width, 320));
+		const height = Math.max(1, finite(rect.height, 480));
+		const minX = 48 - width;
+		const maxX = Math.max(minX, finite(viewport.width, 0) - 48);
+		const maxY = Math.max(0, finite(viewport.height, 0) - 48);
+		return {
+			x: between(finite(rect.x, 0), minX, maxX),
+			y: between(finite(rect.y, 0), 0, maxY),
+			width,
+			height
+		};
+	}
+	/** 移动浮动面板。停靠态下调用返回原对象：位置由容器决定，改它没有意义。 */
+	function moveFloat(state, position, viewport) {
+		if (!isFloating(state)) return state;
+		const next = clampFloatRect({
+			...state.float,
+			x: position.x,
+			y: position.y
+		}, viewport);
+		if (next.x === state.float.x && next.y === state.float.y) return state;
+		return {
+			...state,
+			float: next
+		};
+	}
+	/** 改浮动尺寸（宿主可接八向手柄）。上下界取 `limits`，没有就给默认最小值、上限不设。 */
+	function resizeFloat(state, size, limits = {}) {
+		const minWidth = Math.max(1, finite(limits.minWidth, 240));
+		const minHeight = Math.max(1, finite(limits.minHeight, 160));
+		const maxWidth = Math.max(minWidth, finite(limits.maxWidth, Number.POSITIVE_INFINITY));
+		const maxHeight = Math.max(minHeight, finite(limits.maxHeight, Number.POSITIVE_INFINITY));
+		const width = between(finite(size.width, state.float.width), minWidth, maxWidth);
+		const height = between(finite(size.height, state.float.height), minHeight, maxHeight);
+		if (width === state.float.width && height === state.float.height) return state;
+		return {
+			...state,
+			float: {
+				...state.float,
+				width,
+				height
+			}
+		};
+	}
+	//#endregion
+	//#region src/shell/upload.ts
+	function bytes(value) {
+		if (value === void 0 || !Number.isFinite(value)) return 0;
+		return Math.max(0, Math.floor(value));
+	}
+	function createUpload(input) {
+		return {
+			id: input.id,
+			name: input.name,
+			size: bytes(input.size),
+			loaded: 0,
+			state: "queued",
+			attempts: 0
+		};
+	}
+	/** 开始上传。已经结束或正在传的项返回原对象，避免宿主重复触发。 */
+	function startUpload(item) {
+		if (item.state === "uploading" || item.state === "done" || item.state === "failed") return item;
+		return {
+			id: item.id,
+			name: item.name,
+			size: item.size,
+			loaded: item.loaded,
+			state: "uploading",
+			attempts: item.attempts
+		};
+	}
+	/**
+	* 推进进度。只有 `uploading` 接受推进：暂停期间到达的分片回报必须丢掉，
+	* 否则界面会在"已暂停"上继续涨进度，用户以为暂停没生效。
+	*/
+	function advanceUpload(item, loaded) {
+		if (item.state !== "uploading") return item;
+		const next = Math.min(bytes(loaded), item.size);
+		if (next < item.loaded) return item;
+		if (next >= item.size) return {
+			...item,
+			loaded: item.size,
+			state: "done"
+		};
+		if (next === item.loaded) return item;
+		return {
+			...item,
+			loaded: next
+		};
+	}
+	function pauseUpload(item) {
+		if (item.state !== "uploading") return item;
+		return {
+			...item,
+			state: "paused"
+		};
+	}
+	/** 继续：暂停 → 上传中。失败项要走 `retryUpload`，两者语义不同（一个续传、一个重试）。 */
+	function resumeUpload(item) {
+		if (item.state !== "paused") return item;
+		return {
+			...item,
+			state: "uploading"
+		};
+	}
+	/** 记一次失败。已传字节保留，重试时从断点继续。 */
+	function failUpload(item, error) {
+		if (item.state !== "uploading") return item;
+		return error === void 0 ? {
+			...item,
+			state: "failed",
+			attempts: item.attempts + 1
+		} : {
+			...item,
+			state: "failed",
+			attempts: item.attempts + 1,
+			error
+		};
+	}
+	function retryUpload(item) {
+		if (item.state !== "failed") return item;
+		return {
+			id: item.id,
+			name: item.name,
+			size: item.size,
+			loaded: item.loaded,
+			state: "uploading",
+			attempts: item.attempts
+		};
+	}
+	/** 0..1。大小为 0 的项没有"进度"，只有"完成没完成"。 */
+	function uploadPercent(item) {
+		if (item.size <= 0) return item.state === "done" ? 1 : 0;
+		return Math.min(1, Math.max(0, item.loaded / item.size));
+	}
+	/**
+	* 下一个要发的分片。
+	*
+	* `start` 取当前分片的起点而不是 `loaded`：半个分片拼不起来，重发整片是幂等的。
+	* 非上传态或已传完返回 `undefined`——调用方据此停下发送循环，而不是靠 `0 字节` 判断。
+	*/
+	function nextChunk(item, chunkSize) {
+		if (item.state !== "uploading" && item.state !== "paused") return void 0;
+		if (!Number.isFinite(chunkSize) || chunkSize <= 0) return void 0;
+		if (item.loaded >= item.size) return void 0;
+		const size = Math.floor(chunkSize);
+		const index = Math.floor(item.loaded / size);
+		const start = index * size;
+		return {
+			index,
+			start,
+			end: Math.min(item.size, start + size)
+		};
+	}
+	function uploadSummary(items) {
+		let done = 0;
+		let failed = 0;
+		let active = 0;
+		let loaded = 0;
+		let size = 0;
+		for (const item of items) {
+			if (item.state === "done") done += 1;
+			else if (item.state === "failed") failed += 1;
+			else active += 1;
+			loaded += item.loaded;
+			size += item.size;
+		}
+		const percent = size > 0 ? loaded / size : items.length > 0 && done === items.length ? 1 : 0;
+		return {
+			count: items.length,
+			done,
+			failed,
+			active,
+			loaded,
+			size,
+			percent
+		};
+	}
+	//#endregion
+	//#region src/shell/drop-zone.ts
+	/**
+	* 按 `DataTransfer.types` 判断载荷种类。`types` 是**小写**的 MIME 列表，不是文件名。
+	*
+	* 顺序即优先级：文件优先于富文本，富文本优先于纯文本（前者信息更全）。
+	* 同时带 `text/html` 与 `text/plain` 是浏览器对富文本的常规做法，取 html 才不会丢掉格式。
+	*/
+	function classifyTransfer(types) {
+		let html = false;
+		let text = false;
+		for (const entry of types) {
+			const value = entry.trim().toLowerCase();
+			if (value === "files" || value === "application/x-moz-file") return "files";
+			if (value === "text/html") html = true;
+			else if (value === "text/plain") text = true;
+		}
+		return html ? "html" : text ? "text" : "none";
+	}
+	/** 扩展名（小写、带点）。没有扩展名或点在开头（`.gitignore`）时返回空串。 */
+	function extensionOf(name) {
+		const index = name.lastIndexOf(".");
+		if (index <= 0 || index === name.length - 1) return "";
+		return name.slice(index).toLowerCase();
+	}
+	/** 单个文件是否被受理。`accept.types` 为空/未给时一律受理。 */
+	function acceptsFile(file, accept) {
+		var _accept$types, _file$type;
+		const types = (_accept$types = accept.types) !== null && _accept$types !== void 0 ? _accept$types : [];
+		if (types.length === 0) return true;
+		const extension = extensionOf(file.name);
+		const mime = ((_file$type = file.type) !== null && _file$type !== void 0 ? _file$type : "").toLowerCase();
+		for (const entry of types) {
+			const rule = entry.trim().toLowerCase();
+			if (rule.length === 0) continue;
+			if (rule.startsWith(".")) {
+				if (extension === rule) return true;
+				continue;
+			}
+			if (rule.endsWith("/*")) {
+				if (mime.startsWith(rule.slice(0, -1))) return true;
+				continue;
+			}
+			if (mime === rule) return true;
+		}
+		return false;
+	}
+	/**
+	* 一次拖放的整体判定。`multiple: false` 时**只收第一个**，其余算数量超限。
+	*
+	* 不把"多选"当格式错误：这两种拒绝在界面上要给的提示完全不同
+	* （"这个格式不支持" vs "一次只能传一个"），混成一条会让用户改错方向。
+	*/
+	function selectDropped(files, accept) {
+		const multiple = accept.multiple !== false;
+		const accepted = [];
+		let rejected;
+		for (const file of files) {
+			if (!acceptsFile(file, accept)) {
+				rejected = "type";
+				continue;
+			}
+			if (!multiple && accepted.length >= 1) {
+				if (rejected === void 0) rejected = "count";
+				continue;
+			}
+			accepted.push(file);
+		}
+		return {
+			accepted,
+			rejected
+		};
+	}
+	//#endregion
+	//#region src/shell/drag-context.ts
+	/**
+	* 拖放协议：区分**内部拖拽**与**外部拖入**（03 §3 D 组 `OjDragDropContext`，§8.9 类型协商）。
+	*
+	* 不看 MIME 就统一处理，是本项目里最容易犯的错：
+	*   - 把"拖动文档里选中的一段字"当成"拖进来一个文件"，弹"只收 .docx"；
+	*   - 把"从桌面拖进来的文件"当成内部拖动，直接插进正文变成一段二进制乱码。
+	*
+	* 判定靠一个私有 MIME 标记：内部拖拽在 `dragstart` 里写进 `DRAG_MARKER`，
+	* 外部来源不可能带这个类型。相比"记住鼠标按下了"之类的猜测，这是唯一稳定的信号。
+	*/
+	/** 内部拖拽标记。私有 MIME 不会被任何外部应用发出。 */
+	var DRAG_MARKER = "application/x-oj-drag";
+	/** 内部拖拽写入的内容：标记 + 宿主数据 + 可选富文本兜底（拖到别的应用时还能用）。 */
+	function writeInternalDrag(transfer, payload) {
+		transfer.setData(DRAG_MARKER, payload.id);
+		if (payload.html !== void 0) transfer.setData("text/html", payload.html);
+		if (payload.text !== void 0) transfer.setData("text/plain", payload.text);
+	}
+	function safeGetData(transfer, format) {
+		try {
+			return transfer.getData(format);
+		} catch (_unused) {
+			return "";
+		}
+	}
+	/**
+	* 读一次拖放载荷。`types` 里带标记就是内部拖拽，此时不再当文件处理——
+	* 内部拖拽同样会带 `text/html`，只看那些类型永远分不开。
+	*/
+	function readTransfer(transfer) {
+		const files = [...transfer.files];
+		const internal = transfer.types.some((type) => type.trim().toLowerCase() === DRAG_MARKER);
+		return {
+			kind: internal ? "internal" : classifyTransfer(transfer.types),
+			files,
+			html: safeGetData(transfer, "text/html"),
+			text: safeGetData(transfer, "text/plain"),
+			data: internal ? safeGetData(transfer, DRAG_MARKER) : ""
+		};
+	}
+	/** MIME 规则（含通配）能否命中这次拖拽。拖入阶段拿不到文件名，只能按类型先判。 */
+	function mimeMatches(types, rules) {
+		const actual = types.map((type) => type.trim().toLowerCase());
+		return rules.some((rule) => {
+			const value = rule.trim().toLowerCase();
+			const slash = value.indexOf("/");
+			if (slash <= 0) return false;
+			if (value.endsWith("/*")) {
+				const prefix = value.slice(0, slash + 1);
+				return actual.some((type) => type.startsWith(prefix));
+			}
+			return actual.includes(value);
+		});
+	}
+	/**
+	* 这次拖拽是否归我们处理。
+	*
+	* 文件分支的规则很别扭但必须这样：`accept.types` 里只有扩展名（`.docx`）时，
+	* 拖入阶段**没有文件名**，只能放行，等 `drop` 再靠 `selectDropped` 判；
+	* 反过来若按"扩展名不匹配 MIME"直接拒绝，用户会看到遮罩根本不出现，也就再没法导入。
+	* 含 `/` 的规则（`application/pdf`、`image/*`）则必须命中，能提前挡掉明显不对的拖拽。
+	*/
+	function negotiateTransfer(types, accept = {}) {
+		if (types.some((type) => type.trim().toLowerCase() === "application/x-oj-drag")) return true;
+		const kind = classifyTransfer(types);
+		if (kind === "files") {
+			var _accept$types;
+			const mimeRules = ((_accept$types = accept.types) !== null && _accept$types !== void 0 ? _accept$types : []).filter((rule) => rule.includes("/"));
+			if (mimeRules.length === 0) return true;
+			return mimeMatches(types, mimeRules);
+		}
+		if (kind === "none") return false;
+		return accept.text === true;
+	}
+	//#endregion
+	//#region src/shell/share.ts
+	/**
+	* 共享权限模型（03 §3 E 组 `OjShareDialog`）。
+	*
+	* 这里只做一件容易被做错的事：**决定"实际发出去的是什么权限"**。
+	*
+	* 界面上的选择组合不都是合法的：`private` 没有角色，`link` 不该给"可编辑"（拿到链接就能改），
+	* 有效期只对链接有意义。把归一化放进组件，就会出现"界面上选了可编辑、请求里发的是可评论"，
+	* 谁也不知道到底给了什么权限。所以：范围切换时把角色降级，`resolveShare()` 给出真正生效的值。
+	*/
+	var SHARE_SCOPES = [
+		"private",
+		"link",
+		"org",
+		"people"
+	];
+	var SHARE_ROLES = [
+		"viewer",
+		"commenter",
+		"editor"
+	];
+	/** 各范围允许的角色。链接范围不给"可编辑"：链接会被转发，转发的人不该顺带给出编辑权。 */
+	var ROLES_BY_SCOPE = {
+		private: [],
+		link: ["viewer", "commenter"],
+		org: [
+			"viewer",
+			"commenter",
+			"editor"
+		],
+		people: [
+			"viewer",
+			"commenter",
+			"editor"
+		]
+	};
+	var SHARE_MAX_EXPIRY_DAYS = 3650;
+	var SHARE_MAX_PEOPLE = 9999;
+	function rolesForScope(scope) {
+		return ROLES_BY_SCOPE[scope];
+	}
+	function whole(value, fallback, max) {
+		if (value === void 0 || !Number.isFinite(value)) return fallback;
+		return Math.min(Math.max(0, Math.floor(value)), max);
+	}
+	function allowedRole(scope, role) {
+		var _allowed$;
+		const allowed = ROLES_BY_SCOPE[scope];
+		if (allowed.includes(role)) return role;
+		return (_allowed$ = allowed[0]) !== null && _allowed$ !== void 0 ? _allowed$ : role;
+	}
+	function createShareState(options = {}) {
+		var _options$scope, _options$role;
+		const scope = (_options$scope = options.scope) !== null && _options$scope !== void 0 ? _options$scope : "private";
+		return {
+			scope,
+			role: allowedRole(scope, (_options$role = options.role) !== null && _options$role !== void 0 ? _options$role : "viewer"),
+			expiryDays: whole(options.expiryDays, 0, SHARE_MAX_EXPIRY_DAYS),
+			peopleCount: whole(options.peopleCount, 0, SHARE_MAX_PEOPLE)
+		};
+	}
+	/** 切范围时顺手把角色降级到合法值：界面上不会出现"当前范围根本不允许的角色"。 */
+	function setShareScope(state, scope) {
+		const role = allowedRole(scope, state.role);
+		if (scope === state.scope && role === state.role) return state;
+		return {
+			...state,
+			scope,
+			role
+		};
+	}
+	/** 选角色。当前范围不允许的角色直接忽略（UI 不该放出这种选项，但宿主可能直接调）。 */
+	function setShareRole(state, role) {
+		if (state.role === role) return state;
+		if (!ROLES_BY_SCOPE[state.scope].includes(role)) return state;
+		return {
+			...state,
+			role
+		};
+	}
+	/** 链接有效期。只影响 `link`；负数/NaN 归 0（永久）。 */
+	function setShareExpiry(state, days) {
+		const expiryDays = whole(days, state.expiryDays, SHARE_MAX_EXPIRY_DAYS);
+		if (expiryDays === state.expiryDays) return state;
+		return {
+			...state,
+			expiryDays
+		};
+	}
+	function setSharePeopleCount(state, count) {
+		const peopleCount = whole(count, state.peopleCount, SHARE_MAX_PEOPLE);
+		if (peopleCount === state.peopleCount) return state;
+		return {
+			...state,
+			peopleCount
+		};
+	}
+	function isShareEnabled(state) {
+		return state.scope !== "private";
+	}
+	/**
+	* 归一化后的权限——真正该发给后端的东西。
+	*
+	* 不做这一步，就会出现"界面显示可评论、实际给了可编辑"或反过来的事故：
+	* 两类信息（范围、角色）在 UI 上互相覆盖，只有一处能算出最终值才不会分叉。
+	*/
+	function resolveShare(state) {
+		if (state.scope === "private") return {
+			scope: state.scope,
+			role: void 0,
+			expiryDays: void 0,
+			peopleCount: void 0
+		};
+		return {
+			scope: state.scope,
+			role: allowedRole(state.scope, state.role),
+			expiryDays: state.scope === "link" ? state.expiryDays : void 0,
+			peopleCount: state.scope === "people" ? state.peopleCount : void 0
+		};
+	}
+	//#endregion
+	//#region src/shell/versions.ts
+	var IDLE_RESTORE = { status: "idle" };
+	/** 新的在前；时间相同保持原有顺序（`Array.prototype.sort` 是稳定排序）。 */
+	function sortVersions(entries) {
+		return [...entries].sort((left, right) => right.at - left.at);
+	}
+	function latestVersion(entries) {
+		return sortVersions(entries)[0];
+	}
+	/** 建条目：时间非数字归 0（宁可排在最后，也不要整列顺序变成随机）。 */
+	function createVersion(input) {
+		return {
+			id: input.id,
+			at: Number.isFinite(input.at) ? input.at : 0,
+			author: input.author.trim(),
+			...input.name === void 0 ? {} : { name: input.name },
+			...input.summary === void 0 ? {} : { summary: input.summary }
+		};
+	}
+	/**
+	* 重命名。空白名字等于"去掉名字"，退回自动版本——
+	* 清空输入框却留下一个空标题的条目，用户会以为重命名失败了。
+	*/
+	function renameVersion(entries, id, name) {
+		const trimmed = name.trim();
+		let changed = false;
+		const next = entries.map((entry) => {
+			var _entry$name;
+			if (entry.id !== id) return entry;
+			if (((_entry$name = entry.name) !== null && _entry$name !== void 0 ? _entry$name : "") === trimmed) return entry;
+			changed = true;
+			if (trimmed === "") return {
+				id: entry.id,
+				at: entry.at,
+				author: entry.author,
+				...entry.summary === void 0 ? {} : { summary: entry.summary }
+			};
+			return {
+				...entry,
+				name: trimmed
+			};
+		});
+		return changed ? next : entries;
+	}
+	function deleteVersion(entries, id) {
+		const next = entries.filter((entry) => entry.id !== id);
+		return next.length === entries.length ? entries : next;
+	}
+	/** 请求恢复：进入"待确认"。同一条重复请求返回原对象。 */
+	function requestRestore(state, entryId) {
+		if (state.status === "confirming" && state.entryId === entryId) return state;
+		return {
+			status: "confirming",
+			entryId
+		};
+	}
+	function cancelRestore(state) {
+		return state.status === "idle" ? state : IDLE_RESTORE;
+	}
+	/** 用户点了"确认恢复"：进入执行态，组件据此上抛 `restore`。 */
+	function confirmRestore(state) {
+		if (state.status !== "confirming") return state;
+		return {
+			status: "restoring",
+			entryId: state.entryId
+		};
+	}
+	function restoreEntryId(state) {
+		return state.status === "idle" ? void 0 : state.entryId;
+	}
+	//#endregion
 	//#region src/shell/tabs.ts
 	/** 选项卡键盘模型。方向键在一组 id 里循环，Home / End 跳到两端。 */
 	function selectByKey(ids, current, key) {
@@ -2696,6 +3738,7 @@
 	}
 	//#endregion
 	exports.A4_WIDTH_PX = A4_WIDTH_PX;
+	exports.AVATAR_TONES = AVATAR_TONES;
 	exports.BORDER_COLORS = BORDER_COLORS;
 	exports.BORDER_STYLES = BORDER_STYLES;
 	exports.BORDER_WIDTHS = BORDER_WIDTHS;
@@ -2722,6 +3765,13 @@
 	exports.DEFAULT_ALIGNMENT = DEFAULT_ALIGNMENT;
 	exports.DEFAULT_BORDER = DEFAULT_BORDER;
 	exports.DEFAULT_GRID_LIMITS = DEFAULT_GRID_LIMITS;
+	exports.DOCKED_SIDES = DOCKED_SIDES;
+	exports.DRAG_MARKER = DRAG_MARKER;
+	exports.FLOAT_DEFAULT_HEIGHT = FLOAT_DEFAULT_HEIGHT;
+	exports.FLOAT_DEFAULT_WIDTH = FLOAT_DEFAULT_WIDTH;
+	exports.FLOAT_GRAB_STRIP = FLOAT_GRAB_STRIP;
+	exports.FLOAT_MIN_HEIGHT = FLOAT_MIN_HEIGHT;
+	exports.FLOAT_MIN_WIDTH = FLOAT_MIN_WIDTH;
 	exports.FONT_OPTIONS = FONT_OPTIONS;
 	exports.FONT_SIZE_PRESETS = FONT_SIZE_PRESETS;
 	exports.FONT_SIZE_RANGE = FONT_SIZE_RANGE;
@@ -2731,35 +3781,69 @@
 	exports.HORIZONTAL_RULE_MARKDOWN = HORIZONTAL_RULE_MARKDOWN;
 	exports.HORIZONTAL_RULE_MARKDOWN_TOKEN = HORIZONTAL_RULE_MARKDOWN_TOKEN;
 	exports.HORIZONTAL_RULE_NAME = HORIZONTAL_RULE_NAME;
+	exports.IDLE_RESTORE = IDLE_RESTORE;
 	exports.LINE_SPACING_PRESETS = LINE_SPACING_PRESETS;
 	exports.LINE_SPACING_RANGE = LINE_SPACING_RANGE;
+	exports.REVIEW_KINDS = REVIEW_KINDS;
+	exports.SHARE_MAX_EXPIRY_DAYS = SHARE_MAX_EXPIRY_DAYS;
+	exports.SHARE_MAX_PEOPLE = SHARE_MAX_PEOPLE;
+	exports.SHARE_ROLES = SHARE_ROLES;
+	exports.SHARE_SCOPES = SHARE_SCOPES;
+	exports.SPLITTER_STEP = SPLITTER_STEP;
 	exports.STYLE_PRESETS = STYLE_PRESETS;
 	exports.SYMBOL_GROUPS = SYMBOL_GROUPS;
 	exports.VERTICAL_ALIGNS = VERTICAL_ALIGNS;
 	exports.ZOOM_MAX = ZOOM_MAX;
 	exports.ZOOM_MIN = ZOOM_MIN;
 	exports.ZOOM_STEP = ZOOM_STEP;
+	exports.acceptsFile = acceptsFile;
+	exports.addReply = addReply;
+	exports.advanceUpload = advanceUpload;
 	exports.alignArg = alignArg;
+	exports.anchorAt = anchorAt;
 	exports.applyHorizontalRuleInput = applyHorizontalRuleInput;
 	exports.applyNodeInput = applyNodeInput;
+	exports.avatarTone = avatarTone;
 	exports.blockPlain = blockPlain;
 	exports.borderArg = borderArg;
 	exports.borderCss = borderCss;
 	exports.bridgedCommandIds = bridgedCommandIds;
+	exports.cancelRestore = cancelRestore;
+	exports.changeAuthors = changeAuthors;
+	exports.clampFloatRect = clampFloatRect;
 	exports.clampNumber = clampNumber;
+	exports.clampPane = clampPane;
+	exports.clampScrollOffset = clampScrollOffset;
 	exports.clampZoom = clampZoom;
+	exports.classifyTransfer = classifyTransfer;
+	exports.commentCounts = commentCounts;
+	exports.confirmRestore = confirmRestore;
+	exports.createDockState = createDockState;
 	exports.createDocument = createDocument;
 	exports.createGridPicker = createGridPicker;
 	exports.createMemoryEditor = createMemoryEditor;
+	exports.createMetrics = createMetrics;
 	exports.createRibbonChrome = createRibbonChrome;
+	exports.createShareState = createShareState;
 	exports.createTooltipMachine = createTooltipMachine;
 	exports.createTriggerMachine = createTriggerMachine;
+	exports.createUpload = createUpload;
+	exports.createVersion = createVersion;
+	exports.decideAll = decideAll;
+	exports.decideChange = decideChange;
+	exports.deleteVersion = deleteVersion;
 	exports.detectPlatform = detectPlatform;
+	exports.dockTo = dockTo;
 	exports.editorCommands = editorCommands;
 	exports.extendStroke = extendStroke;
+	exports.extensionOf = extensionOf;
+	exports.failUpload = failUpload;
+	exports.fileNameProblem = fileNameProblem;
+	exports.filterChanges = filterChanges;
 	exports.filterFonts = filterFonts;
 	exports.filterPaletteItems = filterPaletteItems;
 	exports.filterSymbols = filterSymbols;
+	exports.filterThreads = filterThreads;
 	exports.filterTree = filterTree;
 	exports.findFont = findFont;
 	exports.flattenSymbols = flattenSymbols;
@@ -2776,24 +3860,35 @@
 	exports.iconMarkup = iconMarkup;
 	exports.iconMarkupProblem = iconMarkupProblem;
 	exports.icons = icons;
+	exports.indexAtOffset = indexAtOffset;
+	exports.initialsOf = initialsOf;
 	exports.isAlignmentValue = isAlignmentValue;
 	exports.isCssColor = isCssColor;
 	exports.isDevEnv = isDevEnv;
+	exports.isDirty = isDirty;
+	exports.isFloating = isFloating;
 	exports.isHeadingLevel = isHeadingLevel;
 	exports.isHorizontalRuleInput = isHorizontalRuleInput;
+	exports.isShareEnabled = isShareEnabled;
 	exports.isTableSize = isTableSize;
 	exports.isTextblockType = isTextblockType;
+	exports.latestVersion = latestVersion;
 	exports.lineSpacingArg = lineSpacingArg;
 	exports.matchHotkey = matchHotkey;
 	exports.matchNodeInput = matchNodeInput;
+	exports.measureItem = measureItem;
 	exports.menuAction = menuAction;
 	exports.menuNeighbor = menuNeighbor;
 	exports.menuSelectable = menuSelectable;
 	exports.menuSelectableIndices = menuSelectableIndices;
 	exports.mergeAttributes = mergeAttributes;
+	exports.moveFloat = moveFloat;
 	exports.nearestPreset = nearestPreset;
+	exports.negotiateTransfer = negotiateTransfer;
 	exports.neighbor = neighbor;
 	exports.neighborSwatch = neighborSwatch;
+	exports.nextChunk = nextChunk;
+	exports.nextOpenThread = nextOpenThread;
 	exports.nodeExtension = nodeExtension;
 	exports.normalizeAlignment = normalizeAlignment;
 	exports.normalizeBorder = normalizeBorder;
@@ -2803,24 +3898,38 @@
 	exports.pageWidth = pageWidth;
 	exports.paletteScore = paletteScore;
 	exports.paletteStep = paletteStep;
+	exports.paneSplitter = paneSplitter;
 	exports.parseAlignValue = parseAlignValue;
 	exports.parseHorizontalRuleHTML = parseHorizontalRuleHTML;
 	exports.parseHorizontalRuleMarkdown = parseHorizontalRuleMarkdown;
 	exports.parseHotkey = parseHotkey;
 	exports.parseNumberDraft = parseNumberDraft;
+	exports.pauseUpload = pauseUpload;
 	exports.placePopper = placePopper;
 	exports.plainText = plainText;
 	exports.platformFrom = platformFrom;
+	exports.readTransfer = readTransfer;
+	exports.redock = redock;
 	exports.registerEditorCommands = registerEditorCommands;
 	exports.registerIcon = registerIcon;
 	exports.registerIcons = registerIcons;
 	exports.registeredIconMarkup = registeredIconMarkup;
 	exports.registeredIconNames = registeredIconNames;
+	exports.renameFile = renameFile;
+	exports.renameVersion = renameVersion;
 	exports.renderHorizontalRule = renderHorizontalRule;
 	exports.renderHorizontalRuleMarkdown = renderHorizontalRuleMarkdown;
 	exports.replaceAll = replaceAll;
 	exports.replaceOne = replaceOne;
+	exports.requestRestore = requestRestore;
 	exports.resetRegisteredIcons = resetRegisteredIcons;
+	exports.resizeFloat = resizeFloat;
+	exports.resizePane = resizePane;
+	exports.resolveShare = resolveShare;
+	exports.restoreEntryId = restoreEntryId;
+	exports.resumeUpload = resumeUpload;
+	exports.retryUpload = retryUpload;
+	exports.reviewCounts = reviewCounts;
 	exports.ribbonDismiss = ribbonDismiss;
 	exports.ribbonHasKeyTips = ribbonHasKeyTips;
 	exports.ribbonKeyTip = ribbonKeyTip;
@@ -2829,17 +3938,29 @@
 	exports.ribbonSelect = ribbonSelect;
 	exports.ribbonSmallerSize = ribbonSmallerSize;
 	exports.ribbonToggleCollapsed = ribbonToggleCollapsed;
+	exports.rolesForScope = rolesForScope;
 	exports.roundTo = roundTo;
 	exports.rulerTicks = rulerTicks;
+	exports.scrollTopForAnchor = scrollTopForAnchor;
 	exports.searchHits = searchHits;
 	exports.selectByKey = selectByKey;
+	exports.selectDropped = selectDropped;
 	exports.setHardBreak = setHardBreak;
 	exports.setHorizontalRule = setHorizontalRule;
+	exports.setResolved = setResolved;
+	exports.setShareExpiry = setShareExpiry;
+	exports.setSharePeopleCount = setSharePeopleCount;
+	exports.setShareRole = setShareRole;
+	exports.setShareScope = setShareScope;
+	exports.sortVersions = sortVersions;
+	exports.stackPeople = stackPeople;
 	exports.startStroke = startStroke;
+	exports.startUpload = startUpload;
 	exports.starterNodes = starterNodes;
 	exports.stepFont = stepFont;
 	exports.stepHorizontal = stepHorizontal;
 	exports.stepNumber = stepNumber;
+	exports.stepPane = stepPane;
 	exports.stepPreset = stepPreset;
 	exports.stepVertical = stepVertical;
 	exports.stepZoom = stepZoom;
@@ -2853,10 +3974,17 @@
 	exports.toggleBlockquote = toggleBlockquote;
 	exports.toggleBulletList = toggleBulletList;
 	exports.toggleCodeBlock = toggleCodeBlock;
+	exports.toggleCollapsed = toggleCollapsed;
 	exports.toggleHeading = toggleHeading;
 	exports.toggleId = toggleId;
 	exports.toggleOrderedList = toggleOrderedList;
+	exports.togglePane = togglePane;
+	exports.undock = undock;
 	exports.unregisterIcon = unregisterIcon;
+	exports.uploadPercent = uploadPercent;
+	exports.uploadSummary = uploadSummary;
 	exports.verticalAlignCss = verticalAlignCss;
+	exports.visibleRange = visibleRange;
 	exports.withPlain = withPlain;
+	exports.writeInternalDrag = writeInternalDrag;
 });

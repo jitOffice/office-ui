@@ -18,6 +18,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { EXAMPLES } from '../theme/examples.ts'
+
 export interface PropRow {
   name: string
   required: boolean
@@ -147,19 +149,38 @@ function cell(text: string): string {
   return text.replace(/\|/g, '\\|').replace(/\n/g, ' ')
 }
 
-export function renderPage(doc: ComponentDoc): string {
+export function renderPage(doc: ComponentDoc, example?: string): string {
+  // 标题用**使用者真正要写的标签名**（`<oj-ai-panel>`），而不是 TS 标识符 `OjAiPanel`。
+  // 理由：页面上最显眼的位置应该放"我要写什么"，类名留给标题下的小字与侧栏
+  // （侧栏按类名找文档是另一回事，那边刻意保持 `OjAiPanel`）。
+  const tag = `<oj-${kebabOf(doc.name)}>`
   const lines: string[] = [
-    `# ${doc.name}`,
+    `# \`${tag}\``,
     '',
     `> 本页由 \`docs/.vitepress/scripts/component-docs.ts\` 扫描源码生成，**请勿手改**。`,
     `> 改组件后跑 \`pnpm docs:gen\`；忘记重跑会被 \`pnpm lint:docs\` 拦下。`,
     '',
-    `- 源码：\`${doc.file}\``,
-    `- 样式块：\`.${doc.block}\``,
-    '',
-    '## Props',
+    `组件 \`${doc.name}\` · 源码 \`${doc.file}\` · 样式块 \`.${doc.block}\``,
     '',
   ]
+
+  // 示例放在 Props 表**之前**：这张表是"查"的，示例是"看"的，而这一页的第一需求是后者。
+  // 代码本体在 `theme/examples.ts`，这里只引用——生成物里塞一份代码会在下次 `docs:gen` 时丢。
+  if (example !== undefined) {
+    lines.push(
+      '## 示例',
+      '',
+      '<OjPlayground :code="example" :height="200" />',
+      '',
+      '<script setup>',
+      "import { EXAMPLES } from '../../.vitepress/theme/examples.ts'",
+      `const example = EXAMPLES['${doc.name}'] ?? ''`,
+      '</script>',
+      '',
+    )
+  }
+
+  lines.push('## Props', '')
 
   if (doc.props.length === 0) {
     lines.push('该组件的 props 声明不在扫描范围内（或使用了非对象字面量写法），请看源码。')
@@ -211,7 +232,7 @@ export function generate(repoRoot: string): Generated {
     const doc = scanSource(relative(repoRoot, absolute), readFileSync(absolute, 'utf8'))
     if (doc === undefined) continue
     const slug = kebabOf(doc.name)
-    files.set(`docs/components/api/${slug}.md`, renderPage(doc))
+    files.set(`docs/components/api/${slug}.md`, renderPage(doc, EXAMPLES[doc.name]))
     pages.push({ text: doc.name, link: `/components/api/${slug}` })
   }
 
