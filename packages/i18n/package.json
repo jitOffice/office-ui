@@ -1,6 +1,6 @@
 {
   "name": "@jitoffice/i18n",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "中英日繁四语包、消息语法与 Intl 封装。零运行时依赖，无框架。",
   "license": "Apache-2.0",
   "repository": {
