@@ -5,6 +5,15 @@
 
 组件 `OjCommandPalette` · 源码 `packages/ui/src/vue/command-palette.ts` · 样式块 `.oj-palette`
 
+## 示例
+
+<OjPlayground :code="example" :height="200" />
+
+<script setup>
+import { EXAMPLES } from '../../.vitepress/theme/examples.ts'
+const example = EXAMPLES['OjCommandPalette'] ?? ''
+</script>
+
 ## Props
 
 | Prop | 必填 | 默认值 |

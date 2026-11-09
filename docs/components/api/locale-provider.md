@@ -5,6 +5,15 @@
 
 组件 `OjLocaleProvider` · 源码 `packages/ui/src/vue/locale.ts` · 样式块 `.oj-locale-provider`
 
+## 示例
+
+<OjPlayground :code="example" :height="200" />
+
+<script setup>
+import { EXAMPLES } from '../../.vitepress/theme/examples.ts'
+const example = EXAMPLES['OjLocaleProvider'] ?? ''
+</script>
+
 ## Props
 
 | Prop | 必填 | 默认值 |

@@ -22,15 +22,20 @@ import { EXAMPLES } from '../.vitepress/theme/examples.ts'
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const apiDir = join(repoRoot, 'docs', 'components', 'api')
 
-/** 沙箱只认 `Vue.ref` / `Vue.reactive`（写法规矩见 examples.ts 头部注释）。 */
+/** 沙箱里用到的 Vue API（写法规矩见 examples.ts 头部注释）。 */
 const Vue = {
   ref: (value: unknown) => ({ value }),
   reactive: (value: unknown) => value,
+  watch: () => () => {},
 }
 
-/** `OfficeUI` 的每个成员都当成一个可注册的组件对象。 */
+/**
+ * `OfficeUI` 的成员既可能是组件（`OjIcon`），也可能是工具函数
+ * （`createDockState` / `addReply` / `useLocale`）。这里统一给一个"能当组件也能调用"的桩：
+ * 测试只验证 setup() 能跑完，不渲染任何东西。
+ */
 const OfficeUI = new Proxy({} as Record<string, unknown>, {
-  get: (_target, name) => ({ name: String(name) }),
+  get: () => () => ({}),
 })
 
 /** `OjPaneGroup` → `oj-pane-group` */
@@ -40,6 +45,7 @@ function kebabOf(name: string): string {
 
 const BUILTIN = new Set([
   'template',
+  'component',
   'div',
   'span',
   'p',

@@ -5,6 +5,15 @@
 
 组件 `OjCommandButton` · 源码 `packages/ui/src/vue/command-button.ts` · 样式块 `.oj-button`
 
+## 示例
+
+<OjPlayground :code="example" :height="200" />
+
+<script setup>
+import { EXAMPLES } from '../../.vitepress/theme/examples.ts'
+const example = EXAMPLES['OjCommandButton'] ?? ''
+</script>
+
 ## Props
 
 | Prop | 必填 | 默认值 |

@@ -5,6 +5,15 @@
 
 组件 `OjReviewPanel` · 源码 `packages/ui/src/vue/review-panel.ts` · 样式块 `.oj-review`
 
+## 示例
+
+<OjPlayground :code="example" :height="200" />
+
+<script setup>
+import { EXAMPLES } from '../../.vitepress/theme/examples.ts'
+const example = EXAMPLES['OjReviewPanel'] ?? ''
+</script>
+
 ## Props
 
 | Prop | 必填 | 默认值 |
